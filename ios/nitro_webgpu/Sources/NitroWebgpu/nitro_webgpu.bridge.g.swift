@@ -1,0 +1,1 @@
+../../../Classes/nitro_webgpu.bridge.g.swift
