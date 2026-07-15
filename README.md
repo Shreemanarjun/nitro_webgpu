@@ -12,12 +12,20 @@ binding of the ~400-function WebGPU C API.
 
 Early development.
 
-- **M0 (done)**: wgpu-native linked on macOS — instance creation + version query.
-- **M1 (in progress)**: adapter/device, buffers, compute pipelines, offscreen
-  render + readback, verified headless in CI on all platforms.
-- **M2 (planned)**: presentation — rendering into Flutter via external
+- **M0 (done)**: wgpu-native linked — instance creation + version query.
+- **M1 (done on macOS)**: adapter/device acquisition, error scopes +
+  uncaptured-error/device-lost streams, buffers (write/mapRead), WGSL shader
+  modules with checked creates, compute pipelines + dispatch, offscreen
+  render passes + texture readback. 14 integration tests green; Linux/Windows
+  CI jobs authored, pending first run.
+- **M2 (next)**: presentation — rendering into Flutter via external
   textures (`WebGpuView` widget), Metal first.
 - Flutter Web (`navigator.gpu` via JS interop) is designed-for but deferred.
+
+Known upstream gaps (wgpu-native v29.0.1.1): the device-lost callback never
+fires (the `onLost` stream is plumbed and will work once upstream delivers
+events); unbalanced `popErrorScope` would abort the process, so the plugin
+tracks scope depth natively and throws a Dart error instead.
 
 ## Setup (contributors)
 
@@ -34,9 +42,7 @@ also produces the Apple `wgpu_native.xcframework` bundles.
 Regenerate bindings after editing `lib/src/nitro_webgpu.native.dart`:
 
 ```sh
-dart run build_runner build
-nitrogen link
-nitrogen doctor
+scripts/gen.sh    # build_runner + swift-bridge workaround + nitrogen link/doctor
 ```
 
 ## Example

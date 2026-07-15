@@ -110,6 +110,221 @@ public:
         throw std::runtime_error("Not implemented: devicePopErrorScope");
     }
 
+    int64_t deviceCreateBuffer(int64_t device, NitroCppBuffer descriptor) override {
+        // TODO: implement deviceCreateBuffer
+        throw std::runtime_error("Not implemented: deviceCreateBuffer");
+        // return 0;
+    }
+
+    void bufferDestroy(int64_t buffer) override {
+        // TODO: implement bufferDestroy
+        throw std::runtime_error("Not implemented: bufferDestroy");
+    }
+
+    void bufferRelease(int64_t buffer) override {
+        // TODO: implement bufferRelease
+        throw std::runtime_error("Not implemented: bufferRelease");
+    }
+
+    int64_t bufferGetSize(int64_t buffer) override {
+        // TODO: implement bufferGetSize
+        throw std::runtime_error("Not implemented: bufferGetSize");
+        // return 0;
+    }
+
+    void queueWriteBuffer(int64_t queue, int64_t buffer, int64_t bufferOffset, const uint8_t* data, size_t data_length) override {
+        // TODO: implement queueWriteBuffer
+        throw std::runtime_error("Not implemented: queueWriteBuffer");
+    }
+
+    void bufferMapRead(int64_t buffer, int64_t offset, int64_t size, NitroError* _nitro_err, int64_t dartPort) override {
+        // TODO: on error, populate _nitro_err (hasError/name/message via strdup) before posting.
+        // TODO: post result via Dart_PostCObject_DL(dartPort, ...)
+        throw std::runtime_error("Not implemented: bufferMapRead");
+    }
+
+    int64_t deviceCreateShaderModuleWgsl(int64_t device, const std::string& label, const std::string& wgsl) override {
+        // TODO: implement deviceCreateShaderModuleWgsl
+        throw std::runtime_error("Not implemented: deviceCreateShaderModuleWgsl");
+        // return 0;
+    }
+
+    void shaderModuleRelease(int64_t module) override {
+        // TODO: implement shaderModuleRelease
+        throw std::runtime_error("Not implemented: shaderModuleRelease");
+    }
+
+    int64_t deviceCreateComputePipeline(int64_t device, NitroCppBuffer descriptor) override {
+        // TODO: implement deviceCreateComputePipeline
+        throw std::runtime_error("Not implemented: deviceCreateComputePipeline");
+        // return 0;
+    }
+
+    void computePipelineRelease(int64_t pipeline) override {
+        // TODO: implement computePipelineRelease
+        throw std::runtime_error("Not implemented: computePipelineRelease");
+    }
+
+    int64_t computePipelineGetBindGroupLayout(int64_t pipeline, int64_t groupIndex) override {
+        // TODO: implement computePipelineGetBindGroupLayout
+        throw std::runtime_error("Not implemented: computePipelineGetBindGroupLayout");
+        // return 0;
+    }
+
+    void bindGroupLayoutRelease(int64_t layout) override {
+        // TODO: implement bindGroupLayoutRelease
+        throw std::runtime_error("Not implemented: bindGroupLayoutRelease");
+    }
+
+    int64_t deviceCreateBindGroup(int64_t device, NitroCppBuffer descriptor) override {
+        // TODO: implement deviceCreateBindGroup
+        throw std::runtime_error("Not implemented: deviceCreateBindGroup");
+        // return 0;
+    }
+
+    void bindGroupRelease(int64_t bindGroup) override {
+        // TODO: implement bindGroupRelease
+        throw std::runtime_error("Not implemented: bindGroupRelease");
+    }
+
+    int64_t deviceCreateCommandEncoder(int64_t device, const std::string& label) override {
+        // TODO: implement deviceCreateCommandEncoder
+        throw std::runtime_error("Not implemented: deviceCreateCommandEncoder");
+        // return 0;
+    }
+
+    void commandEncoderRelease(int64_t encoder) override {
+        // TODO: implement commandEncoderRelease
+        throw std::runtime_error("Not implemented: commandEncoderRelease");
+    }
+
+    int64_t encoderBeginComputePass(int64_t encoder, const std::string& label) override {
+        // TODO: implement encoderBeginComputePass
+        throw std::runtime_error("Not implemented: encoderBeginComputePass");
+        // return 0;
+    }
+
+    void computePassSetPipeline(int64_t pass, int64_t pipeline) override {
+        // TODO: implement computePassSetPipeline
+        throw std::runtime_error("Not implemented: computePassSetPipeline");
+    }
+
+    void computePassSetBindGroup(int64_t pass, int64_t index, int64_t bindGroup) override {
+        // TODO: implement computePassSetBindGroup
+        throw std::runtime_error("Not implemented: computePassSetBindGroup");
+    }
+
+    void computePassDispatchWorkgroups(int64_t pass, int64_t x, int64_t y, int64_t z) override {
+        // TODO: implement computePassDispatchWorkgroups
+        throw std::runtime_error("Not implemented: computePassDispatchWorkgroups");
+    }
+
+    void computePassEnd(int64_t pass) override {
+        // TODO: implement computePassEnd
+        throw std::runtime_error("Not implemented: computePassEnd");
+    }
+
+    void computePassRelease(int64_t pass) override {
+        // TODO: implement computePassRelease
+        throw std::runtime_error("Not implemented: computePassRelease");
+    }
+
+    void encoderCopyBufferToBuffer(int64_t encoder, int64_t src, int64_t srcOffset, int64_t dst, int64_t dstOffset, int64_t size) override {
+        // TODO: implement encoderCopyBufferToBuffer
+        throw std::runtime_error("Not implemented: encoderCopyBufferToBuffer");
+    }
+
+    int64_t encoderFinish(int64_t encoder, const std::string& label) override {
+        // TODO: implement encoderFinish
+        throw std::runtime_error("Not implemented: encoderFinish");
+        // return 0;
+    }
+
+    void commandBufferRelease(int64_t commandBuffer) override {
+        // TODO: implement commandBufferRelease
+        throw std::runtime_error("Not implemented: commandBufferRelease");
+    }
+
+    void queueSubmitOne(int64_t queue, int64_t commandBuffer) override {
+        // TODO: implement queueSubmitOne
+        throw std::runtime_error("Not implemented: queueSubmitOne");
+    }
+
+    void queueOnSubmittedWorkDone(int64_t queue, NitroError* _nitro_err, int64_t dartPort) override {
+        // TODO: on error, populate _nitro_err (hasError/name/message via strdup) before posting.
+        // TODO: post result via Dart_PostCObject_DL(dartPort, ...)
+        throw std::runtime_error("Not implemented: queueOnSubmittedWorkDone");
+    }
+
+    int64_t deviceCreateTexture(int64_t device, NitroCppBuffer descriptor) override {
+        // TODO: implement deviceCreateTexture
+        throw std::runtime_error("Not implemented: deviceCreateTexture");
+        // return 0;
+    }
+
+    void textureDestroy(int64_t texture) override {
+        // TODO: implement textureDestroy
+        throw std::runtime_error("Not implemented: textureDestroy");
+    }
+
+    void textureRelease(int64_t texture) override {
+        // TODO: implement textureRelease
+        throw std::runtime_error("Not implemented: textureRelease");
+    }
+
+    int64_t textureCreateView(int64_t texture, const std::string& label) override {
+        // TODO: implement textureCreateView
+        throw std::runtime_error("Not implemented: textureCreateView");
+        // return 0;
+    }
+
+    void textureViewRelease(int64_t view) override {
+        // TODO: implement textureViewRelease
+        throw std::runtime_error("Not implemented: textureViewRelease");
+    }
+
+    int64_t deviceCreateRenderPipeline(int64_t device, NitroCppBuffer descriptor) override {
+        // TODO: implement deviceCreateRenderPipeline
+        throw std::runtime_error("Not implemented: deviceCreateRenderPipeline");
+        // return 0;
+    }
+
+    void renderPipelineRelease(int64_t pipeline) override {
+        // TODO: implement renderPipelineRelease
+        throw std::runtime_error("Not implemented: renderPipelineRelease");
+    }
+
+    int64_t encoderBeginRenderPass(int64_t encoder, NitroCppBuffer descriptor) override {
+        // TODO: implement encoderBeginRenderPass
+        throw std::runtime_error("Not implemented: encoderBeginRenderPass");
+        // return 0;
+    }
+
+    void renderPassSetPipeline(int64_t pass, int64_t pipeline) override {
+        // TODO: implement renderPassSetPipeline
+        throw std::runtime_error("Not implemented: renderPassSetPipeline");
+    }
+
+    void renderPassDraw(int64_t pass, int64_t vertexCount, int64_t instanceCount, int64_t firstVertex, int64_t firstInstance) override {
+        // TODO: implement renderPassDraw
+        throw std::runtime_error("Not implemented: renderPassDraw");
+    }
+
+    void renderPassEnd(int64_t pass) override {
+        // TODO: implement renderPassEnd
+        throw std::runtime_error("Not implemented: renderPassEnd");
+    }
+
+    void renderPassRelease(int64_t pass) override {
+        // TODO: implement renderPassRelease
+        throw std::runtime_error("Not implemented: renderPassRelease");
+    }
+
+    void encoderCopyTextureToBuffer(int64_t encoder, int64_t texture, int64_t buffer, int64_t bytesPerRow, int64_t width, int64_t height) override {
+        // TODO: implement encoderCopyTextureToBuffer
+        throw std::runtime_error("Not implemented: encoderCopyTextureToBuffer");
+    }
+
     // ── Streams ──────────────────────────────────────────────────────────────
     // Call emit_<name>(item) from any thread to push items to Dart.
     // emit_* helpers are defined in the generated bridge.

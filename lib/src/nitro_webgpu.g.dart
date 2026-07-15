@@ -207,6 +207,252 @@ extension GpuDeviceLostRecordExt on GpuDeviceLost {
   }
 }
 
+extension GpuBufferDescriptorRecordExt on GpuBufferDescriptor {
+  static GpuBufferDescriptor fromNative(Pointer<Uint8> ptr) =>
+      fromReader(RecordReader.fromNative(ptr));
+
+  static GpuBufferDescriptor fromReader(RecordReader r) => GpuBufferDescriptor(
+    label: r.readString(),
+    size: r.readInt(),
+    usage: r.readInt(),
+    mappedAtCreation: r.readBool(),
+  );
+
+  void writeFields(RecordWriter writer) {
+    writer.writeString(label);
+    writer.writeInt(size);
+    writer.writeInt(usage);
+    writer.writeBool(mappedAtCreation);
+  }
+
+  Pointer<Uint8> toNative(Allocator alloc) {
+    final writer = RecordWriter();
+    writeFields(writer);
+    return writer.toNative(alloc);
+  }
+}
+
+extension GpuBindGroupEntryRecordExt on GpuBindGroupEntry {
+  static GpuBindGroupEntry fromNative(Pointer<Uint8> ptr) =>
+      fromReader(RecordReader.fromNative(ptr));
+
+  static GpuBindGroupEntry fromReader(RecordReader r) => GpuBindGroupEntry(
+    binding: r.readInt(),
+    bufferAddress: r.readInt(),
+    offset: r.readInt(),
+    size: r.readInt(),
+  );
+
+  void writeFields(RecordWriter writer) {
+    writer.writeInt(binding);
+    writer.writeInt(bufferAddress);
+    writer.writeInt(offset);
+    writer.writeInt(size);
+  }
+
+  Pointer<Uint8> toNative(Allocator alloc) {
+    final writer = RecordWriter();
+    writeFields(writer);
+    return writer.toNative(alloc);
+  }
+}
+
+extension GpuBindGroupDescriptorRecordExt on GpuBindGroupDescriptor {
+  static GpuBindGroupDescriptor fromNative(Pointer<Uint8> ptr) =>
+      fromReader(RecordReader.fromNative(ptr));
+
+  static GpuBindGroupDescriptor fromReader(RecordReader r) =>
+      GpuBindGroupDescriptor(
+        label: r.readString(),
+        layoutAddress: r.readInt(),
+        entries: List.generate(
+          r.readInt32(),
+          (_) => GpuBindGroupEntryRecordExt.fromReader(r),
+        ),
+      );
+
+  void writeFields(RecordWriter writer) {
+    writer.writeString(label);
+    writer.writeInt(layoutAddress);
+    writer.writeInt32(entries.length);
+    for (final e in entries) {
+      e.writeFields(writer);
+    }
+  }
+
+  Pointer<Uint8> toNative(Allocator alloc) {
+    final writer = RecordWriter();
+    writeFields(writer);
+    return writer.toNative(alloc);
+  }
+}
+
+extension GpuComputePipelineDescriptorRecordExt
+    on GpuComputePipelineDescriptor {
+  static GpuComputePipelineDescriptor fromNative(Pointer<Uint8> ptr) =>
+      fromReader(RecordReader.fromNative(ptr));
+
+  static GpuComputePipelineDescriptor fromReader(RecordReader r) =>
+      GpuComputePipelineDescriptor(
+        label: r.readString(),
+        layoutAddress: r.readInt(),
+        moduleAddress: r.readInt(),
+        entryPoint: r.readString(),
+      );
+
+  void writeFields(RecordWriter writer) {
+    writer.writeString(label);
+    writer.writeInt(layoutAddress);
+    writer.writeInt(moduleAddress);
+    writer.writeString(entryPoint);
+  }
+
+  Pointer<Uint8> toNative(Allocator alloc) {
+    final writer = RecordWriter();
+    writeFields(writer);
+    return writer.toNative(alloc);
+  }
+}
+
+extension GpuMappedDataRecordExt on GpuMappedData {
+  static GpuMappedData fromNative(Pointer<Uint8> ptr) =>
+      fromReader(RecordReader.fromNative(ptr));
+
+  static GpuMappedData fromReader(RecordReader r) =>
+      GpuMappedData(data: r.readBlob());
+
+  void writeFields(RecordWriter writer) {
+    writer.writeBlob(data);
+  }
+
+  Pointer<Uint8> toNative(Allocator alloc) {
+    final writer = RecordWriter();
+    writeFields(writer);
+    return writer.toNative(alloc);
+  }
+}
+
+extension GpuTextureDescriptorRecordExt on GpuTextureDescriptor {
+  static GpuTextureDescriptor fromNative(Pointer<Uint8> ptr) =>
+      fromReader(RecordReader.fromNative(ptr));
+
+  static GpuTextureDescriptor fromReader(RecordReader r) =>
+      GpuTextureDescriptor(
+        label: r.readString(),
+        width: r.readInt(),
+        height: r.readInt(),
+        format: r.readInt(),
+        usage: r.readInt(),
+        mipLevelCount: r.readInt(),
+        sampleCount: r.readInt(),
+      );
+
+  void writeFields(RecordWriter writer) {
+    writer.writeString(label);
+    writer.writeInt(width);
+    writer.writeInt(height);
+    writer.writeInt(format);
+    writer.writeInt(usage);
+    writer.writeInt(mipLevelCount);
+    writer.writeInt(sampleCount);
+  }
+
+  Pointer<Uint8> toNative(Allocator alloc) {
+    final writer = RecordWriter();
+    writeFields(writer);
+    return writer.toNative(alloc);
+  }
+}
+
+extension GpuColorAttachmentRecordExt on GpuColorAttachment {
+  static GpuColorAttachment fromNative(Pointer<Uint8> ptr) =>
+      fromReader(RecordReader.fromNative(ptr));
+
+  static GpuColorAttachment fromReader(RecordReader r) => GpuColorAttachment(
+    viewAddress: r.readInt(),
+    loadOp: r.readInt(),
+    storeOp: r.readInt(),
+    clearR: r.readDouble(),
+    clearG: r.readDouble(),
+    clearB: r.readDouble(),
+    clearA: r.readDouble(),
+  );
+
+  void writeFields(RecordWriter writer) {
+    writer.writeInt(viewAddress);
+    writer.writeInt(loadOp);
+    writer.writeInt(storeOp);
+    writer.writeDouble(clearR);
+    writer.writeDouble(clearG);
+    writer.writeDouble(clearB);
+    writer.writeDouble(clearA);
+  }
+
+  Pointer<Uint8> toNative(Allocator alloc) {
+    final writer = RecordWriter();
+    writeFields(writer);
+    return writer.toNative(alloc);
+  }
+}
+
+extension GpuRenderPassDescriptorRecordExt on GpuRenderPassDescriptor {
+  static GpuRenderPassDescriptor fromNative(Pointer<Uint8> ptr) =>
+      fromReader(RecordReader.fromNative(ptr));
+
+  static GpuRenderPassDescriptor fromReader(RecordReader r) =>
+      GpuRenderPassDescriptor(
+        label: r.readString(),
+        colorAttachments: List.generate(
+          r.readInt32(),
+          (_) => GpuColorAttachmentRecordExt.fromReader(r),
+        ),
+      );
+
+  void writeFields(RecordWriter writer) {
+    writer.writeString(label);
+    writer.writeInt32(colorAttachments.length);
+    for (final e in colorAttachments) {
+      e.writeFields(writer);
+    }
+  }
+
+  Pointer<Uint8> toNative(Allocator alloc) {
+    final writer = RecordWriter();
+    writeFields(writer);
+    return writer.toNative(alloc);
+  }
+}
+
+extension GpuRenderPipelineDescriptorRecordExt on GpuRenderPipelineDescriptor {
+  static GpuRenderPipelineDescriptor fromNative(Pointer<Uint8> ptr) =>
+      fromReader(RecordReader.fromNative(ptr));
+
+  static GpuRenderPipelineDescriptor fromReader(RecordReader r) =>
+      GpuRenderPipelineDescriptor(
+        label: r.readString(),
+        moduleAddress: r.readInt(),
+        vertexEntryPoint: r.readString(),
+        fragmentEntryPoint: r.readString(),
+        targetFormat: r.readInt(),
+        topology: r.readInt(),
+      );
+
+  void writeFields(RecordWriter writer) {
+    writer.writeString(label);
+    writer.writeInt(moduleAddress);
+    writer.writeString(vertexEntryPoint);
+    writer.writeString(fragmentEntryPoint);
+    writer.writeInt(targetFormat);
+    writer.writeInt(topology);
+  }
+
+  Pointer<Uint8> toNative(Allocator alloc) {
+    final writer = RecordWriter();
+    writeFields(writer);
+    return writer.toNative(alloc);
+  }
+}
+
 class _NitroWebgpuImpl extends NitroWebgpu {
   final DynamicLibrary _dylib;
   static final _instances = <String, _NitroWebgpuImpl>{};
@@ -283,7 +529,7 @@ class _NitroWebgpuImpl extends NitroWebgpu {
     }
     NitroRuntime.checkLinkChecksum(
       'nitro_webgpu',
-      'e62882f8180fddba',
+      '0e33291028c93bd9',
       () => _dylib
           .lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
             'nitro_webgpu_nitro_bridge_checksum',
@@ -422,6 +668,416 @@ class _NitroWebgpuImpl extends NitroWebgpu {
         Void Function(Int64, Int64, Pointer<NitroErrorFfi>, Int64),
         void Function(int, int, Pointer<NitroErrorFfi>, int)
       >('nitro_webgpu_device_pop_error_scope');
+  late final int Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>)
+  _deviceCreateBufferPtr = _dylib
+      .lookupFunction<
+        Int64 Function(Int64, Int64, Pointer<Uint8>, Pointer<NitroErrorFfi>),
+        int Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>)
+      >('nitro_webgpu_device_create_buffer');
+  late final void Function(int, int, Pointer<NitroErrorFfi>) _bufferDestroyPtr =
+      _dylib
+          .lookup<
+            NativeFunction<Void Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+          >('nitro_webgpu_buffer_destroy')
+          .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
+            isLeaf: true,
+          );
+  late final void Function(int, int, Pointer<NitroErrorFfi>) _bufferReleasePtr =
+      _dylib
+          .lookup<
+            NativeFunction<Void Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+          >('nitro_webgpu_buffer_release')
+          .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
+            isLeaf: true,
+          );
+  late final int Function(int, int, Pointer<NitroErrorFfi>) _bufferGetSizePtr =
+      _dylib
+          .lookup<
+            NativeFunction<Int64 Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+          >('nitro_webgpu_buffer_get_size')
+          .asFunction<int Function(int, int, Pointer<NitroErrorFfi>)>(
+            isLeaf: true,
+          );
+  late final void Function(
+    int,
+    int,
+    int,
+    int,
+    Pointer<Uint8>,
+    int,
+    Pointer<NitroErrorFfi>,
+  )
+  _queueWriteBufferPtr = _dylib
+      .lookupFunction<
+        Void Function(
+          Int64,
+          Int64,
+          Int64,
+          Int64,
+          Pointer<Uint8>,
+          Size,
+          Pointer<NitroErrorFfi>,
+        ),
+        void Function(
+          int,
+          int,
+          int,
+          int,
+          Pointer<Uint8>,
+          int,
+          Pointer<NitroErrorFfi>,
+        )
+      >('nitro_webgpu_queue_write_buffer');
+  late final void Function(int, int, int, int, Pointer<NitroErrorFfi>, int)
+  _bufferMapReadPtr = _dylib
+      .lookupFunction<
+        Void Function(
+          Int64,
+          Int64,
+          Int64,
+          Int64,
+          Pointer<NitroErrorFfi>,
+          Int64,
+        ),
+        void Function(int, int, int, int, Pointer<NitroErrorFfi>, int)
+      >('nitro_webgpu_buffer_map_read');
+  late final int Function(
+    int,
+    int,
+    Pointer<Utf8>,
+    Pointer<Utf8>,
+    Pointer<NitroErrorFfi>,
+  )
+  _deviceCreateShaderModuleWgslPtr = _dylib
+      .lookupFunction<
+        Int64 Function(
+          Int64,
+          Int64,
+          Pointer<Utf8>,
+          Pointer<Utf8>,
+          Pointer<NitroErrorFfi>,
+        ),
+        int Function(
+          int,
+          int,
+          Pointer<Utf8>,
+          Pointer<Utf8>,
+          Pointer<NitroErrorFfi>,
+        )
+      >('nitro_webgpu_device_create_shader_module_wgsl');
+  late final void Function(int, int, Pointer<NitroErrorFfi>)
+  _shaderModuleReleasePtr = _dylib
+      .lookup<
+        NativeFunction<Void Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+      >('nitro_webgpu_shader_module_release')
+      .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final int Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>)
+  _deviceCreateComputePipelinePtr = _dylib
+      .lookupFunction<
+        Int64 Function(Int64, Int64, Pointer<Uint8>, Pointer<NitroErrorFfi>),
+        int Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>)
+      >('nitro_webgpu_device_create_compute_pipeline');
+  late final void Function(int, int, Pointer<NitroErrorFfi>)
+  _computePipelineReleasePtr = _dylib
+      .lookup<
+        NativeFunction<Void Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+      >('nitro_webgpu_compute_pipeline_release')
+      .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final int Function(int, int, int, Pointer<NitroErrorFfi>)
+  _computePipelineGetBindGroupLayoutPtr = _dylib
+      .lookup<
+        NativeFunction<
+          Int64 Function(Int64, Int64, Int64, Pointer<NitroErrorFfi>)
+        >
+      >('nitro_webgpu_compute_pipeline_get_bind_group_layout')
+      .asFunction<int Function(int, int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final void Function(int, int, Pointer<NitroErrorFfi>)
+  _bindGroupLayoutReleasePtr = _dylib
+      .lookup<
+        NativeFunction<Void Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+      >('nitro_webgpu_bind_group_layout_release')
+      .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final int Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>)
+  _deviceCreateBindGroupPtr = _dylib
+      .lookupFunction<
+        Int64 Function(Int64, Int64, Pointer<Uint8>, Pointer<NitroErrorFfi>),
+        int Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>)
+      >('nitro_webgpu_device_create_bind_group');
+  late final void Function(int, int, Pointer<NitroErrorFfi>)
+  _bindGroupReleasePtr = _dylib
+      .lookup<
+        NativeFunction<Void Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+      >('nitro_webgpu_bind_group_release')
+      .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final int Function(int, int, Pointer<Utf8>, Pointer<NitroErrorFfi>)
+  _deviceCreateCommandEncoderPtr = _dylib
+      .lookupFunction<
+        Int64 Function(Int64, Int64, Pointer<Utf8>, Pointer<NitroErrorFfi>),
+        int Function(int, int, Pointer<Utf8>, Pointer<NitroErrorFfi>)
+      >('nitro_webgpu_device_create_command_encoder');
+  late final void Function(int, int, Pointer<NitroErrorFfi>)
+  _commandEncoderReleasePtr = _dylib
+      .lookup<
+        NativeFunction<Void Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+      >('nitro_webgpu_command_encoder_release')
+      .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final int Function(int, int, Pointer<Utf8>, Pointer<NitroErrorFfi>)
+  _encoderBeginComputePassPtr = _dylib
+      .lookupFunction<
+        Int64 Function(Int64, Int64, Pointer<Utf8>, Pointer<NitroErrorFfi>),
+        int Function(int, int, Pointer<Utf8>, Pointer<NitroErrorFfi>)
+      >('nitro_webgpu_encoder_begin_compute_pass');
+  late final void Function(int, int, int, Pointer<NitroErrorFfi>)
+  _computePassSetPipelinePtr = _dylib
+      .lookup<
+        NativeFunction<
+          Void Function(Int64, Int64, Int64, Pointer<NitroErrorFfi>)
+        >
+      >('nitro_webgpu_compute_pass_set_pipeline')
+      .asFunction<void Function(int, int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final void Function(int, int, int, int, Pointer<NitroErrorFfi>)
+  _computePassSetBindGroupPtr = _dylib
+      .lookup<
+        NativeFunction<
+          Void Function(Int64, Int64, Int64, Int64, Pointer<NitroErrorFfi>)
+        >
+      >('nitro_webgpu_compute_pass_set_bind_group')
+      .asFunction<void Function(int, int, int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final void Function(int, int, int, int, int, Pointer<NitroErrorFfi>)
+  _computePassDispatchWorkgroupsPtr = _dylib
+      .lookup<
+        NativeFunction<
+          Void Function(
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Pointer<NitroErrorFfi>,
+          )
+        >
+      >('nitro_webgpu_compute_pass_dispatch_workgroups')
+      .asFunction<
+        void Function(int, int, int, int, int, Pointer<NitroErrorFfi>)
+      >(isLeaf: true);
+  late final void Function(int, int, Pointer<NitroErrorFfi>)
+  _computePassEndPtr = _dylib
+      .lookup<
+        NativeFunction<Void Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+      >('nitro_webgpu_compute_pass_end')
+      .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final void Function(int, int, Pointer<NitroErrorFfi>)
+  _computePassReleasePtr = _dylib
+      .lookup<
+        NativeFunction<Void Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+      >('nitro_webgpu_compute_pass_release')
+      .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final void Function(
+    int,
+    int,
+    int,
+    int,
+    int,
+    int,
+    int,
+    Pointer<NitroErrorFfi>,
+  )
+  _encoderCopyBufferToBufferPtr = _dylib
+      .lookup<
+        NativeFunction<
+          Void Function(
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Pointer<NitroErrorFfi>,
+          )
+        >
+      >('nitro_webgpu_encoder_copy_buffer_to_buffer')
+      .asFunction<
+        void Function(int, int, int, int, int, int, int, Pointer<NitroErrorFfi>)
+      >(isLeaf: true);
+  late final int Function(int, int, Pointer<Utf8>, Pointer<NitroErrorFfi>)
+  _encoderFinishPtr = _dylib
+      .lookupFunction<
+        Int64 Function(Int64, Int64, Pointer<Utf8>, Pointer<NitroErrorFfi>),
+        int Function(int, int, Pointer<Utf8>, Pointer<NitroErrorFfi>)
+      >('nitro_webgpu_encoder_finish');
+  late final void Function(int, int, Pointer<NitroErrorFfi>)
+  _commandBufferReleasePtr = _dylib
+      .lookup<
+        NativeFunction<Void Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+      >('nitro_webgpu_command_buffer_release')
+      .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final void Function(int, int, int, Pointer<NitroErrorFfi>)
+  _queueSubmitOnePtr = _dylib
+      .lookup<
+        NativeFunction<
+          Void Function(Int64, Int64, Int64, Pointer<NitroErrorFfi>)
+        >
+      >('nitro_webgpu_queue_submit_one')
+      .asFunction<void Function(int, int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final void Function(int, int, Pointer<NitroErrorFfi>, int)
+  _queueOnSubmittedWorkDonePtr = _dylib
+      .lookupFunction<
+        Void Function(Int64, Int64, Pointer<NitroErrorFfi>, Int64),
+        void Function(int, int, Pointer<NitroErrorFfi>, int)
+      >('nitro_webgpu_queue_on_submitted_work_done');
+  late final int Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>)
+  _deviceCreateTexturePtr = _dylib
+      .lookupFunction<
+        Int64 Function(Int64, Int64, Pointer<Uint8>, Pointer<NitroErrorFfi>),
+        int Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>)
+      >('nitro_webgpu_device_create_texture');
+  late final void Function(int, int, Pointer<NitroErrorFfi>)
+  _textureDestroyPtr = _dylib
+      .lookup<
+        NativeFunction<Void Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+      >('nitro_webgpu_texture_destroy')
+      .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final void Function(int, int, Pointer<NitroErrorFfi>)
+  _textureReleasePtr = _dylib
+      .lookup<
+        NativeFunction<Void Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+      >('nitro_webgpu_texture_release')
+      .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final int Function(int, int, Pointer<Utf8>, Pointer<NitroErrorFfi>)
+  _textureCreateViewPtr = _dylib
+      .lookupFunction<
+        Int64 Function(Int64, Int64, Pointer<Utf8>, Pointer<NitroErrorFfi>),
+        int Function(int, int, Pointer<Utf8>, Pointer<NitroErrorFfi>)
+      >('nitro_webgpu_texture_create_view');
+  late final void Function(int, int, Pointer<NitroErrorFfi>)
+  _textureViewReleasePtr = _dylib
+      .lookup<
+        NativeFunction<Void Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+      >('nitro_webgpu_texture_view_release')
+      .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final int Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>)
+  _deviceCreateRenderPipelinePtr = _dylib
+      .lookupFunction<
+        Int64 Function(Int64, Int64, Pointer<Uint8>, Pointer<NitroErrorFfi>),
+        int Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>)
+      >('nitro_webgpu_device_create_render_pipeline');
+  late final void Function(int, int, Pointer<NitroErrorFfi>)
+  _renderPipelineReleasePtr = _dylib
+      .lookup<
+        NativeFunction<Void Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+      >('nitro_webgpu_render_pipeline_release')
+      .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final int Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>)
+  _encoderBeginRenderPassPtr = _dylib
+      .lookupFunction<
+        Int64 Function(Int64, Int64, Pointer<Uint8>, Pointer<NitroErrorFfi>),
+        int Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>)
+      >('nitro_webgpu_encoder_begin_render_pass');
+  late final void Function(int, int, int, Pointer<NitroErrorFfi>)
+  _renderPassSetPipelinePtr = _dylib
+      .lookup<
+        NativeFunction<
+          Void Function(Int64, Int64, Int64, Pointer<NitroErrorFfi>)
+        >
+      >('nitro_webgpu_render_pass_set_pipeline')
+      .asFunction<void Function(int, int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final void Function(int, int, int, int, int, int, Pointer<NitroErrorFfi>)
+  _renderPassDrawPtr = _dylib
+      .lookup<
+        NativeFunction<
+          Void Function(
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Pointer<NitroErrorFfi>,
+          )
+        >
+      >('nitro_webgpu_render_pass_draw')
+      .asFunction<
+        void Function(int, int, int, int, int, int, Pointer<NitroErrorFfi>)
+      >(isLeaf: true);
+  late final void Function(int, int, Pointer<NitroErrorFfi>) _renderPassEndPtr =
+      _dylib
+          .lookup<
+            NativeFunction<Void Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+          >('nitro_webgpu_render_pass_end')
+          .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
+            isLeaf: true,
+          );
+  late final void Function(int, int, Pointer<NitroErrorFfi>)
+  _renderPassReleasePtr = _dylib
+      .lookup<
+        NativeFunction<Void Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+      >('nitro_webgpu_render_pass_release')
+      .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final void Function(
+    int,
+    int,
+    int,
+    int,
+    int,
+    int,
+    int,
+    Pointer<NitroErrorFfi>,
+  )
+  _encoderCopyTextureToBufferPtr = _dylib
+      .lookup<
+        NativeFunction<
+          Void Function(
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Pointer<NitroErrorFfi>,
+          )
+        >
+      >('nitro_webgpu_encoder_copy_texture_to_buffer')
+      .asFunction<
+        void Function(int, int, int, int, int, int, int, Pointer<NitroErrorFfi>)
+      >(isLeaf: true);
   late final void Function(int, int) _registerUncapturedErrorsPtr = _dylib
       .lookupFunction<Void Function(Int64, Int64), void Function(int, int)>(
         'nitro_webgpu_register_uncaptured_errors_stream',
@@ -657,6 +1313,572 @@ class _NitroWebgpuImpl extends NitroWebgpu {
       },
       methodName: 'devicePopErrorScope',
     );
+  }
+
+  @override
+  int deviceCreateBuffer(int device, GpuBufferDescriptor descriptor) {
+    checkDisposed();
+    return NitroRuntime.callSync(
+      () => withArena((arena) {
+        final res = _deviceCreateBufferPtr(
+          _instanceId,
+          device,
+          descriptor.toNative(arena),
+          _nitroErr,
+        );
+        NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+        return res;
+      }),
+      methodName: 'deviceCreateBuffer',
+    );
+  }
+
+  @override
+  void bufferDestroy(int buffer) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _bufferDestroyPtr(_instanceId, buffer, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'bufferDestroy');
+  }
+
+  @override
+  void bufferRelease(int buffer) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _bufferReleasePtr(_instanceId, buffer, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'bufferRelease');
+  }
+
+  @override
+  int bufferGetSize(int buffer) {
+    checkDisposed();
+    return NitroRuntime.callSync(() {
+      final res = _bufferGetSizePtr(_instanceId, buffer, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+      return res;
+    }, methodName: 'bufferGetSize');
+  }
+
+  @override
+  void queueWriteBuffer(
+    int queue,
+    int buffer,
+    int bufferOffset,
+    Uint8List data,
+  ) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(
+      () => withArena((arena) {
+        _queueWriteBufferPtr(
+          _instanceId,
+          queue,
+          buffer,
+          bufferOffset,
+          data.toPointer(arena),
+          data.length,
+          _nitroErr,
+        );
+        NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+      }),
+      methodName: 'queueWriteBuffer',
+    );
+  }
+
+  @override
+  Future<GpuMappedData> bufferMapRead(int buffer, int offset, int size) {
+    checkDisposed();
+    final _nitroErr = calloc<NitroErrorFfi>();
+    return NitroRuntime.openNativeAsync<GpuMappedData>(
+      call: (port) =>
+          _bufferMapReadPtr(_instanceId, buffer, offset, size, _nitroErr, port),
+      unpack: (raw) {
+        NitroRuntime.throwIfOutParamErrorAndFree(
+          _nitroErr,
+          nativeFree: _nitroFree,
+        );
+        return ((raw) {
+          final rawPtr = Pointer<Uint8>.fromAddress(raw as int);
+          try {
+            return GpuMappedDataRecordExt.fromNative(rawPtr);
+          } finally {
+            _nitroFree(rawPtr);
+          }
+        })(raw);
+      },
+      methodName: 'bufferMapRead',
+    );
+  }
+
+  @override
+  int deviceCreateShaderModuleWgsl(int device, String label, String wgsl) {
+    checkDisposed();
+    return NitroRuntime.callSync(
+      () => withArena((arena) {
+        final res = _deviceCreateShaderModuleWgslPtr(
+          _instanceId,
+          device,
+          label.toNativeUtf8(allocator: arena),
+          wgsl.toNativeUtf8(allocator: arena),
+          _nitroErr,
+        );
+        NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+        return res;
+      }),
+      methodName: 'deviceCreateShaderModuleWgsl',
+    );
+  }
+
+  @override
+  void shaderModuleRelease(int module) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _shaderModuleReleasePtr(_instanceId, module, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'shaderModuleRelease');
+  }
+
+  @override
+  int deviceCreateComputePipeline(
+    int device,
+    GpuComputePipelineDescriptor descriptor,
+  ) {
+    checkDisposed();
+    return NitroRuntime.callSync(
+      () => withArena((arena) {
+        final res = _deviceCreateComputePipelinePtr(
+          _instanceId,
+          device,
+          descriptor.toNative(arena),
+          _nitroErr,
+        );
+        NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+        return res;
+      }),
+      methodName: 'deviceCreateComputePipeline',
+    );
+  }
+
+  @override
+  void computePipelineRelease(int pipeline) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _computePipelineReleasePtr(_instanceId, pipeline, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'computePipelineRelease');
+  }
+
+  @override
+  int computePipelineGetBindGroupLayout(int pipeline, int groupIndex) {
+    checkDisposed();
+    return NitroRuntime.callSync(() {
+      final res = _computePipelineGetBindGroupLayoutPtr(
+        _instanceId,
+        pipeline,
+        groupIndex,
+        _nitroErr,
+      );
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+      return res;
+    }, methodName: 'computePipelineGetBindGroupLayout');
+  }
+
+  @override
+  void bindGroupLayoutRelease(int layout) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _bindGroupLayoutReleasePtr(_instanceId, layout, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'bindGroupLayoutRelease');
+  }
+
+  @override
+  int deviceCreateBindGroup(int device, GpuBindGroupDescriptor descriptor) {
+    checkDisposed();
+    return NitroRuntime.callSync(
+      () => withArena((arena) {
+        final res = _deviceCreateBindGroupPtr(
+          _instanceId,
+          device,
+          descriptor.toNative(arena),
+          _nitroErr,
+        );
+        NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+        return res;
+      }),
+      methodName: 'deviceCreateBindGroup',
+    );
+  }
+
+  @override
+  void bindGroupRelease(int bindGroup) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _bindGroupReleasePtr(_instanceId, bindGroup, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'bindGroupRelease');
+  }
+
+  @override
+  int deviceCreateCommandEncoder(int device, String label) {
+    checkDisposed();
+    return NitroRuntime.callSync(
+      () => withArena((arena) {
+        final res = _deviceCreateCommandEncoderPtr(
+          _instanceId,
+          device,
+          label.toNativeUtf8(allocator: arena),
+          _nitroErr,
+        );
+        NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+        return res;
+      }),
+      methodName: 'deviceCreateCommandEncoder',
+    );
+  }
+
+  @override
+  void commandEncoderRelease(int encoder) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _commandEncoderReleasePtr(_instanceId, encoder, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'commandEncoderRelease');
+  }
+
+  @override
+  int encoderBeginComputePass(int encoder, String label) {
+    checkDisposed();
+    return NitroRuntime.callSync(
+      () => withArena((arena) {
+        final res = _encoderBeginComputePassPtr(
+          _instanceId,
+          encoder,
+          label.toNativeUtf8(allocator: arena),
+          _nitroErr,
+        );
+        NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+        return res;
+      }),
+      methodName: 'encoderBeginComputePass',
+    );
+  }
+
+  @override
+  void computePassSetPipeline(int pass, int pipeline) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _computePassSetPipelinePtr(_instanceId, pass, pipeline, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'computePassSetPipeline');
+  }
+
+  @override
+  void computePassSetBindGroup(int pass, int index, int bindGroup) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _computePassSetBindGroupPtr(
+        _instanceId,
+        pass,
+        index,
+        bindGroup,
+        _nitroErr,
+      );
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'computePassSetBindGroup');
+  }
+
+  @override
+  void computePassDispatchWorkgroups(int pass, int x, int y, int z) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _computePassDispatchWorkgroupsPtr(_instanceId, pass, x, y, z, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'computePassDispatchWorkgroups');
+  }
+
+  @override
+  void computePassEnd(int pass) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _computePassEndPtr(_instanceId, pass, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'computePassEnd');
+  }
+
+  @override
+  void computePassRelease(int pass) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _computePassReleasePtr(_instanceId, pass, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'computePassRelease');
+  }
+
+  @override
+  void encoderCopyBufferToBuffer(
+    int encoder,
+    int src,
+    int srcOffset,
+    int dst,
+    int dstOffset,
+    int size,
+  ) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _encoderCopyBufferToBufferPtr(
+        _instanceId,
+        encoder,
+        src,
+        srcOffset,
+        dst,
+        dstOffset,
+        size,
+        _nitroErr,
+      );
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'encoderCopyBufferToBuffer');
+  }
+
+  @override
+  int encoderFinish(int encoder, String label) {
+    checkDisposed();
+    return NitroRuntime.callSync(
+      () => withArena((arena) {
+        final res = _encoderFinishPtr(
+          _instanceId,
+          encoder,
+          label.toNativeUtf8(allocator: arena),
+          _nitroErr,
+        );
+        NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+        return res;
+      }),
+      methodName: 'encoderFinish',
+    );
+  }
+
+  @override
+  void commandBufferRelease(int commandBuffer) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _commandBufferReleasePtr(_instanceId, commandBuffer, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'commandBufferRelease');
+  }
+
+  @override
+  void queueSubmitOne(int queue, int commandBuffer) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _queueSubmitOnePtr(_instanceId, queue, commandBuffer, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'queueSubmitOne');
+  }
+
+  @override
+  Future<void> queueOnSubmittedWorkDone(int queue) {
+    checkDisposed();
+    final _nitroErr = calloc<NitroErrorFfi>();
+    return NitroRuntime.openNativeAsync<void>(
+      call: (port) =>
+          _queueOnSubmittedWorkDonePtr(_instanceId, queue, _nitroErr, port),
+      unpack: (raw) {
+        NitroRuntime.throwIfOutParamErrorAndFree(
+          _nitroErr,
+          nativeFree: _nitroFree,
+        );
+        return ((_) {})(raw);
+      },
+      methodName: 'queueOnSubmittedWorkDone',
+    );
+  }
+
+  @override
+  int deviceCreateTexture(int device, GpuTextureDescriptor descriptor) {
+    checkDisposed();
+    return NitroRuntime.callSync(
+      () => withArena((arena) {
+        final res = _deviceCreateTexturePtr(
+          _instanceId,
+          device,
+          descriptor.toNative(arena),
+          _nitroErr,
+        );
+        NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+        return res;
+      }),
+      methodName: 'deviceCreateTexture',
+    );
+  }
+
+  @override
+  void textureDestroy(int texture) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _textureDestroyPtr(_instanceId, texture, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'textureDestroy');
+  }
+
+  @override
+  void textureRelease(int texture) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _textureReleasePtr(_instanceId, texture, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'textureRelease');
+  }
+
+  @override
+  int textureCreateView(int texture, String label) {
+    checkDisposed();
+    return NitroRuntime.callSync(
+      () => withArena((arena) {
+        final res = _textureCreateViewPtr(
+          _instanceId,
+          texture,
+          label.toNativeUtf8(allocator: arena),
+          _nitroErr,
+        );
+        NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+        return res;
+      }),
+      methodName: 'textureCreateView',
+    );
+  }
+
+  @override
+  void textureViewRelease(int view) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _textureViewReleasePtr(_instanceId, view, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'textureViewRelease');
+  }
+
+  @override
+  int deviceCreateRenderPipeline(
+    int device,
+    GpuRenderPipelineDescriptor descriptor,
+  ) {
+    checkDisposed();
+    return NitroRuntime.callSync(
+      () => withArena((arena) {
+        final res = _deviceCreateRenderPipelinePtr(
+          _instanceId,
+          device,
+          descriptor.toNative(arena),
+          _nitroErr,
+        );
+        NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+        return res;
+      }),
+      methodName: 'deviceCreateRenderPipeline',
+    );
+  }
+
+  @override
+  void renderPipelineRelease(int pipeline) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _renderPipelineReleasePtr(_instanceId, pipeline, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'renderPipelineRelease');
+  }
+
+  @override
+  int encoderBeginRenderPass(int encoder, GpuRenderPassDescriptor descriptor) {
+    checkDisposed();
+    return NitroRuntime.callSync(
+      () => withArena((arena) {
+        final res = _encoderBeginRenderPassPtr(
+          _instanceId,
+          encoder,
+          descriptor.toNative(arena),
+          _nitroErr,
+        );
+        NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+        return res;
+      }),
+      methodName: 'encoderBeginRenderPass',
+    );
+  }
+
+  @override
+  void renderPassSetPipeline(int pass, int pipeline) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _renderPassSetPipelinePtr(_instanceId, pass, pipeline, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'renderPassSetPipeline');
+  }
+
+  @override
+  void renderPassDraw(
+    int pass,
+    int vertexCount,
+    int instanceCount,
+    int firstVertex,
+    int firstInstance,
+  ) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _renderPassDrawPtr(
+        _instanceId,
+        pass,
+        vertexCount,
+        instanceCount,
+        firstVertex,
+        firstInstance,
+        _nitroErr,
+      );
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'renderPassDraw');
+  }
+
+  @override
+  void renderPassEnd(int pass) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _renderPassEndPtr(_instanceId, pass, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'renderPassEnd');
+  }
+
+  @override
+  void renderPassRelease(int pass) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _renderPassReleasePtr(_instanceId, pass, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'renderPassRelease');
+  }
+
+  @override
+  void encoderCopyTextureToBuffer(
+    int encoder,
+    int texture,
+    int buffer,
+    int bytesPerRow,
+    int width,
+    int height,
+  ) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _encoderCopyTextureToBufferPtr(
+        _instanceId,
+        encoder,
+        texture,
+        buffer,
+        bytesPerRow,
+        width,
+        height,
+        _nitroErr,
+      );
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'encoderCopyTextureToBuffer');
   }
 
   @override
