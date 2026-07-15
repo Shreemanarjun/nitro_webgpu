@@ -494,6 +494,108 @@ fn fs_main() -> @location(0) vec4<f32> {
     });
   });
 
+  group('textures + samplers', () {
+    test('uploaded texture samples back exactly through a render pass',
+        () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+      final queue = device.queue;
+
+      // 2×2 source texture with four distinct texels.
+      final source = device.createTexture(
+        width: 2,
+        height: 2,
+        format: GpuTextureFormat.rgba8Unorm,
+        usage: GpuTextureUsage.textureBinding | GpuTextureUsage.copyDst,
+        label: 'source',
+      );
+      final pixels = Uint8List.fromList([
+        255, 0, 0, 255, /*   */ 0, 255, 0, 255, // row 0: red, green
+        0, 0, 255, 255, /*   */ 255, 255, 255, 255, // row 1: blue, white
+      ]);
+      queue.writeTexture(source, pixels);
+
+      final sampler = device.createSampler(
+        magFilter: GpuFilterMode.nearest,
+        minFilter: GpuFilterMode.nearest,
+      );
+      final sourceView = source.createView();
+
+      final module = await device.createShaderModule('''
+@group(0) @binding(0) var samp: sampler;
+@group(0) @binding(1) var tex: texture_2d<f32>;
+
+@vertex
+fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
+  var pos = array<vec2f, 3>(
+      vec2f(-1.0, -3.0), vec2f(3.0, 1.0), vec2f(-1.0, 1.0));
+  return vec4f(pos[i], 0.0, 1.0);
+}
+@fragment
+fn fs_main(@builtin(position) frag: vec4f) -> @location(0) vec4f {
+  return textureSample(tex, samp, frag.xy / 2.0);
+}
+''');
+      final pipeline = await device.createRenderPipeline(
+        module: module,
+        targetFormat: GpuTextureFormat.rgba8Unorm,
+      );
+      final layout = pipeline.getBindGroupLayout(0);
+      final bindGroup = device.createBindGroup(layout: layout, entries: [
+        GpuSamplerBinding(binding: 0, sampler: sampler),
+        GpuTextureBinding(binding: 1, view: sourceView),
+      ]);
+
+      // Render the sampled texture 1:1 into a 2×2 target and read it back
+      // (256-byte row alignment applies to the readback copy).
+      final target = device.createTexture(
+        width: 2,
+        height: 2,
+        format: GpuTextureFormat.rgba8Unorm,
+        usage: GpuTextureUsage.renderAttachment | GpuTextureUsage.copySrc,
+        label: 'target',
+      );
+      final targetView = target.createView();
+      final readback = device.createBuffer(
+        size: 256 * 2,
+        usage: GpuBufferUsage.mapRead | GpuBufferUsage.copyDst,
+      );
+
+      final encoder = device.createCommandEncoder();
+      final pass = encoder.beginRenderPass(colorAttachments: [
+        GpuColorAttachmentInfo(view: targetView),
+      ]);
+      pass.setPipeline(pipeline);
+      pass.setBindGroup(0, bindGroup);
+      pass.draw(3);
+      pass.end();
+      encoder.copyTextureToBuffer(target, readback, bytesPerRow: 256);
+      queue.submit([encoder.finish()]);
+
+      final bytes = await readback.mapRead();
+      List<int> texel(int x, int y) =>
+          bytes.sublist(y * 256 + x * 4, y * 256 + x * 4 + 4);
+      expect(texel(0, 0), [255, 0, 0, 255], reason: 'top-left red');
+      expect(texel(1, 0), [0, 255, 0, 255], reason: 'top-right green');
+      expect(texel(0, 1), [0, 0, 255, 255], reason: 'bottom-left blue');
+      expect(texel(1, 1), [255, 255, 255, 255], reason: 'bottom-right white');
+
+      readback.dispose();
+      targetView.dispose();
+      target.dispose();
+      bindGroup.dispose();
+      layout.dispose();
+      pipeline.dispose();
+      module.dispose();
+      sourceView.dispose();
+      sampler.dispose();
+      source.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+  });
+
   group('M2.x timestamp queries', () {
     test('measures real GPU time for a compute pass', () async {
       final adapter =

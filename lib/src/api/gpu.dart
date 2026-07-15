@@ -367,7 +367,7 @@ class GpuDevice {
 
   GpuBindGroup createBindGroup({
     required GpuBindGroupLayout layout,
-    required List<GpuBufferBinding> entries,
+    required List<GpuBinding> entries,
     String label = '',
   }) {
     _checkAlive();
@@ -376,18 +376,33 @@ class GpuDevice {
       GpuBindGroupDescriptor(
         label: label,
         layoutAddress: layout._address,
-        entries: [
-          for (final e in entries)
-            GpuBindGroupEntry(
-              binding: e.binding,
-              bufferAddress: e.buffer._address,
-              offset: e.offset,
-              size: e.size ?? -1,
-            ),
-        ],
+        entries: [for (final e in entries) e._toEntry()],
       ),
     );
     return GpuBindGroup._(address);
+  }
+
+  GpuSampler createSampler({
+    GpuFilterMode magFilter = GpuFilterMode.linear,
+    GpuFilterMode minFilter = GpuFilterMode.linear,
+    GpuFilterMode mipmapFilter = GpuFilterMode.nearest,
+    GpuAddressMode addressMode = GpuAddressMode.clampToEdge,
+    String label = '',
+  }) {
+    _checkAlive();
+    final address = NitroWebgpu.instance.deviceCreateSampler(
+      _address,
+      GpuSamplerDescriptor(
+        label: label,
+        magFilter: magFilter.raw,
+        minFilter: minFilter.raw,
+        mipmapFilter: mipmapFilter.raw,
+        addressModeU: addressMode.raw,
+        addressModeV: addressMode.raw,
+        addressModeW: addressMode.raw,
+      ),
+    );
+    return GpuSampler._(address);
   }
 
   GpuCommandEncoder createCommandEncoder({String label = ''}) {
@@ -503,6 +518,21 @@ class GpuQueue {
     _checkAlive();
     NitroWebgpu.instance
         .queueWriteBuffer(_address, buffer._address, bufferOffset, data);
+  }
+
+  /// Copies [data] into mip 0 of a 2D [texture] (usage must include
+  /// [GpuTextureUsage.copyDst]). [bytesPerRow] defaults to the tight stride
+  /// for 4-byte formats; wgpu copies synchronously.
+  void writeTexture(GpuTexture texture, Uint8List data, {int? bytesPerRow}) {
+    _checkAlive();
+    NitroWebgpu.instance.queueWriteTexture(
+      _address,
+      texture._address,
+      data,
+      bytesPerRow ?? texture.width * 4,
+      texture.width,
+      texture.height,
+    );
   }
 
   /// Submits command buffers in order. They are invalid after submission and
@@ -652,9 +682,17 @@ class GpuBindGroupLayout {
   }
 }
 
-/// One buffer binding for [GpuDevice.createBindGroup].
-class GpuBufferBinding {
+/// One resource binding for [GpuDevice.createBindGroup].
+sealed class GpuBinding {
+  const GpuBinding(this.binding);
+
   final int binding;
+
+  GpuBindGroupEntry _toEntry();
+}
+
+/// Binds a buffer (uniform or storage, per the pipeline's layout).
+class GpuBufferBinding extends GpuBinding {
   final GpuBuffer buffer;
   final int offset;
 
@@ -662,11 +700,84 @@ class GpuBufferBinding {
   final int? size;
 
   const GpuBufferBinding({
-    required this.binding,
+    required int binding,
     required this.buffer,
     this.offset = 0,
     this.size,
-  });
+  }) : super(binding);
+
+  @override
+  GpuBindGroupEntry _toEntry() => GpuBindGroupEntry(
+        binding: binding,
+        bufferAddress: buffer._address,
+        offset: offset,
+        size: size ?? -1,
+      );
+}
+
+/// Binds a sampler.
+class GpuSamplerBinding extends GpuBinding {
+  final GpuSampler sampler;
+
+  const GpuSamplerBinding({required int binding, required this.sampler})
+      : super(binding);
+
+  @override
+  GpuBindGroupEntry _toEntry() => GpuBindGroupEntry(
+        binding: binding,
+        samplerAddress: sampler._address,
+      );
+}
+
+/// Binds a texture view for sampling in shaders.
+class GpuTextureBinding extends GpuBinding {
+  final GpuTextureView view;
+
+  const GpuTextureBinding({required int binding, required this.view})
+      : super(binding);
+
+  @override
+  GpuBindGroupEntry _toEntry() => GpuBindGroupEntry(
+        binding: binding,
+        textureViewAddress: view._address,
+      );
+}
+
+/// Texel filtering for samplers. Raw value = index + 1.
+enum GpuFilterMode {
+  nearest,
+  linear;
+
+  int get raw => index + 1;
+}
+
+/// Texture coordinate wrapping. Raw values 1–3.
+enum GpuAddressMode {
+  clampToEdge,
+  repeat,
+  mirrorRepeat;
+
+  int get raw => index + 1;
+}
+
+/// A texture sampler (see [GpuDevice.createSampler]).
+class GpuSampler {
+  static final Finalizer<int> _finalizer =
+      Finalizer((address) => NitroWebgpu.instance.samplerRelease(address));
+
+  final int _address;
+  bool _disposed = false;
+
+  GpuSampler._(this._address) {
+    _finalizer.attach(this, _address, detach: this);
+  }
+
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _finalizer.detach(this);
+    NitroWebgpu.instance.samplerRelease(_address);
+  }
 }
 
 /// A bind group.

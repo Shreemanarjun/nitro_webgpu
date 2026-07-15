@@ -98,6 +98,9 @@ NITRO_EXPORT void nitro_webgpu_texture_destroy(int64_t instanceId, int64_t textu
 NITRO_EXPORT void nitro_webgpu_texture_release(int64_t instanceId, int64_t texture, NitroError* _nitro_err);
 NITRO_EXPORT int64_t nitro_webgpu_texture_create_view(int64_t instanceId, int64_t texture, const char* label, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_texture_view_release(int64_t instanceId, int64_t view, NitroError* _nitro_err);
+NITRO_EXPORT void nitro_webgpu_queue_write_texture(int64_t instanceId, int64_t queue, int64_t texture, uint8_t* data, size_t data_length, int64_t bytesPerRow, int64_t width, int64_t height, NitroError* _nitro_err);
+NITRO_EXPORT int64_t nitro_webgpu_device_create_sampler(int64_t instanceId, int64_t device, void* descriptor, NitroError* _nitro_err);
+NITRO_EXPORT void nitro_webgpu_sampler_release(int64_t instanceId, int64_t sampler, NitroError* _nitro_err);
 NITRO_EXPORT int64_t nitro_webgpu_device_create_render_pipeline(int64_t instanceId, int64_t device, void* descriptor, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_render_pipeline_release(int64_t instanceId, int64_t pipeline, NitroError* _nitro_err);
 NITRO_EXPORT int64_t nitro_webgpu_render_pipeline_get_bind_group_layout(int64_t instanceId, int64_t pipeline, int64_t groupIndex, NitroError* _nitro_err);

@@ -289,6 +289,22 @@ public:
         throw std::runtime_error("Not implemented: textureViewRelease");
     }
 
+    void queueWriteTexture(int64_t queue, int64_t texture, const uint8_t* data, size_t data_length, int64_t bytesPerRow, int64_t width, int64_t height) override {
+        // TODO: implement queueWriteTexture
+        throw std::runtime_error("Not implemented: queueWriteTexture");
+    }
+
+    int64_t deviceCreateSampler(int64_t device, NitroCppBuffer descriptor) override {
+        // TODO: implement deviceCreateSampler
+        throw std::runtime_error("Not implemented: deviceCreateSampler");
+        // return 0;
+    }
+
+    void samplerRelease(int64_t sampler) override {
+        // TODO: implement samplerRelease
+        throw std::runtime_error("Not implemented: samplerRelease");
+    }
+
     int64_t deviceCreateRenderPipeline(int64_t device, NitroCppBuffer descriptor) override {
         // TODO: implement deviceCreateRenderPipeline
         throw std::runtime_error("Not implemented: deviceCreateRenderPipeline");

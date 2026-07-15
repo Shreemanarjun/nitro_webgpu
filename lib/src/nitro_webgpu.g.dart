@@ -270,6 +270,8 @@ extension GpuBindGroupEntryRecordExt on GpuBindGroupEntry {
     bufferAddress: r.readInt(),
     offset: r.readInt(),
     size: r.readInt(),
+    samplerAddress: r.readInt(),
+    textureViewAddress: r.readInt(),
   );
 
   void writeFields(RecordWriter writer) {
@@ -277,6 +279,40 @@ extension GpuBindGroupEntryRecordExt on GpuBindGroupEntry {
     writer.writeInt(bufferAddress);
     writer.writeInt(offset);
     writer.writeInt(size);
+    writer.writeInt(samplerAddress);
+    writer.writeInt(textureViewAddress);
+  }
+
+  Pointer<Uint8> toNative(Allocator alloc) {
+    final writer = RecordWriter();
+    writeFields(writer);
+    return writer.toNative(alloc);
+  }
+}
+
+extension GpuSamplerDescriptorRecordExt on GpuSamplerDescriptor {
+  static GpuSamplerDescriptor fromNative(Pointer<Uint8> ptr) =>
+      fromReader(RecordReader.fromNative(ptr));
+
+  static GpuSamplerDescriptor fromReader(RecordReader r) =>
+      GpuSamplerDescriptor(
+        label: r.readString(),
+        magFilter: r.readInt(),
+        minFilter: r.readInt(),
+        mipmapFilter: r.readInt(),
+        addressModeU: r.readInt(),
+        addressModeV: r.readInt(),
+        addressModeW: r.readInt(),
+      );
+
+  void writeFields(RecordWriter writer) {
+    writer.writeString(label);
+    writer.writeInt(magFilter);
+    writer.writeInt(minFilter);
+    writer.writeInt(mipmapFilter);
+    writer.writeInt(addressModeU);
+    writer.writeInt(addressModeV);
+    writer.writeInt(addressModeW);
   }
 
   Pointer<Uint8> toNative(Allocator alloc) {
@@ -564,7 +600,7 @@ class _NitroWebgpuImpl extends NitroWebgpu {
     }
     NitroRuntime.checkLinkChecksum(
       'nitro_webgpu',
-      'bffffb18c73dfdb9',
+      '2fb879c72c172c95',
       () => _dylib
           .lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
             'nitro_webgpu_nitro_bridge_checksum',
@@ -1026,6 +1062,56 @@ class _NitroWebgpuImpl extends NitroWebgpu {
       .lookup<
         NativeFunction<Void Function(Int64, Int64, Pointer<NitroErrorFfi>)>
       >('nitro_webgpu_texture_view_release')
+      .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final void Function(
+    int,
+    int,
+    int,
+    Pointer<Uint8>,
+    int,
+    int,
+    int,
+    int,
+    Pointer<NitroErrorFfi>,
+  )
+  _queueWriteTexturePtr = _dylib
+      .lookupFunction<
+        Void Function(
+          Int64,
+          Int64,
+          Int64,
+          Pointer<Uint8>,
+          Size,
+          Int64,
+          Int64,
+          Int64,
+          Pointer<NitroErrorFfi>,
+        ),
+        void Function(
+          int,
+          int,
+          int,
+          Pointer<Uint8>,
+          int,
+          int,
+          int,
+          int,
+          Pointer<NitroErrorFfi>,
+        )
+      >('nitro_webgpu_queue_write_texture');
+  late final int Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>)
+  _deviceCreateSamplerPtr = _dylib
+      .lookupFunction<
+        Int64 Function(Int64, Int64, Pointer<Uint8>, Pointer<NitroErrorFfi>),
+        int Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>)
+      >('nitro_webgpu_device_create_sampler');
+  late final void Function(int, int, Pointer<NitroErrorFfi>)
+  _samplerReleasePtr = _dylib
+      .lookup<
+        NativeFunction<Void Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+      >('nitro_webgpu_sampler_release')
       .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
         isLeaf: true,
       );
@@ -1886,6 +1972,62 @@ class _NitroWebgpuImpl extends NitroWebgpu {
       _textureViewReleasePtr(_instanceId, view, _nitroErr);
       NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
     }, methodName: 'textureViewRelease');
+  }
+
+  @override
+  void queueWriteTexture(
+    int queue,
+    int texture,
+    Uint8List data,
+    int bytesPerRow,
+    int width,
+    int height,
+  ) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(
+      () => withArena((arena) {
+        _queueWriteTexturePtr(
+          _instanceId,
+          queue,
+          texture,
+          data.toPointer(arena),
+          data.length,
+          bytesPerRow,
+          width,
+          height,
+          _nitroErr,
+        );
+        NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+      }),
+      methodName: 'queueWriteTexture',
+    );
+  }
+
+  @override
+  int deviceCreateSampler(int device, GpuSamplerDescriptor descriptor) {
+    checkDisposed();
+    return NitroRuntime.callSync(
+      () => withArena((arena) {
+        final res = _deviceCreateSamplerPtr(
+          _instanceId,
+          device,
+          descriptor.toNative(arena),
+          _nitroErr,
+        );
+        NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+        return res;
+      }),
+      methodName: 'deviceCreateSampler',
+    );
+  }
+
+  @override
+  void samplerRelease(int sampler) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _samplerReleasePtr(_instanceId, sampler, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'samplerRelease');
   }
 
   @override

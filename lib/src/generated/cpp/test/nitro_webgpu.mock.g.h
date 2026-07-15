@@ -57,6 +57,9 @@ class MockNitroWebgpu : public HybridNitroWebgpu {
     MOCK_METHOD(void, textureRelease, (int64_t texture), (override));
     MOCK_METHOD(int64_t, textureCreateView, (int64_t texture, const std::string& label), (override));
     MOCK_METHOD(void, textureViewRelease, (int64_t view), (override));
+    MOCK_METHOD(void, queueWriteTexture, (int64_t queue, int64_t texture, const uint8_t* data, size_t data_length, int64_t bytesPerRow, int64_t width, int64_t height), (override));
+    MOCK_METHOD(int64_t, deviceCreateSampler, (int64_t device, NitroCppBuffer descriptor), (override));
+    MOCK_METHOD(void, samplerRelease, (int64_t sampler), (override));
     MOCK_METHOD(int64_t, deviceCreateRenderPipeline, (int64_t device, NitroCppBuffer descriptor), (override));
     MOCK_METHOD(void, renderPipelineRelease, (int64_t pipeline), (override));
     MOCK_METHOD(int64_t, renderPipelineGetBindGroupLayout, (int64_t pipeline, int64_t groupIndex), (override));

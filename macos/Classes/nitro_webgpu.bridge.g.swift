@@ -431,12 +431,16 @@ public struct GpuBindGroupEntry: NitroEncodable {
   public var bufferAddress: Int64
   public var offset: Int64
   public var size: Int64
+  public var samplerAddress: Int64
+  public var textureViewAddress: Int64
 
-  public init(binding: Int64, bufferAddress: Int64, offset: Int64, size: Int64) {
+  public init(binding: Int64, bufferAddress: Int64, offset: Int64, size: Int64, samplerAddress: Int64, textureViewAddress: Int64) {
     self.binding = binding
     self.bufferAddress = bufferAddress
     self.offset = offset
     self.size = size
+    self.samplerAddress = samplerAddress
+    self.textureViewAddress = textureViewAddress
   }
 
   public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuBindGroupEntry {
@@ -449,6 +453,8 @@ public struct GpuBindGroupEntry: NitroEncodable {
       bufferAddress: r.readInt(),
       offset: r.readInt(),
       size: r.readInt(),
+      samplerAddress: r.readInt(),
+      textureViewAddress: r.readInt(),
     )
   }
 
@@ -457,6 +463,60 @@ public struct GpuBindGroupEntry: NitroEncodable {
     writer.writeInt(bufferAddress)
     writer.writeInt(offset)
     writer.writeInt(size)
+    writer.writeInt(samplerAddress)
+    writer.writeInt(textureViewAddress)
+  }
+
+  public func toNative() -> UnsafeMutablePointer<UInt8>? {
+    let writer = NitroRecordWriter()
+    writeFields(writer)
+    return writer.toNative()
+  }
+}
+
+public struct GpuSamplerDescriptor: NitroEncodable {
+  public var label: String
+  public var magFilter: Int64
+  public var minFilter: Int64
+  public var mipmapFilter: Int64
+  public var addressModeU: Int64
+  public var addressModeV: Int64
+  public var addressModeW: Int64
+
+  public init(label: String, magFilter: Int64, minFilter: Int64, mipmapFilter: Int64, addressModeU: Int64, addressModeV: Int64, addressModeW: Int64) {
+    self.label = label
+    self.magFilter = magFilter
+    self.minFilter = minFilter
+    self.mipmapFilter = mipmapFilter
+    self.addressModeU = addressModeU
+    self.addressModeV = addressModeV
+    self.addressModeW = addressModeW
+  }
+
+  public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuSamplerDescriptor {
+    return fromReader(NitroRecordReader(ptr: ptr))
+  }
+
+  public static func fromReader(_ r: NitroRecordReader) -> GpuSamplerDescriptor {
+    return GpuSamplerDescriptor(
+      label: r.readString(),
+      magFilter: r.readInt(),
+      minFilter: r.readInt(),
+      mipmapFilter: r.readInt(),
+      addressModeU: r.readInt(),
+      addressModeV: r.readInt(),
+      addressModeW: r.readInt(),
+    )
+  }
+
+  public func writeFields(_ writer: NitroRecordWriter) {
+    writer.writeString(label)
+    writer.writeInt(magFilter)
+    writer.writeInt(minFilter)
+    writer.writeInt(mipmapFilter)
+    writer.writeInt(addressModeU)
+    writer.writeInt(addressModeV)
+    writer.writeInt(addressModeW)
   }
 
   public func toNative() -> UnsafeMutablePointer<UInt8>? {
@@ -822,6 +882,9 @@ public protocol HybridNitroWebgpuProtocol: AnyObject {
     func textureRelease(texture: Int64) -> Void
     func textureCreateView(texture: Int64, label: String) -> Int64
     func textureViewRelease(view: Int64) -> Void
+    func queueWriteTexture(queue: Int64, texture: Int64, data: Data, bytesPerRow: Int64, width: Int64, height: Int64) -> Void
+    func deviceCreateSampler(device: Int64, descriptor: GpuSamplerDescriptor) -> Int64
+    func samplerRelease(sampler: Int64) -> Void
     func deviceCreateRenderPipeline(device: Int64, descriptor: GpuRenderPipelineDescriptor) -> Int64
     func renderPipelineRelease(pipeline: Int64) -> Void
     func renderPipelineGetBindGroupLayout(pipeline: Int64, groupIndex: Int64) -> Int64

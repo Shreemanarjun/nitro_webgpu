@@ -24,8 +24,11 @@ Early development.
   On Metal the frame is a single GPU→GPU blit into an IOSurface-backed pixel
   buffer (no CPU readback); a portable CPU-readback presenter is the
   automatic fallback. The full test suite passes on the iOS simulator with
-  the Metal path active. Next: Android SurfaceProducer (M2.3),
-  Windows/Linux (M2.4/M2.5), textures + samplers.
+  the Metal path active.
+- **Textures + samplers (done)**: `queue.writeTexture`, samplers with
+  filter/address modes, and texture/sampler bind-group entries — sampled
+  textures work end-to-end in render passes. Next: Android SurfaceProducer
+  (M2.3), Windows/Linux (M2.4/M2.5), vertex/index buffers + depth.
 - Flutter Web (`navigator.gpu` via JS interop) is designed-for but deferred.
 
 Known upstream gaps (wgpu-native v29.0.1.1): the device-lost callback never

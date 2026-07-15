@@ -215,23 +215,56 @@ class GpuBufferDescriptor {
   });
 }
 
-/// One buffer binding inside a [GpuBindGroupDescriptor].
+/// One resource binding inside a [GpuBindGroupDescriptor]. Exactly one of
+/// [bufferAddress], [samplerAddress], or [textureViewAddress] is non-zero.
 @hybridRecord
 class GpuBindGroupEntry {
   final int binding;
 
-  /// Raw `WGPUBuffer` address.
+  /// Raw `WGPUBuffer` address; 0 = not a buffer binding.
   final int bufferAddress;
   final int offset;
 
   /// Byte size of the binding; -1 binds the whole buffer.
   final int size;
 
+  /// Raw `WGPUSampler` address; 0 = not a sampler binding.
+  final int samplerAddress;
+
+  /// Raw `WGPUTextureView` address; 0 = not a texture binding.
+  final int textureViewAddress;
+
   const GpuBindGroupEntry({
     required this.binding,
-    required this.bufferAddress,
+    this.bufferAddress = 0,
     this.offset = 0,
     this.size = -1,
+    this.samplerAddress = 0,
+    this.textureViewAddress = 0,
+  });
+}
+
+/// Descriptor for [NitroWebgpu.deviceCreateSampler]. Filter values are raw
+/// `WGPUFilterMode` (1 = nearest, 2 = linear); address modes are raw
+/// `WGPUAddressMode` (1 = clampToEdge, 2 = repeat, 3 = mirrorRepeat).
+@hybridRecord
+class GpuSamplerDescriptor {
+  final String label;
+  final int magFilter;
+  final int minFilter;
+  final int mipmapFilter;
+  final int addressModeU;
+  final int addressModeV;
+  final int addressModeW;
+
+  const GpuSamplerDescriptor({
+    this.label = '',
+    this.magFilter = 2,
+    this.minFilter = 2,
+    this.mipmapFilter = 1,
+    this.addressModeU = 1,
+    this.addressModeV = 1,
+    this.addressModeW = 1,
   });
 }
 
@@ -539,6 +572,15 @@ abstract class NitroWebgpu extends HybridObject {
   /// Creates the default full-texture view.
   int textureCreateView(int texture, String label);
   void textureViewRelease(int view);
+
+  /// Copies [data] into mip 0 of a 2D [texture] (usage must include
+  /// `GpuTextureUsage.copyDst`). No 256-byte row alignment is required for
+  /// writeTexture; [bytesPerRow] is the tight source stride.
+  void queueWriteTexture(int queue, int texture, @zeroCopy Uint8List data,
+      int bytesPerRow, int width, int height);
+
+  int deviceCreateSampler(int device, GpuSamplerDescriptor descriptor);
+  void samplerRelease(int sampler);
 
   int deviceCreateRenderPipeline(int device, GpuRenderPipelineDescriptor descriptor);
   void renderPipelineRelease(int pipeline);

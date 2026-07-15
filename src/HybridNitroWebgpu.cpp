@@ -619,12 +619,20 @@ public:
         const auto d = GpuBindGroupDescriptor::fromNative(descriptor);
         std::vector<WGPUBindGroupEntry> entries(d.entries.size());
         for (size_t i = 0; i < d.entries.size(); i++) {
+            const auto& e = d.entries[i];
             entries[i] = WGPU_BIND_GROUP_ENTRY_INIT;
-            entries[i].binding = (uint32_t)d.entries[i].binding;
-            entries[i].buffer = (WGPUBuffer)(intptr_t)d.entries[i].bufferAddress;
-            entries[i].offset = (uint64_t)d.entries[i].offset;
-            entries[i].size = d.entries[i].size < 0 ? WGPU_WHOLE_SIZE
-                                                    : (uint64_t)d.entries[i].size;
+            entries[i].binding = (uint32_t)e.binding;
+            if (e.bufferAddress) {
+                entries[i].buffer = (WGPUBuffer)(intptr_t)e.bufferAddress;
+                entries[i].offset = (uint64_t)e.offset;
+                entries[i].size =
+                    e.size < 0 ? WGPU_WHOLE_SIZE : (uint64_t)e.size;
+            } else if (e.samplerAddress) {
+                entries[i].sampler = (WGPUSampler)(intptr_t)e.samplerAddress;
+            } else if (e.textureViewAddress) {
+                entries[i].textureView =
+                    (WGPUTextureView)(intptr_t)e.textureViewAddress;
+            }
         }
         WGPUBindGroupDescriptor wd = WGPU_BIND_GROUP_DESCRIPTOR_INIT;
         wd.label = toView(d.label);
@@ -788,6 +796,41 @@ public:
 
     void textureViewRelease(int64_t view) override {
         wgpuTextureViewRelease((WGPUTextureView)(intptr_t)view);
+    }
+
+    void queueWriteTexture(int64_t queue, int64_t texture, const uint8_t* data,
+                           size_t data_length, int64_t bytesPerRow,
+                           int64_t width, int64_t height) override {
+        WGPUTexelCopyTextureInfo dst = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
+        dst.texture = (WGPUTexture)(intptr_t)texture;
+        WGPUTexelCopyBufferLayout layout = {};
+        layout.offset = 0;
+        layout.bytesPerRow = (uint32_t)bytesPerRow;
+        layout.rowsPerImage = (uint32_t)height;
+        WGPUExtent3D extent = {(uint32_t)width, (uint32_t)height, 1};
+        wgpuQueueWriteTexture((WGPUQueue)(intptr_t)queue, &dst, data,
+                              data_length, &layout, &extent);
+    }
+
+    int64_t deviceCreateSampler(int64_t device,
+                                NitroCppBuffer descriptor) override {
+        const auto d = GpuSamplerDescriptor::fromNative(descriptor);
+        WGPUSamplerDescriptor wd = WGPU_SAMPLER_DESCRIPTOR_INIT;
+        wd.label = toView(d.label);
+        wd.magFilter = (WGPUFilterMode)d.magFilter;
+        wd.minFilter = (WGPUFilterMode)d.minFilter;
+        wd.mipmapFilter = (WGPUMipmapFilterMode)d.mipmapFilter;
+        wd.addressModeU = (WGPUAddressMode)d.addressModeU;
+        wd.addressModeV = (WGPUAddressMode)d.addressModeV;
+        wd.addressModeW = (WGPUAddressMode)d.addressModeW;
+        WGPUSampler sampler =
+            wgpuDeviceCreateSampler((WGPUDevice)(intptr_t)device, &wd);
+        if (!sampler) throw std::runtime_error("wgpuDeviceCreateSampler failed");
+        return (int64_t)(intptr_t)sampler;
+    }
+
+    void samplerRelease(int64_t sampler) override {
+        wgpuSamplerRelease((WGPUSampler)(intptr_t)sampler);
     }
 
     int64_t deviceCreateRenderPipeline(int64_t device,
