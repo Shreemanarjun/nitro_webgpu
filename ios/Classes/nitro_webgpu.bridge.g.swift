@@ -1,1 +1,0 @@
-../../lib/src/generated/swift/nitro_webgpu.bridge.g.swift
