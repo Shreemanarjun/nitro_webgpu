@@ -6,6 +6,8 @@ import 'package:integration_test/integration_test.dart';
 import 'package:nitro_webgpu/nitro_webgpu.dart';
 import 'package:nitro_webgpu/src/nitro_webgpu_present.native.dart';
 import 'package:nitro_webgpu_example/src/demos/shader_toy_page.dart';
+import 'package:nitro_webgpu_example/src/gpu/benchmark_scenes.dart';
+import 'package:nitro_webgpu_example/src/gpu/scenes.dart';
 import 'package:nitro_webgpu_example/src/gpu/shader_presets.dart';
 
 // CI runners have no real GPU; --dart-define=WGPU_FORCE_FALLBACK=true selects
@@ -495,6 +497,28 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
         );
         pipeline.dispose();
         module.dispose();
+      }
+      device.dispose();
+      adapter.dispose();
+    });
+
+    test('every benchmark scene compiles and builds a render pipeline',
+        () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+      for (final (name, builder) in benchmarkScenes()) {
+        final scene = builder() as UniformScene;
+        final module =
+            await device.createShaderModule(scene.wgsl, label: name);
+        final pipeline = await device.createRenderPipeline(
+          module: module,
+          targetFormat: GpuTextureFormat.bgra8Unorm,
+          label: name,
+        );
+        pipeline.dispose();
+        module.dispose();
+        scene.dispose();
       }
       device.dispose();
       adapter.dispose();

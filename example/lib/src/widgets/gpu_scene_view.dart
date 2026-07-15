@@ -3,6 +3,7 @@ import 'package:nitro_webgpu/nitro_webgpu.dart';
 
 import '../gpu/gpu_context.dart';
 import '../gpu/pass_timer.dart';
+import '../gpu/perf_log.dart';
 import '../gpu/scenes.dart';
 import 'fps_overlay.dart';
 
@@ -21,6 +22,8 @@ class GpuSceneView extends StatefulWidget {
     this.ownsScene = true,
     this.showPerf = true,
     this.detailedPerf = true,
+    this.logLabel,
+    this.onStats,
   });
 
   final GpuScene scene;
@@ -29,6 +32,14 @@ class GpuSceneView extends StatefulWidget {
 
   /// When false only the FPS line is shown (compact grid tiles).
   final bool detailedPerf;
+
+  /// When set, stats are logged to the console once per second as
+  /// `[gpu-perf] label=<logLabel> …` lines (see [PerfLog]).
+  final String? logLabel;
+
+  /// Invoked on every stats publish (~4×/second) — used by the benchmark
+  /// runner to collect samples.
+  final void Function(PerfStats stats)? onStats;
 
   @override
   State<GpuSceneView> createState() => _GpuSceneViewState();
@@ -41,9 +52,17 @@ class _GpuSceneViewState extends State<GpuSceneView> {
   String? _error;
   int _frameIndex = 0;
 
+  void _onStatsPublished() {
+    final stats = _perf.stats.value;
+    final label = widget.logLabel;
+    if (label != null) PerfLog.record(label, stats);
+    widget.onStats?.call(stats);
+  }
+
   @override
   void initState() {
     super.initState();
+    _perf.stats.addListener(_onStatsPublished);
     GpuContext.obtain().then((ctx) async {
       final timer = await GpuPassTimer.create(ctx.device);
       if (!mounted) {

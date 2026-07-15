@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'src/demos/adapter_probe_page.dart';
+import 'src/demos/benchmark_page.dart';
 import 'src/demos/compute_page.dart';
 import 'src/demos/live_scene_page.dart';
 import 'src/demos/multi_view_page.dart';
@@ -56,6 +57,13 @@ class GalleryPage extends StatelessWidget {
           'controls, and the CC0 "Neon cubes" raymarcher by mrange',
       icon: Icons.auto_awesome,
       builder: (_) => const ShaderToyPage(),
+    ),
+    _DemoEntry(
+      title: 'Performance benchmark',
+      subtitle: 'Four heavy scenes — raymarcher, Mandelbulb, FBM warp, '
+          'metaballs — with a sequential timed run and per-scene GPU numbers',
+      icon: Icons.speed,
+      builder: (_) => const BenchmarkPage(),
     ),
     _DemoEntry(
       title: 'Multi render',
