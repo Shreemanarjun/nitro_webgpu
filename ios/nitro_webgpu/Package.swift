@@ -33,11 +33,24 @@ let package = Package(
                 .linkedFramework("QuartzCore"),
             ]
         ),
+        // Present module C bridge — one Cpp target per Nitro module (the
+        // generated Swift bridge imports NitroWebgpuPresentCpp). dart_api_dl.c
+        // is compiled ONCE (in NitroWebgpuCpp) to avoid duplicate symbols.
+        .target(
+            name: "NitroWebgpuPresentCpp",
+            path: "Sources/NitroWebgpuPresentCpp",
+            publicHeadersPath: "include",
+            cxxSettings: [
+                .headerSearchPath("include"),
+                .unsafeFlags(["-std=c++17"])
+            ]
+        ),
         // Swift implementation + generated bridge.
         .target(
             name: "nitro_webgpu",
             dependencies: [
                 "NitroWebgpuCpp",
+                "NitroWebgpuPresentCpp",
                 .product(name: "FlutterFramework", package: "FlutterFramework"),
             ],
             path: "Sources/NitroWebgpu"

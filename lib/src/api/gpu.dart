@@ -834,18 +834,42 @@ class GpuTextureView {
       Finalizer((address) => NitroWebgpu.instance.textureViewRelease(address));
 
   final int _address;
+  final bool _owned;
   bool _disposed = false;
 
-  GpuTextureView._(this._address) {
+  GpuTextureView._(this._address) : _owned = true {
     _finalizer.attach(this, _address, detach: this);
   }
 
+  /// A borrowed view whose lifetime is owned by native code (e.g. a
+  /// presenter's render target) — [dispose] is a no-op.
+  GpuTextureView.borrowed(int address)
+      : _address = address,
+        _owned = false;
+
   void dispose() {
-    if (_disposed) return;
+    if (_disposed || !_owned) return;
     _disposed = true;
     _finalizer.detach(this);
     NitroWebgpu.instance.textureViewRelease(_address);
   }
+}
+
+/// The render target a [WebGpuView] frame renders into: a borrowed texture
+/// view plus its pixel size and format (create pipelines with
+/// [targetFormat]).
+class GpuRenderTarget {
+  final GpuTextureView view;
+  final int width;
+  final int height;
+  final GpuTextureFormat targetFormat;
+
+  const GpuRenderTarget({
+    required this.view,
+    required this.width,
+    required this.height,
+    required this.targetFormat,
+  });
 }
 
 /// A render pipeline (see [GpuDevice.createRenderPipeline]).

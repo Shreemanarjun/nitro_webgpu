@@ -1,10 +1,11 @@
 import FlutterMacOS
 
-/// All nitro_webgpu modules are NativeImpl.cpp — the C++ implementation
-/// self-registers when the library loads, so no Swift registration is needed.
-/// This class exists to satisfy the `pluginClass` entry in pubspec.yaml and
-/// will host the Flutter texture-registry handoff for presentation (M2).
+/// The core nitro_webgpu module is NativeImpl.cpp and self-registers when the
+/// library loads. This class registers the presentation module's Swift impl,
+/// handing it the Flutter texture registry.
 public class SwiftNitroWebgpuPlugin: NSObject, FlutterPlugin {
     public static func register(with registrar: FlutterPluginRegistrar) {
-    NitroWebgpuPresentRegistry.register(NitroWebgpuPresentModuleImpl())}
+        NitroWebgpuPresentRegistry.register(
+            NitroWebgpuPresentModuleImpl(textures: registrar.textures))
+    }
 }

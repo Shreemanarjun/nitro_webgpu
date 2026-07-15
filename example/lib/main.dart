@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -221,11 +222,120 @@ fn fs_main() -> @location(0) vec4<f32> {
                 ElevatedButton(
                     onPressed: _renderTriangle,
                     child: const Text('Render offscreen')),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => const LiveRenderPage()),
+                  ),
+                  child: const Text('Live render (M2)'),
+                ),
               ],
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// M2 demo: WebGPU rendering composited live into the widget tree.
+class LiveRenderPage extends StatefulWidget {
+  const LiveRenderPage({super.key});
+
+  @override
+  State<LiveRenderPage> createState() => _LiveRenderPageState();
+}
+
+class _LiveRenderPageState extends State<LiveRenderPage> {
+  GpuAdapter? _adapter;
+  GpuDevice? _device;
+  GpuShaderModule? _module;
+  GpuRenderPipeline? _pipeline;
+  GpuTextureFormat? _pipelineFormat;
+  String? _error;
+
+  static const _wgsl = '''
+@vertex
+fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
+  var pos = array<vec2<f32>, 3>(
+    vec2(0.0, 0.7), vec2(-0.7, -0.7), vec2(0.7, -0.7));
+  return vec4(pos[i], 0.0, 1.0);
+}
+@fragment
+fn fs_main() -> @location(0) vec4<f32> {
+  return vec4(0.2, 0.9, 0.4, 1.0);
+}
+''';
+
+  @override
+  void initState() {
+    super.initState();
+    _setup();
+  }
+
+  Future<void> _setup() async {
+    try {
+      final adapter = await Gpu.requestAdapter();
+      final device = await adapter.requestDevice(label: 'live-render');
+      final module = await device.createShaderModule(_wgsl);
+      setState(() {
+        _adapter = adapter;
+        _device = device;
+        _module = module;
+      });
+    } catch (e) {
+      setState(() => _error = '$e');
+    }
+  }
+
+  Future<void> _onFrame(GpuRenderTarget target, Duration elapsed) async {
+    final device = _device!;
+    if (_pipeline == null || _pipelineFormat != target.targetFormat) {
+      _pipeline?.dispose();
+      _pipeline = await device.createRenderPipeline(
+        module: _module!,
+        targetFormat: target.targetFormat,
+      );
+      _pipelineFormat = target.targetFormat;
+    }
+    // Animated clear color proves live per-frame rendering.
+    final t = elapsed.inMilliseconds / 1000.0;
+    final encoder = device.createCommandEncoder();
+    final pass = encoder.beginRenderPass(colorAttachments: [
+      GpuColorAttachmentInfo(
+        view: target.view,
+        clearColor: GpuColor(
+          0.5 + 0.5 * math.sin(t * 2.0),
+          0.2,
+          0.5 + 0.5 * math.cos(t * 1.3),
+        ),
+      ),
+    ]);
+    pass.setPipeline(_pipeline!);
+    pass.draw(3);
+    pass.end();
+    device.queue.submit([encoder.finish()]);
+  }
+
+  @override
+  void dispose() {
+    _pipeline?.dispose();
+    _module?.dispose();
+    _device?.dispose();
+    _adapter?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final device = _device;
+    return Scaffold(
+      appBar: AppBar(title: const Text('WebGPU live render')),
+      body: _error != null
+          ? Center(child: Text('Error: $_error'))
+          : device == null
+              ? const Center(child: CircularProgressIndicator())
+              : WebGpuView(device: device, onFrame: _onFrame),
     );
   }
 }

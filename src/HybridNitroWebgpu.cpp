@@ -134,23 +134,33 @@ public:
     }
     void opFinished() { pendingOps_.fetch_sub(1, std::memory_order_acq_rel); }
 
+    // The poll registry is refcounted: the Dart-owned device handle holds one
+    // registration, and each presenter holds another — so in-flight presenter
+    // readbacks keep completing even after the app released its device handle.
     void registerDevice(WGPUDevice device) {
         std::lock_guard<std::mutex> lock(devicesMutex_);
-        devices_.insert(device);
+        ++devices_[device];
         cv_.notify_one();
     }
 
-    // Removes the device from the pump sweep and releases it under the same
-    // lock, so the pump can never poll a released handle.
+    void unregisterDevice(WGPUDevice device) {
+        std::lock_guard<std::mutex> lock(devicesMutex_);
+        auto it = devices_.find(device);
+        if (it != devices_.end() && --it->second == 0) devices_.erase(it);
+    }
+
+    // Drops the Dart handle's registration and releases it under the same
+    // lock, so the pump can never poll a fully-released handle.
     void unregisterAndRelease(WGPUDevice device) {
         {
             std::lock_guard<std::mutex> lock(devicesMutex_);
-            devices_.erase(device);
+            auto it = devices_.find(device);
+            if (it != devices_.end() && --it->second == 0) devices_.erase(it);
             wgpuDeviceRelease(device);
         }
         // The device-lost event is delivered through the instance event queue;
-        // keep pumping briefly so it reaches Dart even though the device is
-        // gone from the poll sweep.
+        // keep pumping briefly so it reaches Dart even though the device may
+        // be gone from the poll sweep.
         pokePump(500);
     }
 
@@ -184,8 +194,8 @@ private:
             wgpuInstanceProcessEvents(instance_);
             {
                 std::lock_guard<std::mutex> lock(devicesMutex_);
-                for (WGPUDevice d : devices_) {
-                    wgpuDevicePoll(d, /*wait=*/0, nullptr);
+                for (const auto& [device, refs] : devices_) {
+                    wgpuDevicePoll(device, /*wait=*/0, nullptr);
                 }
             }
             if (pendingOps_.load(std::memory_order_acquire) > 0) {
@@ -211,7 +221,7 @@ private:
     std::condition_variable cv_;
     std::atomic<int> pendingOps_{0};
     std::atomic<int64_t> lingerUntilMs_{0};
-    std::unordered_set<WGPUDevice> devices_;
+    std::unordered_map<WGPUDevice, int> devices_;
     WGPUInstance instance_ = nullptr;
     std::thread pump_;
 };
@@ -870,3 +880,6 @@ __attribute__((constructor)) static void _nitro_webgpu_autoregister() {
     nitro_webgpu_register_impl(&g_impl);
 }
 #endif
+
+// ── Presentation core (same TU: shares WgpuContext and the wgpu instance) ────
+#include "present/present_core.cpp"

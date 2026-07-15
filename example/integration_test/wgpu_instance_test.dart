@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:nitro_webgpu/nitro_webgpu.dart';
@@ -294,6 +295,74 @@ fn fs_main() -> @location(0) vec4<f32> {
       view.dispose();
       texture.dispose();
       pipeline.dispose();
+      module.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+  });
+
+  group('M2.0 WebGpuView', () {
+    testWidgets('pumps live frames through the presenter', (tester) async {
+      final binding = tester.binding as LiveTestWidgetsFlutterBinding;
+      binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+      final module = await device.createShaderModule('''
+@vertex
+fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
+  var pos = array<vec2<f32>, 3>(
+    vec2(0.0, 0.7), vec2(-0.7, -0.7), vec2(0.7, -0.7));
+  return vec4(pos[i], 0.0, 1.0);
+}
+@fragment
+fn fs_main() -> @location(0) vec4<f32> {
+  return vec4(0.0, 1.0, 0.0, 1.0);
+}
+''');
+
+      GpuRenderPipeline? pipeline;
+      var frames = 0;
+      Future<void> onFrame(GpuRenderTarget target, Duration elapsed) async {
+        pipeline ??= await device.createRenderPipeline(
+          module: module,
+          targetFormat: target.targetFormat,
+        );
+        final encoder = device.createCommandEncoder();
+        final pass = encoder.beginRenderPass(colorAttachments: [
+          GpuColorAttachmentInfo(view: target.view),
+        ]);
+        pass.setPipeline(pipeline!);
+        pass.draw(3);
+        pass.end();
+        device.queue.submit([encoder.finish()]);
+        frames++;
+      }
+
+      await tester.pumpWidget(MaterialApp(
+        home: Center(
+          child: SizedBox(
+            width: 256,
+            height: 256,
+            child: WebGpuView(device: device, onFrame: onFrame),
+          ),
+        ),
+      ));
+
+      // Let the live ticker run for real time.
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(seconds: 2)));
+      await tester.pump();
+      expect(frames, greaterThan(5),
+          reason: 'presenter should pump multiple live frames');
+
+      // Unmount → WebGpuView drains and destroys its presenter.
+      await tester.pumpWidget(const SizedBox());
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 500)));
+
+      pipeline?.dispose();
       module.dispose();
       device.dispose();
       adapter.dispose();
