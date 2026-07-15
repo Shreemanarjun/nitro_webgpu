@@ -250,16 +250,25 @@ class _LiveRenderPageState extends State<LiveRenderPage> {
   GpuAdapter? _adapter;
   GpuDevice? _device;
   GpuShaderModule? _module;
+  GpuBuffer? _uniforms;
   GpuRenderPipeline? _pipeline;
+  GpuBindGroupLayout? _layout;
+  GpuBindGroup? _bindGroup;
   GpuTextureFormat? _pipelineFormat;
   String? _error;
 
   static const _wgsl = '''
+struct Uniforms { angle: f32 };
+@group(0) @binding(0) var<uniform> u: Uniforms;
+
 @vertex
 fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
   var pos = array<vec2<f32>, 3>(
     vec2(0.0, 0.7), vec2(-0.7, -0.7), vec2(0.7, -0.7));
-  return vec4(pos[i], 0.0, 1.0);
+  let c = cos(u.angle);
+  let s = sin(u.angle);
+  let p = pos[i];
+  return vec4(c * p.x - s * p.y, s * p.x + c * p.y, 0.0, 1.0);
 }
 @fragment
 fn fs_main() -> @location(0) vec4<f32> {
@@ -278,40 +287,58 @@ fn fs_main() -> @location(0) vec4<f32> {
       final adapter = await Gpu.requestAdapter();
       final device = await adapter.requestDevice(label: 'live-render');
       final module = await device.createShaderModule(_wgsl);
+      final uniforms = device.createBuffer(
+        size: 16,
+        usage: GpuBufferUsage.uniform | GpuBufferUsage.copyDst,
+        label: 'uniforms',
+      );
       setState(() {
         _adapter = adapter;
         _device = device;
         _module = module;
+        _uniforms = uniforms;
       });
     } catch (e) {
       setState(() => _error = '$e');
     }
   }
 
+  Future<void> _ensurePipeline(GpuTextureFormat format) async {
+    if (_pipeline != null && _pipelineFormat == format) return;
+    _bindGroup?.dispose();
+    _layout?.dispose();
+    _pipeline?.dispose();
+    _pipeline = await _device!.createRenderPipeline(
+      module: _module!,
+      targetFormat: format,
+    );
+    _pipelineFormat = format;
+    _layout = _pipeline!.getBindGroupLayout(0);
+    _bindGroup = _device!.createBindGroup(layout: _layout!, entries: [
+      GpuBufferBinding(binding: 0, buffer: _uniforms!),
+    ]);
+  }
+
   Future<void> _onFrame(GpuRenderTarget target, Duration elapsed) async {
     final device = _device!;
-    if (_pipeline == null || _pipelineFormat != target.targetFormat) {
-      _pipeline?.dispose();
-      _pipeline = await device.createRenderPipeline(
-        module: _module!,
-        targetFormat: target.targetFormat,
-      );
-      _pipelineFormat = target.targetFormat;
-    }
-    // Animated clear color proves live per-frame rendering.
-    final t = elapsed.inMilliseconds / 1000.0;
+    await _ensurePipeline(target.targetFormat);
+
+    // Spin one revolution every four seconds.
+    final angle = (elapsed.inMilliseconds / 1000.0) * (math.pi / 2.0);
+    device.queue.writeBuffer(
+      _uniforms!,
+      Float32List.fromList([angle, 0, 0, 0]).buffer.asUint8List(),
+    );
+
     final encoder = device.createCommandEncoder();
     final pass = encoder.beginRenderPass(colorAttachments: [
       GpuColorAttachmentInfo(
         view: target.view,
-        clearColor: GpuColor(
-          0.5 + 0.5 * math.sin(t * 2.0),
-          0.2,
-          0.5 + 0.5 * math.cos(t * 1.3),
-        ),
+        clearColor: const GpuColor(0.09, 0.09, 0.13),
       ),
     ]);
     pass.setPipeline(_pipeline!);
+    pass.setBindGroup(0, _bindGroup!);
     pass.draw(3);
     pass.end();
     device.queue.submit([encoder.finish()]);
@@ -319,7 +346,10 @@ fn fs_main() -> @location(0) vec4<f32> {
 
   @override
   void dispose() {
+    _bindGroup?.dispose();
+    _layout?.dispose();
     _pipeline?.dispose();
+    _uniforms?.dispose();
     _module?.dispose();
     _device?.dispose();
     _adapter?.dispose();

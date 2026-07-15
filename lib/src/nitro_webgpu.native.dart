@@ -505,8 +505,13 @@ abstract class NitroWebgpu extends HybridObject {
   int deviceCreateRenderPipeline(int device, GpuRenderPipelineDescriptor descriptor);
   void renderPipelineRelease(int pipeline);
 
+  /// Returns the render pipeline's bind group layout (+1 ref; pair with
+  /// [bindGroupLayoutRelease]).
+  int renderPipelineGetBindGroupLayout(int pipeline, int groupIndex);
+
   int encoderBeginRenderPass(int encoder, GpuRenderPassDescriptor descriptor);
   void renderPassSetPipeline(int pass, int pipeline);
+  void renderPassSetBindGroup(int pass, int index, int bindGroup);
   void renderPassDraw(int pass, int vertexCount, int instanceCount,
       int firstVertex, int firstInstance);
   void renderPassEnd(int pass);

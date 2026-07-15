@@ -529,7 +529,7 @@ class _NitroWebgpuImpl extends NitroWebgpu {
     }
     NitroRuntime.checkLinkChecksum(
       'nitro_webgpu',
-      '0e33291028c93bd9',
+      '758dd5a7b0a90b1a',
       () => _dylib
           .lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
             'nitro_webgpu_nitro_bridge_checksum',
@@ -1000,6 +1000,16 @@ class _NitroWebgpuImpl extends NitroWebgpu {
       .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
         isLeaf: true,
       );
+  late final int Function(int, int, int, Pointer<NitroErrorFfi>)
+  _renderPipelineGetBindGroupLayoutPtr = _dylib
+      .lookup<
+        NativeFunction<
+          Int64 Function(Int64, Int64, Int64, Pointer<NitroErrorFfi>)
+        >
+      >('nitro_webgpu_render_pipeline_get_bind_group_layout')
+      .asFunction<int Function(int, int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
   late final int Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>)
   _encoderBeginRenderPassPtr = _dylib
       .lookupFunction<
@@ -1014,6 +1024,16 @@ class _NitroWebgpuImpl extends NitroWebgpu {
         >
       >('nitro_webgpu_render_pass_set_pipeline')
       .asFunction<void Function(int, int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final void Function(int, int, int, int, Pointer<NitroErrorFfi>)
+  _renderPassSetBindGroupPtr = _dylib
+      .lookup<
+        NativeFunction<
+          Void Function(Int64, Int64, Int64, Int64, Pointer<NitroErrorFfi>)
+        >
+      >('nitro_webgpu_render_pass_set_bind_group')
+      .asFunction<void Function(int, int, int, int, Pointer<NitroErrorFfi>)>(
         isLeaf: true,
       );
   late final void Function(int, int, int, int, int, int, Pointer<NitroErrorFfi>)
@@ -1789,6 +1809,21 @@ class _NitroWebgpuImpl extends NitroWebgpu {
   }
 
   @override
+  int renderPipelineGetBindGroupLayout(int pipeline, int groupIndex) {
+    checkDisposed();
+    return NitroRuntime.callSync(() {
+      final res = _renderPipelineGetBindGroupLayoutPtr(
+        _instanceId,
+        pipeline,
+        groupIndex,
+        _nitroErr,
+      );
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+      return res;
+    }, methodName: 'renderPipelineGetBindGroupLayout');
+  }
+
+  @override
   int encoderBeginRenderPass(int encoder, GpuRenderPassDescriptor descriptor) {
     checkDisposed();
     return NitroRuntime.callSync(
@@ -1813,6 +1848,21 @@ class _NitroWebgpuImpl extends NitroWebgpu {
       _renderPassSetPipelinePtr(_instanceId, pass, pipeline, _nitroErr);
       NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
     }, methodName: 'renderPassSetPipeline');
+  }
+
+  @override
+  void renderPassSetBindGroup(int pass, int index, int bindGroup) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _renderPassSetBindGroupPtr(
+        _instanceId,
+        pass,
+        index,
+        bindGroup,
+        _nitroErr,
+      );
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'renderPassSetBindGroup');
   }
 
   @override

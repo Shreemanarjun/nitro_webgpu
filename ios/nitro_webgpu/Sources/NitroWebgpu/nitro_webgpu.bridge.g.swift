@@ -767,8 +767,10 @@ public protocol HybridNitroWebgpuProtocol: AnyObject {
     func textureViewRelease(view: Int64) -> Void
     func deviceCreateRenderPipeline(device: Int64, descriptor: GpuRenderPipelineDescriptor) -> Int64
     func renderPipelineRelease(pipeline: Int64) -> Void
+    func renderPipelineGetBindGroupLayout(pipeline: Int64, groupIndex: Int64) -> Int64
     func encoderBeginRenderPass(encoder: Int64, descriptor: GpuRenderPassDescriptor) -> Int64
     func renderPassSetPipeline(pass: Int64, pipeline: Int64) -> Void
+    func renderPassSetBindGroup(pass: Int64, index: Int64, bindGroup: Int64) -> Void
     func renderPassDraw(pass: Int64, vertexCount: Int64, instanceCount: Int64, firstVertex: Int64, firstInstance: Int64) -> Void
     func renderPassEnd(pass: Int64) -> Void
     func renderPassRelease(pass: Int64) -> Void

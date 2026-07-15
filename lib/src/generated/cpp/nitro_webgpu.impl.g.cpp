@@ -294,6 +294,12 @@ public:
         throw std::runtime_error("Not implemented: renderPipelineRelease");
     }
 
+    int64_t renderPipelineGetBindGroupLayout(int64_t pipeline, int64_t groupIndex) override {
+        // TODO: implement renderPipelineGetBindGroupLayout
+        throw std::runtime_error("Not implemented: renderPipelineGetBindGroupLayout");
+        // return 0;
+    }
+
     int64_t encoderBeginRenderPass(int64_t encoder, NitroCppBuffer descriptor) override {
         // TODO: implement encoderBeginRenderPass
         throw std::runtime_error("Not implemented: encoderBeginRenderPass");
@@ -303,6 +309,11 @@ public:
     void renderPassSetPipeline(int64_t pass, int64_t pipeline) override {
         // TODO: implement renderPassSetPipeline
         throw std::runtime_error("Not implemented: renderPassSetPipeline");
+    }
+
+    void renderPassSetBindGroup(int64_t pass, int64_t index, int64_t bindGroup) override {
+        // TODO: implement renderPassSetBindGroup
+        throw std::runtime_error("Not implemented: renderPassSetBindGroup");
     }
 
     void renderPassDraw(int64_t pass, int64_t vertexCount, int64_t instanceCount, int64_t firstVertex, int64_t firstInstance) override {

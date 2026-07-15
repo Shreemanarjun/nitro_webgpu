@@ -800,6 +800,16 @@ public:
         wgpuRenderPipelineRelease((WGPURenderPipeline)(intptr_t)pipeline);
     }
 
+    int64_t renderPipelineGetBindGroupLayout(int64_t pipeline,
+                                             int64_t groupIndex) override {
+        WGPUBindGroupLayout layout = wgpuRenderPipelineGetBindGroupLayout(
+            (WGPURenderPipeline)(intptr_t)pipeline, (uint32_t)groupIndex);
+        if (!layout) {
+            throw std::runtime_error("renderPipelineGetBindGroupLayout failed");
+        }
+        return (int64_t)(intptr_t)layout;
+    }
+
     int64_t encoderBeginRenderPass(int64_t encoder,
                                    NitroCppBuffer descriptor) override {
         const auto d = GpuRenderPassDescriptor::fromNative(descriptor);
@@ -827,6 +837,13 @@ public:
         wgpuRenderPassEncoderSetPipeline(
             (WGPURenderPassEncoder)(intptr_t)pass,
             (WGPURenderPipeline)(intptr_t)pipeline);
+    }
+
+    void renderPassSetBindGroup(int64_t pass, int64_t index,
+                                int64_t bindGroup) override {
+        wgpuRenderPassEncoderSetBindGroup(
+            (WGPURenderPassEncoder)(intptr_t)pass, (uint32_t)index,
+            (WGPUBindGroup)(intptr_t)bindGroup, 0, nullptr);
     }
 
     void renderPassDraw(int64_t pass, int64_t vertexCount, int64_t instanceCount,

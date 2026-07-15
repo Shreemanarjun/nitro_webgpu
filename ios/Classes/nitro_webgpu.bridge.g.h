@@ -99,8 +99,10 @@ NITRO_EXPORT int64_t nitro_webgpu_texture_create_view(int64_t instanceId, int64_
 NITRO_EXPORT void nitro_webgpu_texture_view_release(int64_t instanceId, int64_t view, NitroError* _nitro_err);
 NITRO_EXPORT int64_t nitro_webgpu_device_create_render_pipeline(int64_t instanceId, int64_t device, void* descriptor, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_render_pipeline_release(int64_t instanceId, int64_t pipeline, NitroError* _nitro_err);
+NITRO_EXPORT int64_t nitro_webgpu_render_pipeline_get_bind_group_layout(int64_t instanceId, int64_t pipeline, int64_t groupIndex, NitroError* _nitro_err);
 NITRO_EXPORT int64_t nitro_webgpu_encoder_begin_render_pass(int64_t instanceId, int64_t encoder, void* descriptor, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_render_pass_set_pipeline(int64_t instanceId, int64_t pass, int64_t pipeline, NitroError* _nitro_err);
+NITRO_EXPORT void nitro_webgpu_render_pass_set_bind_group(int64_t instanceId, int64_t pass, int64_t index, int64_t bindGroup, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_render_pass_draw(int64_t instanceId, int64_t pass, int64_t vertexCount, int64_t instanceCount, int64_t firstVertex, int64_t firstInstance, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_render_pass_end(int64_t instanceId, int64_t pass, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_render_pass_release(int64_t instanceId, int64_t pass, NitroError* _nitro_err);

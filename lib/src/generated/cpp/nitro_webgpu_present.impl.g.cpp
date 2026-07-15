@@ -67,6 +67,12 @@ public:
         // return 0;
     }
 
+    bool presenterUsesGpuPath(int64_t token) override {
+        // TODO: implement presenterUsesGpuPath
+        throw std::runtime_error("Not implemented: presenterUsesGpuPath");
+        // return false;
+    }
+
     void resizePresenter(int64_t token, int64_t widthPx, int64_t heightPx) override {
         // TODO: implement resizePresenter
         throw std::runtime_error("Not implemented: resizePresenter");

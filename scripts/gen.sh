@@ -12,4 +12,12 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 dart run build_runner build
 nitrogen link
+
+# nitrogen link syncs every bridge .mm into Sources/NitroWebgpuCpp, but the
+# present module's bridge is compiled by its own SPM target
+# (NitroWebgpuPresentCpp — one Cpp target per module, vani convention).
+# Remove the duplicate so the two targets don't define the same symbols.
+rm -f macos/nitro_webgpu/Sources/NitroWebgpuCpp/nitro_webgpu_present.bridge.g.mm \
+      ios/nitro_webgpu/Sources/NitroWebgpuCpp/nitro_webgpu_present.bridge.g.mm
+
 nitrogen doctor

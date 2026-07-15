@@ -84,7 +84,7 @@ class _NitroWebgpuPresentImpl extends NitroWebgpuPresent {
     }
     NitroRuntime.checkLinkChecksum(
       'nitro_webgpu_present',
-      'f9d869910b994b24',
+      '99e2dc065c4394f7',
       () => _dylib
           .lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
             'nitro_webgpu_present_nitro_bridge_checksum',
@@ -155,6 +155,14 @@ class _NitroWebgpuPresentImpl extends NitroWebgpuPresent {
         NativeFunction<Int64 Function(Int64, Int64, Pointer<NitroErrorFfi>)>
       >('nitro_webgpu_present_presenter_format')
       .asFunction<int Function(int, int, Pointer<NitroErrorFfi>)>(isLeaf: true);
+  late final bool Function(int, int, Pointer<NitroErrorFfi>)
+  _presenterUsesGpuPathPtr = _dylib
+      .lookup<
+        NativeFunction<Bool Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+      >('nitro_webgpu_present_presenter_uses_gpu_path')
+      .asFunction<bool Function(int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
   late final void Function(int, int, int, int, Pointer<NitroErrorFfi>)
   _resizePresenterPtr = _dylib
       .lookup<
@@ -262,6 +270,16 @@ class _NitroWebgpuPresentImpl extends NitroWebgpuPresent {
       NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
       return res;
     }, methodName: 'presenterFormat');
+  }
+
+  @override
+  bool presenterUsesGpuPath(int token) {
+    checkDisposed();
+    return NitroRuntime.callSync(() {
+      final res = _presenterUsesGpuPathPtr(_instanceId, token, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+      return res;
+    }, methodName: 'presenterUsesGpuPath');
   }
 
   @override

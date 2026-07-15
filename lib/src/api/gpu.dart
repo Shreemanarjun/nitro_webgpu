@@ -884,6 +884,17 @@ class GpuRenderPipeline {
     _finalizer.attach(this, _address, detach: this);
   }
 
+  void _checkAlive() {
+    if (_disposed) throw StateError('GpuRenderPipeline used after dispose()');
+  }
+
+  GpuBindGroupLayout getBindGroupLayout(int groupIndex) {
+    _checkAlive();
+    final address = NitroWebgpu.instance
+        .renderPipelineGetBindGroupLayout(_address, groupIndex);
+    return GpuBindGroupLayout._(address);
+  }
+
   void dispose() {
     if (_disposed) return;
     _disposed = true;
@@ -926,6 +937,12 @@ class GpuRenderPassEncoder {
   void setPipeline(GpuRenderPipeline pipeline) {
     _checkAlive();
     NitroWebgpu.instance.renderPassSetPipeline(_address, pipeline._address);
+  }
+
+  void setBindGroup(int index, GpuBindGroup bindGroup) {
+    _checkAlive();
+    NitroWebgpu.instance
+        .renderPassSetBindGroup(_address, index, bindGroup._address);
   }
 
   void draw(int vertexCount,

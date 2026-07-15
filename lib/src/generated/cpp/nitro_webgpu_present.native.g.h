@@ -229,9 +229,11 @@ public:
     virtual void presentFrame(int64_t token) = 0;
     // source: nitro_webgpu_present.native.dart:43
     virtual int64_t presenterFormat(int64_t token) = 0;
-    // source: nitro_webgpu_present.native.dart:45
+    // source: nitro_webgpu_present.native.dart:47
+    virtual bool presenterUsesGpuPath(int64_t token) = 0;
+    // source: nitro_webgpu_present.native.dart:49
     virtual void resizePresenter(int64_t token, int64_t widthPx, int64_t heightPx) = 0;
-    // source: nitro_webgpu_present.native.dart:50
+    // source: nitro_webgpu_present.native.dart:54
     virtual void destroyPresenter(int64_t token, NitroError* _nitro_err, int64_t dartPort) = 0;
 
 protected:

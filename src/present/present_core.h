@@ -22,6 +22,13 @@ typedef void (*NwpFrameSink)(int64_t token, const uint8_t* pixels,
                              int32_t width, int32_t height,
                              int32_t bytesPerRow, void* user);
 
+/// GPU-path sink: called on a wgpu callback thread once the presented frame's
+/// GPU work has completed. The shim then blits the render target's native
+/// texture itself and MUST call nwp_presenter_frame_done when the blit has
+/// been scheduled/completed — until then acquire returns 0.
+typedef void (*NwpGpuFrameSink)(int64_t token, int32_t width, int32_t height,
+                                void* user);
+
 /// Creates a presenter on the WGPUDevice at [deviceAddress]. Returns a
 /// non-zero token, or 0 on failure.
 NWP_EXPORT int64_t nwp_presenter_create(int64_t deviceAddress, int32_t width,
@@ -29,6 +36,21 @@ NWP_EXPORT int64_t nwp_presenter_create(int64_t deviceAddress, int32_t width,
 
 NWP_EXPORT void nwp_presenter_set_sink(int64_t token, NwpFrameSink sink,
                                        void* user);
+
+/// Selects the GPU presentation path (Metal blit) instead of CPU readback.
+NWP_EXPORT void nwp_presenter_set_gpu_sink(int64_t token, NwpGpuFrameSink sink,
+                                           void* user);
+
+/// GPU path only: marks the in-flight frame as fully presented, making the
+/// render target available for the next acquire. Callable from any thread.
+NWP_EXPORT void nwp_presenter_frame_done(int64_t token);
+
+/// Borrowed `id<MTLTexture>` of the current render target (NULL off-Metal or
+/// unknown token). Valid until the next resize-applying acquire.
+NWP_EXPORT void* nwp_presenter_target_metal_texture(int64_t token);
+
+/// Borrowed `id<MTLDevice>` of the presenter's device (NULL off-Metal).
+NWP_EXPORT void* nwp_presenter_metal_device(int64_t token);
 
 /// Returns the WGPUTextureView address to render this frame into, or 0 to
 /// skip (previous frame still in flight / unknown token).

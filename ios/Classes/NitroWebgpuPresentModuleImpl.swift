@@ -1,12 +1,21 @@
 // Native implementation of HybridNitroWebgpuPresentProtocol (iOS + macOS).
 // Keep ios/Classes and macos/Classes copies of this file identical.
 //
-// Thin shim: all frame state and the wgpu readback path live in shared C++
+// Thin shim: all frame state and the wgpu side live in shared C++
 // (src/present/present_core.cpp, exposed as the nwp_* C ABI). This file owns
-// only the platform texture objects — a CVPixelBuffer handed to Flutter's
-// texture registry.
+// only the platform texture objects.
+//
+// Two presentation paths, chosen at createPresenter:
+//  - Metal fast path (M2.1): wgpu's render target is blitted GPU→GPU into an
+//    IOSurface-backed CVPixelBuffer from a pool (one blit, ~0.1–0.3 ms; no
+//    CPU readback). Ordering: present core fires the GPU sink after
+//    onSubmittedWorkDone, the blit runs on a shim-owned MTLCommandQueue, and
+//    its completion handler calls nwp_presenter_frame_done.
+//  - CPU readback fallback (M2.0): mapAsync → memcpy rows into a fresh
+//    CVPixelBuffer. Used when Metal handles are unavailable.
 import CoreVideo
 import Foundation
+import Metal
 #if os(macOS)
 import FlutterMacOS
 #else
@@ -16,23 +25,128 @@ import Flutter
 import NitroWebgpuCpp
 #endif
 
-/// Platform-side state of one presenter: the Flutter texture and the latest
-/// presented CVPixelBuffer.
+/// Platform-side state of one presenter: the Flutter texture, the latest
+/// presented CVPixelBuffer, and (fast path) the Metal blit machinery.
 final class WebGpuPresenterEntry: NSObject, FlutterTexture {
     let token: Int64
     var textureId: Int64 = 0
+    var usesGpuPath = false
     private let textures: FlutterTextureRegistry
     private let lock = NSLock()
     private var latest: CVPixelBuffer?
+
+    // Metal fast path state.
+    private var metalDevice: MTLDevice?
+    private var blitQueue: MTLCommandQueue?
+    private var textureCache: CVMetalTextureCache?
+    private var pool: CVPixelBufferPool?
+    private var poolWidth: Int32 = 0
+    private var poolHeight: Int32 = 0
 
     init(token: Int64, textures: FlutterTextureRegistry) {
         self.token = token
         self.textures = textures
     }
 
-    /// Sink callback body — runs on a wgpu callback thread while the readback
-    /// buffer is mapped; copies rows into a fresh IOSurface-backed BGRA
-    /// pixel buffer and signals Flutter on the main thread.
+    /// Attempts to set up the GPU blit path. Returns false when the adapter
+    /// is not running on Metal (readback fallback stays active).
+    func setupMetal() -> Bool {
+        guard let raw = nwp_presenter_metal_device(token) else { return false }
+        guard let device =
+            Unmanaged<AnyObject>.fromOpaque(raw).takeUnretainedValue() as? MTLDevice
+        else { return false }
+        guard let queue = device.makeCommandQueue() else { return false }
+        var cache: CVMetalTextureCache?
+        guard CVMetalTextureCacheCreate(kCFAllocatorDefault, nil, device, nil,
+                                        &cache) == kCVReturnSuccess,
+              let cache else { return false }
+        metalDevice = device
+        blitQueue = queue
+        textureCache = cache
+        return true
+    }
+
+    private func ensurePool(width: Int32, height: Int32) -> CVPixelBufferPool? {
+        if let pool, poolWidth == width, poolHeight == height { return pool }
+        let attrs: [CFString: Any] = [
+            kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferWidthKey: Int(width),
+            kCVPixelBufferHeightKey: Int(height),
+            kCVPixelBufferIOSurfacePropertiesKey: [:] as CFDictionary,
+            kCVPixelBufferMetalCompatibilityKey: true,
+        ]
+        let poolAttrs: [CFString: Any] = [
+            kCVPixelBufferPoolMinimumBufferCountKey: 3,
+        ]
+        var created: CVPixelBufferPool?
+        guard CVPixelBufferPoolCreate(kCFAllocatorDefault,
+                                      poolAttrs as CFDictionary,
+                                      attrs as CFDictionary,
+                                      &created) == kCVReturnSuccess else {
+            return nil
+        }
+        pool = created
+        poolWidth = width
+        poolHeight = height
+        if let textureCache {
+            CVMetalTextureCacheFlush(textureCache, 0)
+        }
+        return created
+    }
+
+    /// GPU sink body — runs on a wgpu callback thread after the frame's
+    /// submitted work completed. Blits the wgpu target into a pool buffer;
+    /// the blit's completion handler releases the frame back to the core.
+    func gpuFrame(width: Int32, height: Int32) {
+        let token = self.token
+        let done = { nwp_presenter_frame_done(token) }
+        guard let blitQueue, let textureCache,
+              let pool = ensurePool(width: width, height: height),
+              let srcRaw = nwp_presenter_target_metal_texture(token),
+              let src = Unmanaged<AnyObject>.fromOpaque(srcRaw)
+                  .takeUnretainedValue() as? MTLTexture
+        else { return done() }
+
+        var pixelBuffer: CVPixelBuffer?
+        guard CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool,
+                                                 &pixelBuffer) == kCVReturnSuccess,
+              let buffer = pixelBuffer else { return done() }
+
+        var cvTexture: CVMetalTexture?
+        guard CVMetalTextureCacheCreateTextureFromImage(
+                  kCFAllocatorDefault, textureCache, buffer, nil, .bgra8Unorm,
+                  Int(width), Int(height), 0, &cvTexture) == kCVReturnSuccess,
+              let cvTexture,
+              let dst = CVMetalTextureGetTexture(cvTexture)
+        else { return done() }
+
+        guard let cmd = blitQueue.makeCommandBuffer(),
+              let blit = cmd.makeBlitCommandEncoder() else { return done() }
+        blit.copy(from: src, sourceSlice: 0, sourceLevel: 0,
+                  sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
+                  sourceSize: MTLSize(width: Int(width), height: Int(height),
+                                      depth: 1),
+                  to: dst, destinationSlice: 0, destinationLevel: 0,
+                  destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0))
+        blit.endEncoding()
+        let retainedCvTexture = cvTexture  // keep alive until GPU completes
+        cmd.addCompletedHandler { [weak self] _ in
+            _ = retainedCvTexture
+            guard let self else { return done() }
+            self.lock.lock()
+            self.latest = buffer
+            self.lock.unlock()
+            done()
+            let id = self.textureId
+            let textures = self.textures
+            DispatchQueue.main.async { textures.textureFrameAvailable(id) }
+        }
+        cmd.commit()
+    }
+
+    /// Readback sink body (fallback path) — runs on a wgpu callback thread
+    /// while the readback buffer is mapped; copies rows into a fresh
+    /// IOSurface-backed BGRA pixel buffer and signals Flutter.
     func consume(pixels: UnsafePointer<UInt8>, width: Int32, height: Int32,
                  bytesPerRow: Int32) {
         var created: CVPixelBuffer?
@@ -98,14 +212,28 @@ public class NitroWebgpuPresentModuleImpl: NSObject,
         entries[token] = entry
         lock.unlock()
         // The entry stays retained in `entries` until destroyPresenter, so
-        // passUnretained is safe for the sink's lifetime.
-        nwp_presenter_set_sink(token, { token, pixels, width, height, bpr, user in
-            guard let user, let pixels else { return }
-            let entry =
-                Unmanaged<WebGpuPresenterEntry>.fromOpaque(user).takeUnretainedValue()
-            entry.consume(pixels: pixels, width: width, height: height,
-                          bytesPerRow: bpr)
-        }, Unmanaged.passUnretained(entry).toOpaque())
+        // passUnretained is safe for the sinks' lifetime.
+        let user = Unmanaged.passUnretained(entry).toOpaque()
+        let usingMetal = entry.setupMetal()
+        entry.usesGpuPath = usingMetal
+        NSLog("nitro_webgpu: presenter %lld using %@ path", token,
+              usingMetal ? "Metal blit" : "CPU readback")
+        if usingMetal {
+            nwp_presenter_set_gpu_sink(token, { _, width, height, user in
+                guard let user else { return }
+                let entry = Unmanaged<WebGpuPresenterEntry>.fromOpaque(user)
+                    .takeUnretainedValue()
+                entry.gpuFrame(width: width, height: height)
+            }, user)
+        } else {
+            nwp_presenter_set_sink(token, { _, pixels, width, height, bpr, user in
+                guard let user, let pixels else { return }
+                let entry = Unmanaged<WebGpuPresenterEntry>.fromOpaque(user)
+                    .takeUnretainedValue()
+                entry.consume(pixels: pixels, width: width, height: height,
+                              bytesPerRow: bpr)
+            }, user)
+        }
         return token
     }
 
@@ -125,13 +253,17 @@ public class NitroWebgpuPresentModuleImpl: NSObject,
         return Int64(nwp_presenter_format(token))
     }
 
+    public func presenterUsesGpuPath(token: Int64) -> Bool {
+        return entry(token)?.usesGpuPath ?? false
+    }
+
     public func resizePresenter(token: Int64, widthPx: Int64, heightPx: Int64) {
         nwp_presenter_resize(token, Int32(widthPx), Int32(heightPx))
     }
 
     public func destroyPresenter(token: Int64) async throws {
-        // Drain the in-flight readback before tearing down wgpu objects
-        // (bounded: ~1s worst case, then tear down regardless).
+        // Drain the in-flight present before unregistering the texture
+        // (bounded; the core defers its own teardown safely if still busy).
         var attempts = 0
         while nwp_presenter_is_busy(token) == 1 && attempts < 500 {
             try await Task.sleep(nanoseconds: 2_000_000)

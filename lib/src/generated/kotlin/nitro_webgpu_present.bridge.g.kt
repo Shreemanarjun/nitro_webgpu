@@ -324,9 +324,11 @@ interface HybridNitroWebgpuPresentSpec {
     fun presentFrame(token: Long): Unit
     // source: nitro_webgpu_present.native.dart:43
     fun presenterFormat(token: Long): Long
-    // source: nitro_webgpu_present.native.dart:45
+    // source: nitro_webgpu_present.native.dart:47
+    fun presenterUsesGpuPath(token: Long): Boolean
+    // source: nitro_webgpu_present.native.dart:49
     fun resizePresenter(token: Long, widthPx: Long, heightPx: Long): Unit
-    // source: nitro_webgpu_present.native.dart:50
+    // source: nitro_webgpu_present.native.dart:54
     suspend fun destroyPresenter(token: Long): Unit
 }
 
@@ -436,12 +438,17 @@ object NitroWebgpuPresentJniBridge {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpuPresent instance $instanceId not registered")
         return impl.presenterFormat(token)
     }
-    // source: nitro_webgpu_present.native.dart:45
+    // source: nitro_webgpu_present.native.dart:47
+    @JvmStatic fun presenterUsesGpuPath_call(instanceId: Long, token: Long): Boolean {
+        val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpuPresent instance $instanceId not registered")
+        return impl.presenterUsesGpuPath(token)
+    }
+    // source: nitro_webgpu_present.native.dart:49
     @JvmStatic fun resizePresenter_call(instanceId: Long, token: Long, widthPx: Long, heightPx: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpuPresent instance $instanceId not registered")
         impl.resizePresenter(token, widthPx, heightPx)
     }
-    // source: nitro_webgpu_present.native.dart:50
+    // source: nitro_webgpu_present.native.dart:54
     @JvmStatic fun destroyPresenter_call(instanceId: Long, token: Long, errPtr: Long, dartPort: Long) {
         val impl = _implementations[instanceId] ?: run {
             reportNativeAsyncError(errPtr, "IllegalStateException", "No implementation registered for instance")

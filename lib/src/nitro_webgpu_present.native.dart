@@ -42,6 +42,10 @@ abstract class NitroWebgpuPresent extends HybridObject {
   /// compositor; bgra8unorm on Apple).
   int presenterFormat(int token);
 
+  /// True when frames are presented on the GPU path (Metal blit on Apple);
+  /// false for the CPU readback fallback.
+  bool presenterUsesGpuPath(int token);
+
   void resizePresenter(int token, int widthPx, int heightPx);
 
   /// Drains in-flight GPU work, then tears down the presenter and
