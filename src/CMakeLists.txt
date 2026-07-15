@@ -4,7 +4,7 @@ project(nitro_webgpu_library VERSION 0.0.1 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(NITRO_NATIVE "${CMAKE_CURRENT_SOURCE_DIR}/native")
-# NITRO_LINK_SPEC_CHECKSUM 3bd3cd20313ec153
+# NITRO_LINK_SPEC_CHECKSUM dcb681e517958619
 set(GENERATED_CPP "${CMAKE_CURRENT_SOURCE_DIR}/../lib/src/generated/cpp")
 
 add_library(nitro_webgpu SHARED
@@ -66,4 +66,31 @@ if(NOT APPLE)
   elseif(UNIX AND NOT ANDROID)
     target_link_libraries(nitro_webgpu PRIVATE m dl pthread)
   endif()
+endif()
+
+add_library(nitro_webgpu_present SHARED
+  "${CMAKE_CURRENT_SOURCE_DIR}/../lib/src/generated/cpp/nitro_webgpu_present.bridge.g.cpp"
+  "dart_api_dl.c"
+)
+if(NOT ANDROID)
+  if(DEFINED NITRO_IMPL_SRC_nitro_webgpu_present)
+    target_sources(nitro_webgpu_present PRIVATE "${NITRO_IMPL_SRC_nitro_webgpu_present}")
+  else()
+    target_sources(nitro_webgpu_present PRIVATE "HybridNitroWebgpuPresent.cpp")
+  endif()
+endif()
+target_include_directories(nitro_webgpu_present PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../lib/src/generated/cpp"
+  "${NITRO_NATIVE}"
+)
+set_target_properties(nitro_webgpu_present PROPERTIES OUTPUT_NAME "nitro_webgpu_present")
+target_compile_definitions(nitro_webgpu_present PUBLIC DART_SHARED_LIB)
+if(ANDROID)
+  target_link_libraries(nitro_webgpu_present PRIVATE android log)
+  target_link_options(nitro_webgpu_present PRIVATE "-Wl,-z,max-page-size=16384")
+elseif(WIN32)
+  target_link_libraries(nitro_webgpu_present PRIVATE dbghelp)
+elseif(UNIX AND NOT APPLE)
+  target_link_libraries(nitro_webgpu_present PRIVATE dl pthread)
 endif()
