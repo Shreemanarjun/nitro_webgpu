@@ -324,6 +324,11 @@ public:
         return out.toNativeBuffer();
     }
 
+    bool adapterHasTimestampQuery(int64_t adapter) override {
+        return wgpuAdapterHasFeature((WGPUAdapter)(intptr_t)adapter,
+                                     WGPUFeatureName_TimestampQuery) != 0;
+    }
+
     void adapterRelease(int64_t adapter) override {
         wgpuAdapterRelease((WGPUAdapter)(intptr_t)adapter);
     }
@@ -339,6 +344,13 @@ public:
 
         WGPUDeviceDescriptor wgpuDesc = WGPU_DEVICE_DESCRIPTOR_INIT;
         wgpuDesc.label = toView(*label);
+
+        static const WGPUFeatureName kTimestampFeature[] = {
+            WGPUFeatureName_TimestampQuery};
+        if (desc.requireTimestampQueries) {
+            wgpuDesc.requiredFeatureCount = 1;
+            wgpuDesc.requiredFeatures = kTimestampFeature;
+        }
 
         wgpuDesc.deviceLostCallbackInfo.mode = WGPUCallbackMode_AllowSpontaneous;
         wgpuDesc.deviceLostCallbackInfo.callback =
@@ -646,9 +658,17 @@ public:
     }
 
     int64_t encoderBeginComputePass(int64_t encoder,
-                                    const std::string& label) override {
+                                    NitroCppBuffer descriptor) override {
+        const auto d = GpuComputePassDescriptor::fromNative(descriptor);
         WGPUComputePassDescriptor wd = WGPU_COMPUTE_PASS_DESCRIPTOR_INIT;
-        wd.label = toView(label);
+        wd.label = toView(d.label);
+        WGPUPassTimestampWrites tw = {};
+        if (d.timestampQuerySetAddress) {
+            tw.querySet = (WGPUQuerySet)(intptr_t)d.timestampQuerySetAddress;
+            tw.beginningOfPassWriteIndex = (uint32_t)d.timestampBeginIndex;
+            tw.endOfPassWriteIndex = (uint32_t)d.timestampEndIndex;
+            wd.timestampWrites = &tw;
+        }
         WGPUComputePassEncoder pass = wgpuCommandEncoderBeginComputePass(
             (WGPUCommandEncoder)(intptr_t)encoder, &wd);
         if (!pass) throw std::runtime_error("encoderBeginComputePass failed");
@@ -827,6 +847,13 @@ public:
         wd.label = toView(d.label);
         wd.colorAttachmentCount = attachments.size();
         wd.colorAttachments = attachments.data();
+        WGPUPassTimestampWrites tw = {};
+        if (d.timestampQuerySetAddress) {
+            tw.querySet = (WGPUQuerySet)(intptr_t)d.timestampQuerySetAddress;
+            tw.beginningOfPassWriteIndex = (uint32_t)d.timestampBeginIndex;
+            tw.endOfPassWriteIndex = (uint32_t)d.timestampEndIndex;
+            wd.timestampWrites = &tw;
+        }
         WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(
             (WGPUCommandEncoder)(intptr_t)encoder, &wd);
         if (!pass) throw std::runtime_error("encoderBeginRenderPass failed");
@@ -859,6 +886,38 @@ public:
 
     void renderPassRelease(int64_t pass) override {
         wgpuRenderPassEncoderRelease((WGPURenderPassEncoder)(intptr_t)pass);
+    }
+
+    // ── Timestamp queries ────────────────────────────────────────────────
+
+    int64_t deviceCreateTimestampQuerySet(int64_t device, int64_t count) override {
+        WGPUQuerySetDescriptor wd = WGPU_QUERY_SET_DESCRIPTOR_INIT;
+        wd.label = {"timestamp_query_set", WGPU_STRLEN};
+        wd.type = WGPUQueryType_Timestamp;
+        wd.count = (uint32_t)count;
+        WGPUQuerySet qs =
+            wgpuDeviceCreateQuerySet((WGPUDevice)(intptr_t)device, &wd);
+        if (!qs) throw std::runtime_error("wgpuDeviceCreateQuerySet failed");
+        return (int64_t)(intptr_t)qs;
+    }
+
+    void querySetRelease(int64_t querySet) override {
+        wgpuQuerySetRelease((WGPUQuerySet)(intptr_t)querySet);
+    }
+
+    void encoderResolveQuerySet(int64_t encoder, int64_t querySet,
+                                int64_t firstQuery, int64_t queryCount,
+                                int64_t destination,
+                                int64_t destinationOffset) override {
+        wgpuCommandEncoderResolveQuerySet(
+            (WGPUCommandEncoder)(intptr_t)encoder,
+            (WGPUQuerySet)(intptr_t)querySet, (uint32_t)firstQuery,
+            (uint32_t)queryCount, (WGPUBuffer)(intptr_t)destination,
+            (uint64_t)destinationOffset);
+    }
+
+    double queueTimestampPeriod(int64_t queue) override {
+        return (double)wgpuQueueGetTimestampPeriod((WGPUQueue)(intptr_t)queue);
     }
 
     void encoderCopyTextureToBuffer(int64_t encoder, int64_t texture,

@@ -212,9 +212,11 @@ public struct GpuLimits: NitroEncodable {
 
 public struct GpuDeviceDescriptor: NitroEncodable {
   public var label: String
+  public var requireTimestampQueries: Bool
 
-  public init(label: String) {
+  public init(label: String, requireTimestampQueries: Bool) {
     self.label = label
+    self.requireTimestampQueries = requireTimestampQueries
   }
 
   public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuDeviceDescriptor {
@@ -224,11 +226,53 @@ public struct GpuDeviceDescriptor: NitroEncodable {
   public static func fromReader(_ r: NitroRecordReader) -> GpuDeviceDescriptor {
     return GpuDeviceDescriptor(
       label: r.readString(),
+      requireTimestampQueries: r.readBool(),
     )
   }
 
   public func writeFields(_ writer: NitroRecordWriter) {
     writer.writeString(label)
+    writer.writeBool(requireTimestampQueries)
+  }
+
+  public func toNative() -> UnsafeMutablePointer<UInt8>? {
+    let writer = NitroRecordWriter()
+    writeFields(writer)
+    return writer.toNative()
+  }
+}
+
+public struct GpuComputePassDescriptor: NitroEncodable {
+  public var label: String
+  public var timestampQuerySetAddress: Int64
+  public var timestampBeginIndex: Int64
+  public var timestampEndIndex: Int64
+
+  public init(label: String, timestampQuerySetAddress: Int64, timestampBeginIndex: Int64, timestampEndIndex: Int64) {
+    self.label = label
+    self.timestampQuerySetAddress = timestampQuerySetAddress
+    self.timestampBeginIndex = timestampBeginIndex
+    self.timestampEndIndex = timestampEndIndex
+  }
+
+  public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuComputePassDescriptor {
+    return fromReader(NitroRecordReader(ptr: ptr))
+  }
+
+  public static func fromReader(_ r: NitroRecordReader) -> GpuComputePassDescriptor {
+    return GpuComputePassDescriptor(
+      label: r.readString(),
+      timestampQuerySetAddress: r.readInt(),
+      timestampBeginIndex: r.readInt(),
+      timestampEndIndex: r.readInt(),
+    )
+  }
+
+  public func writeFields(_ writer: NitroRecordWriter) {
+    writer.writeString(label)
+    writer.writeInt(timestampQuerySetAddress)
+    writer.writeInt(timestampBeginIndex)
+    writer.writeInt(timestampEndIndex)
   }
 
   public func toNative() -> UnsafeMutablePointer<UInt8>? {
@@ -634,10 +678,16 @@ public struct GpuColorAttachment: NitroEncodable {
 public struct GpuRenderPassDescriptor: NitroEncodable {
   public var label: String
   public var colorAttachments: [GpuColorAttachment]
+  public var timestampQuerySetAddress: Int64
+  public var timestampBeginIndex: Int64
+  public var timestampEndIndex: Int64
 
-  public init(label: String, colorAttachments: [GpuColorAttachment]) {
+  public init(label: String, colorAttachments: [GpuColorAttachment], timestampQuerySetAddress: Int64, timestampBeginIndex: Int64, timestampEndIndex: Int64) {
     self.label = label
     self.colorAttachments = colorAttachments
+    self.timestampQuerySetAddress = timestampQuerySetAddress
+    self.timestampBeginIndex = timestampBeginIndex
+    self.timestampEndIndex = timestampEndIndex
   }
 
   public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuRenderPassDescriptor {
@@ -648,6 +698,9 @@ public struct GpuRenderPassDescriptor: NitroEncodable {
     return GpuRenderPassDescriptor(
       label: r.readString(),
       colorAttachments: (0..<Int(r.readInt32())).map { _ in GpuColorAttachment.fromReader(r) },
+      timestampQuerySetAddress: r.readInt(),
+      timestampBeginIndex: r.readInt(),
+      timestampEndIndex: r.readInt(),
     )
   }
 
@@ -655,6 +708,9 @@ public struct GpuRenderPassDescriptor: NitroEncodable {
     writer.writeString(label)
     writer.writeInt32(Int32(colorAttachments.count))
     for e in colorAttachments { e.writeFields(writer) }
+    writer.writeInt(timestampQuerySetAddress)
+    writer.writeInt(timestampBeginIndex)
+    writer.writeInt(timestampEndIndex)
   }
 
   public func toNative() -> UnsafeMutablePointer<UInt8>? {
@@ -725,6 +781,7 @@ public protocol HybridNitroWebgpuProtocol: AnyObject {
     func requestAdapter(options: GpuRequestAdapterOptions) async throws -> Int64
     func adapterGetInfo(adapter: Int64) -> GpuAdapterInfo
     func adapterGetLimits(adapter: Int64) -> GpuLimits
+    func adapterHasTimestampQuery(adapter: Int64) -> Bool
     func adapterRelease(adapter: Int64) -> Void
     func requestDevice(adapter: Int64, descriptor: GpuDeviceDescriptor) async throws -> Int64
     func deviceGetQueue(device: Int64) -> Int64
@@ -749,7 +806,7 @@ public protocol HybridNitroWebgpuProtocol: AnyObject {
     func bindGroupRelease(bindGroup: Int64) -> Void
     func deviceCreateCommandEncoder(device: Int64, label: String) -> Int64
     func commandEncoderRelease(encoder: Int64) -> Void
-    func encoderBeginComputePass(encoder: Int64, label: String) -> Int64
+    func encoderBeginComputePass(encoder: Int64, descriptor: GpuComputePassDescriptor) -> Int64
     func computePassSetPipeline(pass: Int64, pipeline: Int64) -> Void
     func computePassSetBindGroup(pass: Int64, index: Int64, bindGroup: Int64) -> Void
     func computePassDispatchWorkgroups(pass: Int64, x: Int64, y: Int64, z: Int64) -> Void
@@ -775,6 +832,10 @@ public protocol HybridNitroWebgpuProtocol: AnyObject {
     func renderPassEnd(pass: Int64) -> Void
     func renderPassRelease(pass: Int64) -> Void
     func encoderCopyTextureToBuffer(encoder: Int64, texture: Int64, buffer: Int64, bytesPerRow: Int64, width: Int64, height: Int64) -> Void
+    func deviceCreateTimestampQuerySet(device: Int64, count: Int64) -> Int64
+    func querySetRelease(querySet: Int64) -> Void
+    func encoderResolveQuerySet(encoder: Int64, querySet: Int64, firstQuery: Int64, queryCount: Int64, destination: Int64, destinationOffset: Int64) -> Void
+    func queueTimestampPeriod(queue: Int64) -> Double
     var uncapturedErrors: AnyPublisher<GpuUncapturedError, Never> { get }
     var deviceLostEvents: AnyPublisher<GpuDeviceLost, Never> { get }
 }

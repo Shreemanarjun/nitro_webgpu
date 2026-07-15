@@ -67,6 +67,12 @@ public:
         // return { nullptr, 0 };
     }
 
+    bool adapterHasTimestampQuery(int64_t adapter) override {
+        // TODO: implement adapterHasTimestampQuery
+        throw std::runtime_error("Not implemented: adapterHasTimestampQuery");
+        // return false;
+    }
+
     void adapterRelease(int64_t adapter) override {
         // TODO: implement adapterRelease
         throw std::runtime_error("Not implemented: adapterRelease");
@@ -198,7 +204,7 @@ public:
         throw std::runtime_error("Not implemented: commandEncoderRelease");
     }
 
-    int64_t encoderBeginComputePass(int64_t encoder, const std::string& label) override {
+    int64_t encoderBeginComputePass(int64_t encoder, NitroCppBuffer descriptor) override {
         // TODO: implement encoderBeginComputePass
         throw std::runtime_error("Not implemented: encoderBeginComputePass");
         // return 0;
@@ -334,6 +340,28 @@ public:
     void encoderCopyTextureToBuffer(int64_t encoder, int64_t texture, int64_t buffer, int64_t bytesPerRow, int64_t width, int64_t height) override {
         // TODO: implement encoderCopyTextureToBuffer
         throw std::runtime_error("Not implemented: encoderCopyTextureToBuffer");
+    }
+
+    int64_t deviceCreateTimestampQuerySet(int64_t device, int64_t count) override {
+        // TODO: implement deviceCreateTimestampQuerySet
+        throw std::runtime_error("Not implemented: deviceCreateTimestampQuerySet");
+        // return 0;
+    }
+
+    void querySetRelease(int64_t querySet) override {
+        // TODO: implement querySetRelease
+        throw std::runtime_error("Not implemented: querySetRelease");
+    }
+
+    void encoderResolveQuerySet(int64_t encoder, int64_t querySet, int64_t firstQuery, int64_t queryCount, int64_t destination, int64_t destinationOffset) override {
+        // TODO: implement encoderResolveQuerySet
+        throw std::runtime_error("Not implemented: encoderResolveQuerySet");
+    }
+
+    double queueTimestampPeriod(int64_t queue) override {
+        // TODO: implement queueTimestampPeriod
+        throw std::runtime_error("Not implemented: queueTimestampPeriod");
+        // return 0.0;
     }
 
     // ── Streams ──────────────────────────────────────────────────────────────

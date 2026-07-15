@@ -10,8 +10,10 @@ abstract class GpuScene {
   String get name;
 
   /// Renders one frame. Called by the view's frame loop; may await pipeline
-  /// creation on the first frame.
-  Future<void> render(GpuDevice device, GpuRenderTarget target, Duration elapsed);
+  /// creation on the first frame. When [timestamps] is non-null the scene
+  /// should attach it to its main pass so the view can measure GPU time.
+  Future<void> render(GpuDevice device, GpuRenderTarget target,
+      Duration elapsed, {GpuTimestampWrites? timestamps});
 
   void dispose();
 }
@@ -19,6 +21,7 @@ abstract class GpuScene {
 /// Base for single-pipeline scenes driven by a 16-byte uniform block
 /// `{ time, width, height, param }`.
 abstract class UniformScene implements GpuScene {
+  bool _disposed = false;
   GpuDevice? _device;
   GpuShaderModule? _module;
   GpuBuffer? _uniforms;
@@ -60,9 +63,12 @@ abstract class UniformScene implements GpuScene {
   }
 
   @override
-  Future<void> render(
-      GpuDevice device, GpuRenderTarget target, Duration elapsed) async {
+  Future<void> render(GpuDevice device, GpuRenderTarget target,
+      Duration elapsed, {GpuTimestampWrites? timestamps}) async {
+    // A frame may still be in flight when the owning view unmounts.
+    if (_disposed) return;
     await _ensureResources(device, target.targetFormat);
+    if (_disposed) return;
     final t = elapsed.inMicroseconds / 1e6;
     device.queue.writeBuffer(
       _uniforms!,
@@ -73,7 +79,7 @@ abstract class UniformScene implements GpuScene {
     final encoder = device.createCommandEncoder(label: name);
     final pass = encoder.beginRenderPass(colorAttachments: [
       GpuColorAttachmentInfo(view: target.view, clearColor: clearColor),
-    ]);
+    ], timestampWrites: timestamps);
     pass.setPipeline(_pipeline!);
     pass.setBindGroup(0, _bindGroup!);
     pass.draw(3);
@@ -92,6 +98,8 @@ abstract class UniformScene implements GpuScene {
 
   @override
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
     _disposePipeline();
     _uniforms?.dispose();
     _module?.dispose();

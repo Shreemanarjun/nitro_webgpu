@@ -33,7 +33,10 @@ class _ShaderToyPageState extends State<ShaderToyPage> {
 
   @override
   void dispose() {
-    // _scene is owned and disposed by GpuSceneView.
+    // The page owns the scene (GpuSceneView gets ownsScene: false) because
+    // build() subscribes to _scene.compileError — the scene must outlive the
+    // view. Children unmount before this dispose runs, so this is safe.
+    _scene.dispose();
     _editor.dispose();
     super.dispose();
   }
@@ -165,7 +168,7 @@ class _ShaderToyPageState extends State<ShaderToyPage> {
   Widget build(BuildContext context) {
     final render = ClipRRect(
       borderRadius: BorderRadius.circular(8),
-      child: GpuSceneView(scene: _scene),
+      child: GpuSceneView(scene: _scene, ownsScene: false),
     );
     final panel = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

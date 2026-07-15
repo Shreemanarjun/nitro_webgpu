@@ -26,6 +26,7 @@ class ShaderToyScene implements GpuScene {
   String? _activeSource;
   double _accum = 0;
   Duration? _lastElapsed;
+  bool _disposed = false;
 
   GpuDevice? _device;
   GpuTextureFormat? _format;
@@ -65,7 +66,17 @@ class ShaderToyScene implements GpuScene {
       layout?.dispose();
       pipeline?.dispose();
       module?.dispose();
-      compileError.value = e is GpuValidationException ? e.message : '$e';
+      if (!_disposed) {
+        compileError.value = e is GpuValidationException ? e.message : '$e';
+      }
+      return;
+    }
+    if (_disposed) {
+      // The scene was torn down while compiling — drop the new pipeline.
+      bindGroup.dispose();
+      layout.dispose();
+      pipeline.dispose();
+      module.dispose();
       return;
     }
     // Success — swap out the old pipeline.
@@ -81,8 +92,9 @@ class ShaderToyScene implements GpuScene {
   }
 
   @override
-  Future<void> render(
-      GpuDevice device, GpuRenderTarget target, Duration elapsed) async {
+  Future<void> render(GpuDevice device, GpuRenderTarget target,
+      Duration elapsed, {GpuTimestampWrites? timestamps}) async {
+    if (_disposed) return;
     final last = _lastElapsed ?? elapsed;
     _lastElapsed = elapsed;
     if (!paused) {
@@ -115,7 +127,7 @@ class ShaderToyScene implements GpuScene {
     final encoder = device.createCommandEncoder(label: name);
     final pass = encoder.beginRenderPass(colorAttachments: [
       GpuColorAttachmentInfo(view: target.view, clearColor: GpuColor.black),
-    ]);
+    ], timestampWrites: timestamps);
     pass.setPipeline(pipeline);
     pass.setBindGroup(0, bindGroup);
     pass.draw(3);
@@ -136,6 +148,8 @@ class ShaderToyScene implements GpuScene {
 
   @override
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
     _disposePipeline();
     _uniforms?.dispose();
     _uniforms = null;

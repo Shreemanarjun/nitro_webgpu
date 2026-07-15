@@ -124,7 +124,33 @@ class GpuLimits {
 class GpuDeviceDescriptor {
   final String label;
 
-  const GpuDeviceDescriptor({this.label = ''});
+  /// Request the `timestamp-query` feature (check
+  /// [NitroWebgpu.adapterHasTimestampQuery] first — requesting an
+  /// unsupported feature fails device creation).
+  final bool requireTimestampQueries;
+
+  const GpuDeviceDescriptor({
+    this.label = '',
+    this.requireTimestampQueries = false,
+  });
+}
+
+/// Descriptor for [NitroWebgpu.encoderBeginComputePass].
+@hybridRecord
+class GpuComputePassDescriptor {
+  final String label;
+
+  /// Raw `WGPUQuerySet` address for pass timestamps; 0 = none.
+  final int timestampQuerySetAddress;
+  final int timestampBeginIndex;
+  final int timestampEndIndex;
+
+  const GpuComputePassDescriptor({
+    this.label = '',
+    this.timestampQuerySetAddress = 0,
+    this.timestampBeginIndex = 0,
+    this.timestampEndIndex = 1,
+  });
 }
 
 /// A captured error popped from an error scope.
@@ -322,9 +348,17 @@ class GpuRenderPassDescriptor {
   final String label;
   final List<GpuColorAttachment> colorAttachments;
 
+  /// Raw `WGPUQuerySet` address for pass timestamps; 0 = none.
+  final int timestampQuerySetAddress;
+  final int timestampBeginIndex;
+  final int timestampEndIndex;
+
   const GpuRenderPassDescriptor({
     this.label = '',
     required this.colorAttachments,
+    this.timestampQuerySetAddress = 0,
+    this.timestampBeginIndex = 0,
+    this.timestampEndIndex = 1,
   });
 }
 
@@ -386,6 +420,10 @@ abstract class NitroWebgpu extends HybridObject {
 
   GpuAdapterInfo adapterGetInfo(int adapter);
   GpuLimits adapterGetLimits(int adapter);
+
+  /// Whether the adapter supports the `timestamp-query` feature.
+  bool adapterHasTimestampQuery(int adapter);
+
   void adapterRelease(int adapter);
 
   // ── Device / queue ─────────────────────────────────────────────────────
@@ -468,7 +506,7 @@ abstract class NitroWebgpu extends HybridObject {
   int deviceCreateCommandEncoder(int device, String label);
   void commandEncoderRelease(int encoder);
 
-  int encoderBeginComputePass(int encoder, String label);
+  int encoderBeginComputePass(int encoder, GpuComputePassDescriptor descriptor);
   void computePassSetPipeline(int pass, int pipeline);
   void computePassSetBindGroup(int pass, int index, int bindGroup);
   void computePassDispatchWorkgroups(int pass, int x, int y, int z);
@@ -521,4 +559,19 @@ abstract class NitroWebgpu extends HybridObject {
   /// multiple of 256 per the WebGPU spec.
   void encoderCopyTextureToBuffer(int encoder, int texture, int buffer,
       int bytesPerRow, int width, int height);
+
+  // ── Timestamp queries ──────────────────────────────────────────────────
+
+  /// Creates a timestamp `WGPUQuerySet` with [count] slots. The device must
+  /// have been created with `requireTimestampQueries`.
+  int deviceCreateTimestampQuerySet(int device, int count);
+  void querySetRelease(int querySet);
+
+  /// Resolves query slots into [destination] (usage must include
+  /// `GpuBufferUsage.queryResolve`); 8 bytes per slot, raw GPU ticks.
+  void encoderResolveQuerySet(int encoder, int querySet, int firstQuery,
+      int queryCount, int destination, int destinationOffset);
+
+  /// Nanoseconds per timestamp tick for the queue.
+  double queueTimestampPeriod(int queue);
 }

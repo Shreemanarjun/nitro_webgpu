@@ -57,6 +57,7 @@ NITRO_EXPORT const char* nitro_webgpu_wgpu_version(int64_t instanceId, NitroErro
 NITRO_EXPORT void nitro_webgpu_request_adapter(int64_t instanceId, void* options, NitroError* _nitro_err, int64_t dart_port);
 NITRO_EXPORT void* nitro_webgpu_adapter_get_info(int64_t instanceId, int64_t adapter, NitroError* _nitro_err);
 NITRO_EXPORT void* nitro_webgpu_adapter_get_limits(int64_t instanceId, int64_t adapter, NitroError* _nitro_err);
+NITRO_EXPORT int8_t nitro_webgpu_adapter_has_timestamp_query(int64_t instanceId, int64_t adapter, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_adapter_release(int64_t instanceId, int64_t adapter, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_request_device(int64_t instanceId, int64_t adapter, void* descriptor, NitroError* _nitro_err, int64_t dart_port);
 NITRO_EXPORT int64_t nitro_webgpu_device_get_queue(int64_t instanceId, int64_t device, NitroError* _nitro_err);
@@ -81,7 +82,7 @@ NITRO_EXPORT int64_t nitro_webgpu_device_create_bind_group(int64_t instanceId, i
 NITRO_EXPORT void nitro_webgpu_bind_group_release(int64_t instanceId, int64_t bindGroup, NitroError* _nitro_err);
 NITRO_EXPORT int64_t nitro_webgpu_device_create_command_encoder(int64_t instanceId, int64_t device, const char* label, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_command_encoder_release(int64_t instanceId, int64_t encoder, NitroError* _nitro_err);
-NITRO_EXPORT int64_t nitro_webgpu_encoder_begin_compute_pass(int64_t instanceId, int64_t encoder, const char* label, NitroError* _nitro_err);
+NITRO_EXPORT int64_t nitro_webgpu_encoder_begin_compute_pass(int64_t instanceId, int64_t encoder, void* descriptor, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_compute_pass_set_pipeline(int64_t instanceId, int64_t pass, int64_t pipeline, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_compute_pass_set_bind_group(int64_t instanceId, int64_t pass, int64_t index, int64_t bindGroup, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_compute_pass_dispatch_workgroups(int64_t instanceId, int64_t pass, int64_t x, int64_t y, int64_t z, NitroError* _nitro_err);
@@ -107,6 +108,10 @@ NITRO_EXPORT void nitro_webgpu_render_pass_draw(int64_t instanceId, int64_t pass
 NITRO_EXPORT void nitro_webgpu_render_pass_end(int64_t instanceId, int64_t pass, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_render_pass_release(int64_t instanceId, int64_t pass, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_encoder_copy_texture_to_buffer(int64_t instanceId, int64_t encoder, int64_t texture, int64_t buffer, int64_t bytesPerRow, int64_t width, int64_t height, NitroError* _nitro_err);
+NITRO_EXPORT int64_t nitro_webgpu_device_create_timestamp_query_set(int64_t instanceId, int64_t device, int64_t count, NitroError* _nitro_err);
+NITRO_EXPORT void nitro_webgpu_query_set_release(int64_t instanceId, int64_t querySet, NitroError* _nitro_err);
+NITRO_EXPORT void nitro_webgpu_encoder_resolve_query_set(int64_t instanceId, int64_t encoder, int64_t querySet, int64_t firstQuery, int64_t queryCount, int64_t destination, int64_t destinationOffset, NitroError* _nitro_err);
+NITRO_EXPORT double nitro_webgpu_queue_timestamp_period(int64_t instanceId, int64_t queue, NitroError* _nitro_err);
 
 // Streams
 // Stream<GpuUncapturedError> uncapturedErrors

@@ -21,7 +21,11 @@ class GpuContext {
     final adapter = await Gpu.requestAdapter(
       powerPreference: GpuPowerPreference.highPerformance,
     );
-    final device = await adapter.requestDevice(label: 'example-shared-device');
+    final device = await adapter.requestDevice(
+      label: 'example-shared-device',
+      // Enables real on-GPU pass timing in the perf overlays.
+      requireTimestampQueries: adapter.supportsTimestampQueries,
+    );
     return GpuContext._(adapter, device);
   }
 }

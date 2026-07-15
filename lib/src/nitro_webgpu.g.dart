@@ -128,11 +128,40 @@ extension GpuDeviceDescriptorRecordExt on GpuDeviceDescriptor {
   static GpuDeviceDescriptor fromNative(Pointer<Uint8> ptr) =>
       fromReader(RecordReader.fromNative(ptr));
 
-  static GpuDeviceDescriptor fromReader(RecordReader r) =>
-      GpuDeviceDescriptor(label: r.readString());
+  static GpuDeviceDescriptor fromReader(RecordReader r) => GpuDeviceDescriptor(
+    label: r.readString(),
+    requireTimestampQueries: r.readBool(),
+  );
 
   void writeFields(RecordWriter writer) {
     writer.writeString(label);
+    writer.writeBool(requireTimestampQueries);
+  }
+
+  Pointer<Uint8> toNative(Allocator alloc) {
+    final writer = RecordWriter();
+    writeFields(writer);
+    return writer.toNative(alloc);
+  }
+}
+
+extension GpuComputePassDescriptorRecordExt on GpuComputePassDescriptor {
+  static GpuComputePassDescriptor fromNative(Pointer<Uint8> ptr) =>
+      fromReader(RecordReader.fromNative(ptr));
+
+  static GpuComputePassDescriptor fromReader(RecordReader r) =>
+      GpuComputePassDescriptor(
+        label: r.readString(),
+        timestampQuerySetAddress: r.readInt(),
+        timestampBeginIndex: r.readInt(),
+        timestampEndIndex: r.readInt(),
+      );
+
+  void writeFields(RecordWriter writer) {
+    writer.writeString(label);
+    writer.writeInt(timestampQuerySetAddress);
+    writer.writeInt(timestampBeginIndex);
+    writer.writeInt(timestampEndIndex);
   }
 
   Pointer<Uint8> toNative(Allocator alloc) {
@@ -406,6 +435,9 @@ extension GpuRenderPassDescriptorRecordExt on GpuRenderPassDescriptor {
           r.readInt32(),
           (_) => GpuColorAttachmentRecordExt.fromReader(r),
         ),
+        timestampQuerySetAddress: r.readInt(),
+        timestampBeginIndex: r.readInt(),
+        timestampEndIndex: r.readInt(),
       );
 
   void writeFields(RecordWriter writer) {
@@ -414,6 +446,9 @@ extension GpuRenderPassDescriptorRecordExt on GpuRenderPassDescriptor {
     for (final e in colorAttachments) {
       e.writeFields(writer);
     }
+    writer.writeInt(timestampQuerySetAddress);
+    writer.writeInt(timestampBeginIndex);
+    writer.writeInt(timestampEndIndex);
   }
 
   Pointer<Uint8> toNative(Allocator alloc) {
@@ -529,7 +564,7 @@ class _NitroWebgpuImpl extends NitroWebgpu {
     }
     NitroRuntime.checkLinkChecksum(
       'nitro_webgpu',
-      '758dd5a7b0a90b1a',
+      'bffffb18c73dfdb9',
       () => _dylib
           .lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
             'nitro_webgpu_nitro_bridge_checksum',
@@ -594,6 +629,14 @@ class _NitroWebgpuImpl extends NitroWebgpu {
         Pointer<Uint8> Function(Int64, Int64, Pointer<NitroErrorFfi>),
         Pointer<Uint8> Function(int, int, Pointer<NitroErrorFfi>)
       >('nitro_webgpu_adapter_get_limits');
+  late final bool Function(int, int, Pointer<NitroErrorFfi>)
+  _adapterHasTimestampQueryPtr = _dylib
+      .lookup<
+        NativeFunction<Bool Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+      >('nitro_webgpu_adapter_has_timestamp_query')
+      .asFunction<bool Function(int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
   late final void Function(int, int, Pointer<NitroErrorFfi>)
   _adapterReleasePtr = _dylib
       .lookup<
@@ -833,11 +876,11 @@ class _NitroWebgpuImpl extends NitroWebgpu {
       .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
         isLeaf: true,
       );
-  late final int Function(int, int, Pointer<Utf8>, Pointer<NitroErrorFfi>)
+  late final int Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>)
   _encoderBeginComputePassPtr = _dylib
       .lookupFunction<
-        Int64 Function(Int64, Int64, Pointer<Utf8>, Pointer<NitroErrorFfi>),
-        int Function(int, int, Pointer<Utf8>, Pointer<NitroErrorFfi>)
+        Int64 Function(Int64, Int64, Pointer<Uint8>, Pointer<NitroErrorFfi>),
+        int Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>)
       >('nitro_webgpu_encoder_begin_compute_pass');
   late final void Function(int, int, int, Pointer<NitroErrorFfi>)
   _computePassSetPipelinePtr = _dylib
@@ -1098,6 +1141,60 @@ class _NitroWebgpuImpl extends NitroWebgpu {
       .asFunction<
         void Function(int, int, int, int, int, int, int, Pointer<NitroErrorFfi>)
       >(isLeaf: true);
+  late final int Function(int, int, int, Pointer<NitroErrorFfi>)
+  _deviceCreateTimestampQuerySetPtr = _dylib
+      .lookup<
+        NativeFunction<
+          Int64 Function(Int64, Int64, Int64, Pointer<NitroErrorFfi>)
+        >
+      >('nitro_webgpu_device_create_timestamp_query_set')
+      .asFunction<int Function(int, int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final void Function(int, int, Pointer<NitroErrorFfi>)
+  _querySetReleasePtr = _dylib
+      .lookup<
+        NativeFunction<Void Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+      >('nitro_webgpu_query_set_release')
+      .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final void Function(
+    int,
+    int,
+    int,
+    int,
+    int,
+    int,
+    int,
+    Pointer<NitroErrorFfi>,
+  )
+  _encoderResolveQuerySetPtr = _dylib
+      .lookup<
+        NativeFunction<
+          Void Function(
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Pointer<NitroErrorFfi>,
+          )
+        >
+      >('nitro_webgpu_encoder_resolve_query_set')
+      .asFunction<
+        void Function(int, int, int, int, int, int, int, Pointer<NitroErrorFfi>)
+      >(isLeaf: true);
+  late final double Function(int, int, Pointer<NitroErrorFfi>)
+  _queueTimestampPeriodPtr = _dylib
+      .lookup<
+        NativeFunction<Double Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+      >('nitro_webgpu_queue_timestamp_period')
+      .asFunction<double Function(int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
   late final void Function(int, int) _registerUncapturedErrorsPtr = _dylib
       .lookupFunction<Void Function(Int64, Int64), void Function(int, int)>(
         'nitro_webgpu_register_uncaptured_errors_stream',
@@ -1224,6 +1321,16 @@ class _NitroWebgpuImpl extends NitroWebgpu {
       }
       return decoded;
     }, methodName: 'adapterGetLimits');
+  }
+
+  @override
+  bool adapterHasTimestampQuery(int adapter) {
+    checkDisposed();
+    return NitroRuntime.callSync(() {
+      final res = _adapterHasTimestampQueryPtr(_instanceId, adapter, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+      return res;
+    }, methodName: 'adapterHasTimestampQuery');
   }
 
   @override
@@ -1568,14 +1675,17 @@ class _NitroWebgpuImpl extends NitroWebgpu {
   }
 
   @override
-  int encoderBeginComputePass(int encoder, String label) {
+  int encoderBeginComputePass(
+    int encoder,
+    GpuComputePassDescriptor descriptor,
+  ) {
     checkDisposed();
     return NitroRuntime.callSync(
       () => withArena((arena) {
         final res = _encoderBeginComputePassPtr(
           _instanceId,
           encoder,
-          label.toNativeUtf8(allocator: arena),
+          descriptor.toNative(arena),
           _nitroErr,
         );
         NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
@@ -1929,6 +2039,65 @@ class _NitroWebgpuImpl extends NitroWebgpu {
       );
       NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
     }, methodName: 'encoderCopyTextureToBuffer');
+  }
+
+  @override
+  int deviceCreateTimestampQuerySet(int device, int count) {
+    checkDisposed();
+    return NitroRuntime.callSync(() {
+      final res = _deviceCreateTimestampQuerySetPtr(
+        _instanceId,
+        device,
+        count,
+        _nitroErr,
+      );
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+      return res;
+    }, methodName: 'deviceCreateTimestampQuerySet');
+  }
+
+  @override
+  void querySetRelease(int querySet) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _querySetReleasePtr(_instanceId, querySet, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'querySetRelease');
+  }
+
+  @override
+  void encoderResolveQuerySet(
+    int encoder,
+    int querySet,
+    int firstQuery,
+    int queryCount,
+    int destination,
+    int destinationOffset,
+  ) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _encoderResolveQuerySetPtr(
+        _instanceId,
+        encoder,
+        querySet,
+        firstQuery,
+        queryCount,
+        destination,
+        destinationOffset,
+        _nitroErr,
+      );
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'encoderResolveQuerySet');
+  }
+
+  @override
+  double queueTimestampPeriod(int queue) {
+    checkDisposed();
+    return NitroRuntime.callSync(() {
+      final res = _queueTimestampPeriodPtr(_instanceId, queue, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+      return res;
+    }, methodName: 'queueTimestampPeriod');
   }
 
   @override

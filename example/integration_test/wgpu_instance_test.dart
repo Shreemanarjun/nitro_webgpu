@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:nitro_webgpu/nitro_webgpu.dart';
 import 'package:nitro_webgpu/src/nitro_webgpu_present.native.dart';
+import 'package:nitro_webgpu_example/src/demos/shader_toy_page.dart';
 import 'package:nitro_webgpu_example/src/gpu/shader_presets.dart';
 
 // CI runners have no real GPU; --dart-define=WGPU_FORCE_FALLBACK=true selects
@@ -388,6 +389,97 @@ fn fs_main() -> @location(0) vec4<f32> {
     });
   });
 
+  group('M2.x timestamp queries', () {
+    test('measures real GPU time for a compute pass', () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      if (!adapter.supportsTimestampQueries) {
+        adapter.dispose();
+        markTestSkipped('adapter lacks timestamp-query');
+        return;
+      }
+      final device =
+          await adapter.requestDevice(requireTimestampQueries: true);
+      final queue = device.queue;
+      expect(queue.timestampPeriod, greaterThan(0));
+
+      final querySet = await device.createTimestampQuerySet(2);
+      final resolve = device.createBuffer(
+        size: 16,
+        usage: GpuBufferUsage.queryResolve | GpuBufferUsage.copySrc,
+      );
+      final staging = device.createBuffer(
+        size: 16,
+        usage: GpuBufferUsage.mapRead | GpuBufferUsage.copyDst,
+      );
+      final storage = device.createBuffer(
+        size: 1024 * 4,
+        usage: GpuBufferUsage.storage | GpuBufferUsage.copyDst,
+      );
+      queue.writeBuffer(
+          storage, Float32List(1024).buffer.asUint8List());
+
+      final module = await device.createShaderModule('''
+@group(0) @binding(0) var<storage, read_write> data: array<f32>;
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+  var v = data[gid.x];
+  for (var i = 0; i < 64; i++) { v = v * 1.0001 + 0.0001; }
+  data[gid.x] = v;
+}
+''');
+      final pipeline = await device.createComputePipeline(module: module);
+      final layout = pipeline.getBindGroupLayout(0);
+      final bindGroup = device.createBindGroup(layout: layout, entries: [
+        GpuBufferBinding(binding: 0, buffer: storage),
+      ]);
+
+      final encoder = device.createCommandEncoder();
+      final pass = encoder.beginComputePass(
+        timestampWrites: GpuTimestampWrites(querySet: querySet),
+      );
+      pass.setPipeline(pipeline);
+      pass.setBindGroup(0, bindGroup);
+      pass.dispatchWorkgroups(1024 ~/ 64);
+      pass.end();
+      encoder.resolveQuerySet(querySet, destination: resolve);
+      encoder.copyBufferToBuffer(resolve, staging);
+      queue.submit([encoder.finish()]);
+
+      final bytes = await staging.mapRead();
+      final stamps = bytes.buffer.asUint64List(bytes.offsetInBytes, 2);
+      expect(stamps[1], greaterThan(stamps[0]),
+          reason: 'end-of-pass timestamp must be after begin-of-pass');
+      final ms =
+          (stamps[1] - stamps[0]) * queue.timestampPeriod / 1e6;
+      expect(ms, greaterThan(0));
+      expect(ms, lessThan(1000), reason: 'sanity: a tiny pass, not seconds');
+
+      bindGroup.dispose();
+      layout.dispose();
+      pipeline.dispose();
+      module.dispose();
+      storage.dispose();
+      staging.dispose();
+      resolve.dispose();
+      querySet.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+
+    test('query set creation without the feature throws', () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice(); // no feature requested
+      await expectLater(
+        device.createTimestampQuerySet(2),
+        throwsA(isA<GpuValidationException>()),
+      );
+      device.dispose();
+      adapter.dispose();
+    });
+  });
+
   group('example shader presets', () {
     test('every preset compiles and builds a render pipeline', () async {
       final adapter =
@@ -406,6 +498,25 @@ fn fs_main() -> @location(0) vec4<f32> {
       }
       device.dispose();
       adapter.dispose();
+    });
+  });
+
+  group('example shader toy page', () {
+    testWidgets('mounts, renders live, and unmounts cleanly', (tester) async {
+      // Regression: the page's compile-error notifier must survive view
+      // unmount order (it is owned by the page, not GpuSceneView).
+      final binding = tester.binding as LiveTestWidgetsFlutterBinding;
+      binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+
+      await tester.pumpWidget(const MaterialApp(home: ShaderToyPage()));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(seconds: 2)));
+      await tester.pump();
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 600)));
+      await tester.pump();
     });
   });
 

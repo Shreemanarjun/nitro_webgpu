@@ -16,6 +16,7 @@ class MockNitroWebgpu : public HybridNitroWebgpu {
     MOCK_METHOD(int64_t, requestAdapter, (NitroCppBuffer options), (override));
     MOCK_METHOD(NitroCppBuffer, adapterGetInfo, (int64_t adapter), (override));
     MOCK_METHOD(NitroCppBuffer, adapterGetLimits, (int64_t adapter), (override));
+    MOCK_METHOD(bool, adapterHasTimestampQuery, (int64_t adapter), (override));
     MOCK_METHOD(void, adapterRelease, (int64_t adapter), (override));
     MOCK_METHOD(int64_t, requestDevice, (int64_t adapter, NitroCppBuffer descriptor), (override));
     MOCK_METHOD(int64_t, deviceGetQueue, (int64_t device), (override));
@@ -40,7 +41,7 @@ class MockNitroWebgpu : public HybridNitroWebgpu {
     MOCK_METHOD(void, bindGroupRelease, (int64_t bindGroup), (override));
     MOCK_METHOD(int64_t, deviceCreateCommandEncoder, (int64_t device, const std::string& label), (override));
     MOCK_METHOD(void, commandEncoderRelease, (int64_t encoder), (override));
-    MOCK_METHOD(int64_t, encoderBeginComputePass, (int64_t encoder, const std::string& label), (override));
+    MOCK_METHOD(int64_t, encoderBeginComputePass, (int64_t encoder, NitroCppBuffer descriptor), (override));
     MOCK_METHOD(void, computePassSetPipeline, (int64_t pass, int64_t pipeline), (override));
     MOCK_METHOD(void, computePassSetBindGroup, (int64_t pass, int64_t index, int64_t bindGroup), (override));
     MOCK_METHOD(void, computePassDispatchWorkgroups, (int64_t pass, int64_t x, int64_t y, int64_t z), (override));
@@ -66,6 +67,10 @@ class MockNitroWebgpu : public HybridNitroWebgpu {
     MOCK_METHOD(void, renderPassEnd, (int64_t pass), (override));
     MOCK_METHOD(void, renderPassRelease, (int64_t pass), (override));
     MOCK_METHOD(void, encoderCopyTextureToBuffer, (int64_t encoder, int64_t texture, int64_t buffer, int64_t bytesPerRow, int64_t width, int64_t height), (override));
+    MOCK_METHOD(int64_t, deviceCreateTimestampQuerySet, (int64_t device, int64_t count), (override));
+    MOCK_METHOD(void, querySetRelease, (int64_t querySet), (override));
+    MOCK_METHOD(void, encoderResolveQuerySet, (int64_t encoder, int64_t querySet, int64_t firstQuery, int64_t queryCount, int64_t destination, int64_t destinationOffset), (override));
+    MOCK_METHOD(double, queueTimestampPeriod, (int64_t queue), (override));
 };
 
 #endif // NITRO_WEBGPU_MOCK_G_H

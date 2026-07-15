@@ -203,15 +203,31 @@ class GpuAdapter {
     return NitroWebgpu.instance.adapterGetLimits(_address);
   }
 
+  /// Whether devices from this adapter can measure GPU pass times with
+  /// timestamp queries.
+  bool get supportsTimestampQueries {
+    _checkAlive();
+    return NitroWebgpu.instance.adapterHasTimestampQuery(_address);
+  }
+
   /// Requests a logical device. The adapter stays usable afterwards and may
   /// be disposed independently of the device.
-  Future<GpuDevice> requestDevice({String label = ''}) async {
+  ///
+  /// Set [requireTimestampQueries] (after checking
+  /// [supportsTimestampQueries]) to enable [GpuDevice.createTimestampQuerySet].
+  Future<GpuDevice> requestDevice({
+    String label = '',
+    bool requireTimestampQueries = false,
+  }) async {
     _checkAlive();
     final address = await NitroWebgpu.instance.requestDevice(
       _address,
-      GpuDeviceDescriptor(label: label),
+      GpuDeviceDescriptor(
+        label: label,
+        requireTimestampQueries: requireTimestampQueries,
+      ),
     );
-    return GpuDevice._(address);
+    return GpuDevice._(address, hasTimestampQueries: requireTimestampQueries);
   }
 
   void dispose() {
@@ -231,7 +247,10 @@ class GpuDevice {
   GpuQueue? _queue;
   bool _disposed = false;
 
-  GpuDevice._(this._address) {
+  /// Whether the device was created with the `timestamp-query` feature.
+  final bool hasTimestampQueries;
+
+  GpuDevice._(this._address, {this.hasTimestampQueries = false}) {
     _finalizer.attach(this, _address, detach: this);
   }
 
@@ -378,6 +397,22 @@ class GpuDevice {
     return GpuCommandEncoder._(address);
   }
 
+  /// Checked create of a timestamp query set with [count] slots. Requires the
+  /// device to have been created with `requireTimestampQueries` — throws
+  /// [GpuValidationException] otherwise.
+  Future<GpuQuerySet> createTimestampQuerySet(int count) async {
+    _checkAlive();
+    pushErrorScope(GpuErrorFilter.validation);
+    final address =
+        NitroWebgpu.instance.deviceCreateTimestampQuerySet(_address, count);
+    final error = await popErrorScope();
+    if (error != null) {
+      NitroWebgpu.instance.querySetRelease(address);
+      throw GpuValidationException('createTimestampQuerySet', error.message);
+    }
+    return GpuQuerySet._(address, count);
+  }
+
   GpuTexture createTexture({
     required int width,
     required int height,
@@ -484,6 +519,13 @@ class GpuQueue {
   Future<void> onSubmittedWorkDone() {
     _checkAlive();
     return NitroWebgpu.instance.queueOnSubmittedWorkDone(_address);
+  }
+
+  /// Nanoseconds per timestamp tick (multiply resolved timestamp deltas by
+  /// this to get nanoseconds).
+  double get timestampPeriod {
+    _checkAlive();
+    return NitroWebgpu.instance.queueTimestampPeriod(_address);
   }
 
   void dispose() {
@@ -664,16 +706,27 @@ class GpuCommandEncoder {
     if (_disposed) throw StateError('GpuCommandEncoder used after finish()');
   }
 
-  GpuComputePassEncoder beginComputePass({String label = ''}) {
+  GpuComputePassEncoder beginComputePass({
+    String label = '',
+    GpuTimestampWrites? timestampWrites,
+  }) {
     _checkAlive();
-    final address =
-        NitroWebgpu.instance.encoderBeginComputePass(_address, label);
+    final address = NitroWebgpu.instance.encoderBeginComputePass(
+      _address,
+      GpuComputePassDescriptor(
+        label: label,
+        timestampQuerySetAddress: timestampWrites?.querySet._address ?? 0,
+        timestampBeginIndex: timestampWrites?.beginIndex ?? 0,
+        timestampEndIndex: timestampWrites?.endIndex ?? 1,
+      ),
+    );
     return GpuComputePassEncoder._(address);
   }
 
   GpuRenderPassEncoder beginRenderPass({
     required List<GpuColorAttachmentInfo> colorAttachments,
     String label = '',
+    GpuTimestampWrites? timestampWrites,
   }) {
     _checkAlive();
     final address = NitroWebgpu.instance.encoderBeginRenderPass(
@@ -692,9 +745,32 @@ class GpuCommandEncoder {
               clearA: a.clearColor.a,
             ),
         ],
+        timestampQuerySetAddress: timestampWrites?.querySet._address ?? 0,
+        timestampBeginIndex: timestampWrites?.beginIndex ?? 0,
+        timestampEndIndex: timestampWrites?.endIndex ?? 1,
       ),
     );
     return GpuRenderPassEncoder._(address);
+  }
+
+  /// Resolves [queryCount] slots of [querySet] (raw 8-byte GPU ticks per
+  /// slot) into [destination], which needs [GpuBufferUsage.queryResolve].
+  void resolveQuerySet(
+    GpuQuerySet querySet, {
+    required GpuBuffer destination,
+    int firstQuery = 0,
+    int? queryCount,
+    int destinationOffset = 0,
+  }) {
+    _checkAlive();
+    NitroWebgpu.instance.encoderResolveQuerySet(
+      _address,
+      querySet._address,
+      firstQuery,
+      queryCount ?? querySet.count,
+      destination._address,
+      destinationOffset,
+    );
   }
 
   /// Copies the full contents of [texture] (mip 0) into [destination].
@@ -960,6 +1036,42 @@ class GpuRenderPassEncoder {
     _finalizer.detach(this);
     NitroWebgpu.instance.renderPassRelease(_address);
   }
+}
+
+/// A timestamp query set (see [GpuDevice.createTimestampQuerySet]).
+class GpuQuerySet {
+  static final Finalizer<int> _finalizer =
+      Finalizer((address) => NitroWebgpu.instance.querySetRelease(address));
+
+  final int _address;
+
+  /// Number of timestamp slots.
+  final int count;
+  bool _disposed = false;
+
+  GpuQuerySet._(this._address, this.count) {
+    _finalizer.attach(this, _address, detach: this);
+  }
+
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _finalizer.detach(this);
+    NitroWebgpu.instance.querySetRelease(_address);
+  }
+}
+
+/// Where a pass writes its begin/end GPU timestamps.
+class GpuTimestampWrites {
+  final GpuQuerySet querySet;
+  final int beginIndex;
+  final int endIndex;
+
+  const GpuTimestampWrites({
+    required this.querySet,
+    this.beginIndex = 0,
+    this.endIndex = 1,
+  });
 }
 
 /// A finished, submittable list of GPU commands.
