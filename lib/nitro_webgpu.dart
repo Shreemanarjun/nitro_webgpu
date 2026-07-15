@@ -1,1 +1,4 @@
-export 'src/nitro_webgpu.native.dart';
+/// WebGPU for Flutter, powered by wgpu-native.
+library;
+
+export 'src/api/gpu.dart';

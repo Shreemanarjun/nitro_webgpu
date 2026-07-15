@@ -48,6 +48,78 @@ public:
         throw std::runtime_error("Not implemented: wgpuVersion");
         // return "";
     }
+
+    void requestAdapter(NitroCppBuffer options, NitroError* _nitro_err, int64_t dartPort) override {
+        // TODO: on error, populate _nitro_err (hasError/name/message via strdup) before posting.
+        // TODO: post result via Dart_PostCObject_DL(dartPort, ...)
+        throw std::runtime_error("Not implemented: requestAdapter");
+    }
+
+    NitroCppBuffer adapterGetInfo(int64_t adapter) override {
+        // TODO: implement adapterGetInfo
+        throw std::runtime_error("Not implemented: adapterGetInfo");
+        // return { nullptr, 0 };
+    }
+
+    NitroCppBuffer adapterGetLimits(int64_t adapter) override {
+        // TODO: implement adapterGetLimits
+        throw std::runtime_error("Not implemented: adapterGetLimits");
+        // return { nullptr, 0 };
+    }
+
+    void adapterRelease(int64_t adapter) override {
+        // TODO: implement adapterRelease
+        throw std::runtime_error("Not implemented: adapterRelease");
+    }
+
+    void requestDevice(int64_t adapter, NitroCppBuffer descriptor, NitroError* _nitro_err, int64_t dartPort) override {
+        // TODO: on error, populate _nitro_err (hasError/name/message via strdup) before posting.
+        // TODO: post result via Dart_PostCObject_DL(dartPort, ...)
+        throw std::runtime_error("Not implemented: requestDevice");
+    }
+
+    int64_t deviceGetQueue(int64_t device) override {
+        // TODO: implement deviceGetQueue
+        throw std::runtime_error("Not implemented: deviceGetQueue");
+        // return 0;
+    }
+
+    void deviceDestroy(int64_t device) override {
+        // TODO: implement deviceDestroy
+        throw std::runtime_error("Not implemented: deviceDestroy");
+    }
+
+    void deviceRelease(int64_t device) override {
+        // TODO: implement deviceRelease
+        throw std::runtime_error("Not implemented: deviceRelease");
+    }
+
+    void queueRelease(int64_t queue) override {
+        // TODO: implement queueRelease
+        throw std::runtime_error("Not implemented: queueRelease");
+    }
+
+    void devicePushErrorScope(int64_t device, int64_t filter) override {
+        // TODO: implement devicePushErrorScope
+        throw std::runtime_error("Not implemented: devicePushErrorScope");
+    }
+
+    void devicePopErrorScope(int64_t device, NitroError* _nitro_err, int64_t dartPort) override {
+        // TODO: on error, populate _nitro_err (hasError/name/message via strdup) before posting.
+        // TODO: post result via Dart_PostCObject_DL(dartPort, ...)
+        throw std::runtime_error("Not implemented: devicePopErrorScope");
+    }
+
+    // ── Streams ──────────────────────────────────────────────────────────────
+    // Call emit_<name>(item) from any thread to push items to Dart.
+    // emit_* helpers are defined in the generated bridge.
+    // Record/variant items: pass record.toNativeBuffer() — ownership of the
+    // heap [4B len][payload] block transfers to the bridge (same convention
+    // as record returns). Never emit a non-owning writer.toBuffer() view.
+    // Example — start emitting from a background thread:
+    //
+    //   std::thread([this]{ emit_uncapturedErrors(/* NitroCppBuffer value */); }).detach();
+    //   std::thread([this]{ emit_deviceLostEvents(/* NitroCppBuffer value */); }).detach();
 };
 
 // ── Registration ─────────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:nitro_webgpu/nitro_webgpu.dart' as plugin;
+import 'package:nitro_webgpu/nitro_webgpu.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,14 +29,30 @@ class _DemoPage extends StatefulWidget {
 class _DemoPageState extends State<_DemoPage> {
   String _result = '—';
 
-  void _initWgpu() {
-    setState(() => _result = '—');
+  Future<void> _probeGpu() async {
+    setState(() => _result = 'requesting adapter…');
+    GpuAdapter? adapter;
+    GpuDevice? device;
     try {
-      plugin.NitroWebgpu.instance.initInstance(const plugin.GpuInstanceOptions());
-      final version = plugin.NitroWebgpu.instance.wgpuVersion();
-      setState(() => _result = 'wgpu-native $version — instance created');
+      adapter = await Gpu.requestAdapter(
+        powerPreference: GpuPowerPreference.highPerformance,
+      );
+      final info = adapter.info;
+      final limits = adapter.limits;
+      device = await adapter.requestDevice(label: 'demo-device');
+      setState(() {
+        _result = 'wgpu-native ${Gpu.version}\n'
+            '${info.device} (${adapter!.backendType.name}, '
+            '${adapter.adapterType.name})\n'
+            'max texture 2D: ${limits.maxTextureDimension2D}\n'
+            'max buffer: ${(limits.maxBufferSize / (1 << 20)).toStringAsFixed(0)} MiB\n'
+            'device + queue: OK';
+      });
     } catch (e) {
       setState(() => _result = 'Error: $e');
+    } finally {
+      device?.dispose();
+      adapter?.dispose();
     }
   }
 
@@ -48,11 +64,16 @@ class _DemoPageState extends State<_DemoPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(_result, style: Theme.of(context).textTheme.headlineSmall),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(_result,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleMedium),
+            ),
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: _initWgpu,
-              child: const Text('Init WebGPU instance'),
+              onPressed: _probeGpu,
+              child: const Text('Probe WebGPU adapter'),
             ),
           ],
         ),

@@ -54,6 +54,25 @@ NITRO_EXPORT void* nitro_webgpu_nitro_alloc(size_t size);
 // Methods
 NITRO_EXPORT void nitro_webgpu_init_instance(int64_t instanceId, void* options, NitroError* _nitro_err);
 NITRO_EXPORT const char* nitro_webgpu_wgpu_version(int64_t instanceId, NitroError* _nitro_err);
+NITRO_EXPORT void nitro_webgpu_request_adapter(int64_t instanceId, void* options, NitroError* _nitro_err, int64_t dart_port);
+NITRO_EXPORT void* nitro_webgpu_adapter_get_info(int64_t instanceId, int64_t adapter, NitroError* _nitro_err);
+NITRO_EXPORT void* nitro_webgpu_adapter_get_limits(int64_t instanceId, int64_t adapter, NitroError* _nitro_err);
+NITRO_EXPORT void nitro_webgpu_adapter_release(int64_t instanceId, int64_t adapter, NitroError* _nitro_err);
+NITRO_EXPORT void nitro_webgpu_request_device(int64_t instanceId, int64_t adapter, void* descriptor, NitroError* _nitro_err, int64_t dart_port);
+NITRO_EXPORT int64_t nitro_webgpu_device_get_queue(int64_t instanceId, int64_t device, NitroError* _nitro_err);
+NITRO_EXPORT void nitro_webgpu_device_destroy(int64_t instanceId, int64_t device, NitroError* _nitro_err);
+NITRO_EXPORT void nitro_webgpu_device_release(int64_t instanceId, int64_t device, NitroError* _nitro_err);
+NITRO_EXPORT void nitro_webgpu_queue_release(int64_t instanceId, int64_t queue, NitroError* _nitro_err);
+NITRO_EXPORT void nitro_webgpu_device_push_error_scope(int64_t instanceId, int64_t device, int64_t filter, NitroError* _nitro_err);
+NITRO_EXPORT void nitro_webgpu_device_pop_error_scope(int64_t instanceId, int64_t device, NitroError* _nitro_err, int64_t dart_port);
+
+// Streams
+// Stream<GpuUncapturedError> uncapturedErrors
+NITRO_EXPORT void nitro_webgpu_register_uncaptured_errors_stream(int64_t instanceId, int64_t dart_port);
+NITRO_EXPORT void nitro_webgpu_release_uncaptured_errors_stream(int64_t dart_port);
+// Stream<GpuDeviceLost> deviceLostEvents
+NITRO_EXPORT void nitro_webgpu_register_device_lost_events_stream(int64_t instanceId, int64_t dart_port);
+NITRO_EXPORT void nitro_webgpu_release_device_lost_events_stream(int64_t dart_port);
 
 #ifdef __cplusplus
 }

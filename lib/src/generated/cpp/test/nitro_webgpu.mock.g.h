@@ -13,6 +13,17 @@ class MockNitroWebgpu : public HybridNitroWebgpu {
     public:
     MOCK_METHOD(void, initInstance, (NitroCppBuffer options), (override));
     MOCK_METHOD(std::string, wgpuVersion, (), (override));
+    MOCK_METHOD(int64_t, requestAdapter, (NitroCppBuffer options), (override));
+    MOCK_METHOD(NitroCppBuffer, adapterGetInfo, (int64_t adapter), (override));
+    MOCK_METHOD(NitroCppBuffer, adapterGetLimits, (int64_t adapter), (override));
+    MOCK_METHOD(void, adapterRelease, (int64_t adapter), (override));
+    MOCK_METHOD(int64_t, requestDevice, (int64_t adapter, NitroCppBuffer descriptor), (override));
+    MOCK_METHOD(int64_t, deviceGetQueue, (int64_t device), (override));
+    MOCK_METHOD(void, deviceDestroy, (int64_t device), (override));
+    MOCK_METHOD(void, deviceRelease, (int64_t device), (override));
+    MOCK_METHOD(void, queueRelease, (int64_t queue), (override));
+    MOCK_METHOD(void, devicePushErrorScope, (int64_t device, int64_t filter), (override));
+    MOCK_METHOD(NitroCppBuffer, devicePopErrorScope, (int64_t device), (override));
 };
 
 #endif // NITRO_WEBGPU_MOCK_G_H

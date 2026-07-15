@@ -24,6 +24,189 @@ extension GpuInstanceOptionsRecordExt on GpuInstanceOptions {
   }
 }
 
+extension GpuRequestAdapterOptionsRecordExt on GpuRequestAdapterOptions {
+  static GpuRequestAdapterOptions fromNative(Pointer<Uint8> ptr) =>
+      fromReader(RecordReader.fromNative(ptr));
+
+  static GpuRequestAdapterOptions fromReader(RecordReader r) =>
+      GpuRequestAdapterOptions(
+        powerPreference: r.readInt(),
+        forceFallbackAdapter: r.readBool(),
+      );
+
+  void writeFields(RecordWriter writer) {
+    writer.writeInt(powerPreference);
+    writer.writeBool(forceFallbackAdapter);
+  }
+
+  Pointer<Uint8> toNative(Allocator alloc) {
+    final writer = RecordWriter();
+    writeFields(writer);
+    return writer.toNative(alloc);
+  }
+}
+
+extension GpuAdapterInfoRecordExt on GpuAdapterInfo {
+  static GpuAdapterInfo fromNative(Pointer<Uint8> ptr) =>
+      fromReader(RecordReader.fromNative(ptr));
+
+  static GpuAdapterInfo fromReader(RecordReader r) => GpuAdapterInfo(
+    vendor: r.readString(),
+    architecture: r.readString(),
+    device: r.readString(),
+    description: r.readString(),
+    backendType: r.readInt(),
+    adapterType: r.readInt(),
+  );
+
+  void writeFields(RecordWriter writer) {
+    writer.writeString(vendor);
+    writer.writeString(architecture);
+    writer.writeString(device);
+    writer.writeString(description);
+    writer.writeInt(backendType);
+    writer.writeInt(adapterType);
+  }
+
+  Pointer<Uint8> toNative(Allocator alloc) {
+    final writer = RecordWriter();
+    writeFields(writer);
+    return writer.toNative(alloc);
+  }
+}
+
+extension GpuLimitsRecordExt on GpuLimits {
+  static GpuLimits fromNative(Pointer<Uint8> ptr) =>
+      fromReader(RecordReader.fromNative(ptr));
+
+  static GpuLimits fromReader(RecordReader r) => GpuLimits(
+    maxTextureDimension1D: r.readInt(),
+    maxTextureDimension2D: r.readInt(),
+    maxTextureDimension3D: r.readInt(),
+    maxTextureArrayLayers: r.readInt(),
+    maxBindGroups: r.readInt(),
+    maxBindingsPerBindGroup: r.readInt(),
+    maxUniformBufferBindingSize: r.readInt(),
+    maxStorageBufferBindingSize: r.readInt(),
+    minUniformBufferOffsetAlignment: r.readInt(),
+    minStorageBufferOffsetAlignment: r.readInt(),
+    maxBufferSize: r.readInt(),
+    maxComputeWorkgroupStorageSize: r.readInt(),
+    maxComputeInvocationsPerWorkgroup: r.readInt(),
+    maxComputeWorkgroupSizeX: r.readInt(),
+    maxComputeWorkgroupSizeY: r.readInt(),
+    maxComputeWorkgroupSizeZ: r.readInt(),
+  );
+
+  void writeFields(RecordWriter writer) {
+    writer.writeInt(maxTextureDimension1D);
+    writer.writeInt(maxTextureDimension2D);
+    writer.writeInt(maxTextureDimension3D);
+    writer.writeInt(maxTextureArrayLayers);
+    writer.writeInt(maxBindGroups);
+    writer.writeInt(maxBindingsPerBindGroup);
+    writer.writeInt(maxUniformBufferBindingSize);
+    writer.writeInt(maxStorageBufferBindingSize);
+    writer.writeInt(minUniformBufferOffsetAlignment);
+    writer.writeInt(minStorageBufferOffsetAlignment);
+    writer.writeInt(maxBufferSize);
+    writer.writeInt(maxComputeWorkgroupStorageSize);
+    writer.writeInt(maxComputeInvocationsPerWorkgroup);
+    writer.writeInt(maxComputeWorkgroupSizeX);
+    writer.writeInt(maxComputeWorkgroupSizeY);
+    writer.writeInt(maxComputeWorkgroupSizeZ);
+  }
+
+  Pointer<Uint8> toNative(Allocator alloc) {
+    final writer = RecordWriter();
+    writeFields(writer);
+    return writer.toNative(alloc);
+  }
+}
+
+extension GpuDeviceDescriptorRecordExt on GpuDeviceDescriptor {
+  static GpuDeviceDescriptor fromNative(Pointer<Uint8> ptr) =>
+      fromReader(RecordReader.fromNative(ptr));
+
+  static GpuDeviceDescriptor fromReader(RecordReader r) =>
+      GpuDeviceDescriptor(label: r.readString());
+
+  void writeFields(RecordWriter writer) {
+    writer.writeString(label);
+  }
+
+  Pointer<Uint8> toNative(Allocator alloc) {
+    final writer = RecordWriter();
+    writeFields(writer);
+    return writer.toNative(alloc);
+  }
+}
+
+extension GpuErrorRecordExt on GpuError {
+  static GpuError fromNative(Pointer<Uint8> ptr) =>
+      fromReader(RecordReader.fromNative(ptr));
+
+  static GpuError fromReader(RecordReader r) =>
+      GpuError(type: r.readInt(), message: r.readString());
+
+  void writeFields(RecordWriter writer) {
+    writer.writeInt(type);
+    writer.writeString(message);
+  }
+
+  Pointer<Uint8> toNative(Allocator alloc) {
+    final writer = RecordWriter();
+    writeFields(writer);
+    return writer.toNative(alloc);
+  }
+}
+
+extension GpuUncapturedErrorRecordExt on GpuUncapturedError {
+  static GpuUncapturedError fromNative(Pointer<Uint8> ptr) =>
+      fromReader(RecordReader.fromNative(ptr));
+
+  static GpuUncapturedError fromReader(RecordReader r) => GpuUncapturedError(
+    deviceAddress: r.readInt(),
+    type: r.readInt(),
+    message: r.readString(),
+  );
+
+  void writeFields(RecordWriter writer) {
+    writer.writeInt(deviceAddress);
+    writer.writeInt(type);
+    writer.writeString(message);
+  }
+
+  Pointer<Uint8> toNative(Allocator alloc) {
+    final writer = RecordWriter();
+    writeFields(writer);
+    return writer.toNative(alloc);
+  }
+}
+
+extension GpuDeviceLostRecordExt on GpuDeviceLost {
+  static GpuDeviceLost fromNative(Pointer<Uint8> ptr) =>
+      fromReader(RecordReader.fromNative(ptr));
+
+  static GpuDeviceLost fromReader(RecordReader r) => GpuDeviceLost(
+    deviceAddress: r.readInt(),
+    reason: r.readInt(),
+    message: r.readString(),
+  );
+
+  void writeFields(RecordWriter writer) {
+    writer.writeInt(deviceAddress);
+    writer.writeInt(reason);
+    writer.writeString(message);
+  }
+
+  Pointer<Uint8> toNative(Allocator alloc) {
+    final writer = RecordWriter();
+    writeFields(writer);
+    return writer.toNative(alloc);
+  }
+}
+
 class _NitroWebgpuImpl extends NitroWebgpu {
   final DynamicLibrary _dylib;
   static final _instances = <String, _NitroWebgpuImpl>{};
@@ -100,7 +283,7 @@ class _NitroWebgpuImpl extends NitroWebgpu {
     }
     NitroRuntime.checkLinkChecksum(
       'nitro_webgpu',
-      '6a29b4e4a12dd166',
+      'e62882f8180fddba',
       () => _dylib
           .lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
             'nitro_webgpu_nitro_bridge_checksum',
@@ -147,6 +330,114 @@ class _NitroWebgpuImpl extends NitroWebgpu {
         Pointer<Utf8> Function(Int64, Pointer<NitroErrorFfi>),
         Pointer<Utf8> Function(int, Pointer<NitroErrorFfi>)
       >('nitro_webgpu_wgpu_version');
+  late final void Function(int, Pointer<Uint8>, Pointer<NitroErrorFfi>, int)
+  _requestAdapterPtr = _dylib
+      .lookupFunction<
+        Void Function(Int64, Pointer<Uint8>, Pointer<NitroErrorFfi>, Int64),
+        void Function(int, Pointer<Uint8>, Pointer<NitroErrorFfi>, int)
+      >('nitro_webgpu_request_adapter');
+  late final Pointer<Uint8> Function(int, int, Pointer<NitroErrorFfi>)
+  _adapterGetInfoPtr = _dylib
+      .lookupFunction<
+        Pointer<Uint8> Function(Int64, Int64, Pointer<NitroErrorFfi>),
+        Pointer<Uint8> Function(int, int, Pointer<NitroErrorFfi>)
+      >('nitro_webgpu_adapter_get_info');
+  late final Pointer<Uint8> Function(int, int, Pointer<NitroErrorFfi>)
+  _adapterGetLimitsPtr = _dylib
+      .lookupFunction<
+        Pointer<Uint8> Function(Int64, Int64, Pointer<NitroErrorFfi>),
+        Pointer<Uint8> Function(int, int, Pointer<NitroErrorFfi>)
+      >('nitro_webgpu_adapter_get_limits');
+  late final void Function(int, int, Pointer<NitroErrorFfi>)
+  _adapterReleasePtr = _dylib
+      .lookup<
+        NativeFunction<Void Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+      >('nitro_webgpu_adapter_release')
+      .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final void Function(
+    int,
+    int,
+    Pointer<Uint8>,
+    Pointer<NitroErrorFfi>,
+    int,
+  )
+  _requestDevicePtr = _dylib
+      .lookupFunction<
+        Void Function(
+          Int64,
+          Int64,
+          Pointer<Uint8>,
+          Pointer<NitroErrorFfi>,
+          Int64,
+        ),
+        void Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>, int)
+      >('nitro_webgpu_request_device');
+  late final int Function(int, int, Pointer<NitroErrorFfi>) _deviceGetQueuePtr =
+      _dylib
+          .lookup<
+            NativeFunction<Int64 Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+          >('nitro_webgpu_device_get_queue')
+          .asFunction<int Function(int, int, Pointer<NitroErrorFfi>)>(
+            isLeaf: true,
+          );
+  late final void Function(int, int, Pointer<NitroErrorFfi>) _deviceDestroyPtr =
+      _dylib
+          .lookup<
+            NativeFunction<Void Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+          >('nitro_webgpu_device_destroy')
+          .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
+            isLeaf: true,
+          );
+  late final void Function(int, int, Pointer<NitroErrorFfi>) _deviceReleasePtr =
+      _dylib
+          .lookup<
+            NativeFunction<Void Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+          >('nitro_webgpu_device_release')
+          .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
+            isLeaf: true,
+          );
+  late final void Function(int, int, Pointer<NitroErrorFfi>) _queueReleasePtr =
+      _dylib
+          .lookup<
+            NativeFunction<Void Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+          >('nitro_webgpu_queue_release')
+          .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
+            isLeaf: true,
+          );
+  late final void Function(int, int, int, Pointer<NitroErrorFfi>)
+  _devicePushErrorScopePtr = _dylib
+      .lookup<
+        NativeFunction<
+          Void Function(Int64, Int64, Int64, Pointer<NitroErrorFfi>)
+        >
+      >('nitro_webgpu_device_push_error_scope')
+      .asFunction<void Function(int, int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final void Function(int, int, Pointer<NitroErrorFfi>, int)
+  _devicePopErrorScopePtr = _dylib
+      .lookupFunction<
+        Void Function(Int64, Int64, Pointer<NitroErrorFfi>, Int64),
+        void Function(int, int, Pointer<NitroErrorFfi>, int)
+      >('nitro_webgpu_device_pop_error_scope');
+  late final void Function(int, int) _registerUncapturedErrorsPtr = _dylib
+      .lookupFunction<Void Function(Int64, Int64), void Function(int, int)>(
+        'nitro_webgpu_register_uncaptured_errors_stream',
+      );
+  late final void Function(int) _releaseUncapturedErrorsPtr = _dylib
+      .lookupFunction<Void Function(Int64), void Function(int)>(
+        'nitro_webgpu_release_uncaptured_errors_stream',
+      );
+  late final void Function(int, int) _registerDeviceLostEventsPtr = _dylib
+      .lookupFunction<Void Function(Int64, Int64), void Function(int, int)>(
+        'nitro_webgpu_register_device_lost_events_stream',
+      );
+  late final void Function(int) _releaseDeviceLostEventsPtr = _dylib
+      .lookupFunction<Void Function(Int64), void Function(int)>(
+        'nitro_webgpu_release_device_lost_events_stream',
+      );
   // ignore: unused_field
   late final Pointer<NitroErrorFfi> Function() _getErrorPtr = _dylib
       .lookupFunction<
@@ -198,6 +489,220 @@ class _NitroWebgpuImpl extends NitroWebgpu {
       NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
       return res.toDartStringFreedBy(_nitroFree);
     }, methodName: 'wgpuVersion');
+  }
+
+  @override
+  Future<int> requestAdapter(GpuRequestAdapterOptions options) {
+    checkDisposed();
+    final arena = Arena();
+    final _nitroErr = calloc<NitroErrorFfi>();
+    try {
+      return NitroRuntime.openNativeAsync<int>(
+        call: (port) => _requestAdapterPtr(
+          _instanceId,
+          options.toNative(arena),
+          _nitroErr,
+          port,
+        ),
+        unpack: (raw) {
+          NitroRuntime.throwIfOutParamErrorAndFree(
+            _nitroErr,
+            nativeFree: _nitroFree,
+          );
+          return ((raw) => raw as int)(raw);
+        },
+        methodName: 'requestAdapter',
+      );
+    } finally {
+      arena.releaseAll();
+    }
+  }
+
+  @override
+  GpuAdapterInfo adapterGetInfo(int adapter) {
+    checkDisposed();
+    return NitroRuntime.callSync(() {
+      final res = _adapterGetInfoPtr(_instanceId, adapter, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+      final GpuAdapterInfo decoded;
+      try {
+        decoded = GpuAdapterInfoRecordExt.fromNative(res);
+      } finally {
+        _nitroFree(res);
+      }
+      return decoded;
+    }, methodName: 'adapterGetInfo');
+  }
+
+  @override
+  GpuLimits adapterGetLimits(int adapter) {
+    checkDisposed();
+    return NitroRuntime.callSync(() {
+      final res = _adapterGetLimitsPtr(_instanceId, adapter, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+      final GpuLimits decoded;
+      try {
+        decoded = GpuLimitsRecordExt.fromNative(res);
+      } finally {
+        _nitroFree(res);
+      }
+      return decoded;
+    }, methodName: 'adapterGetLimits');
+  }
+
+  @override
+  void adapterRelease(int adapter) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _adapterReleasePtr(_instanceId, adapter, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'adapterRelease');
+  }
+
+  @override
+  Future<int> requestDevice(int adapter, GpuDeviceDescriptor descriptor) {
+    checkDisposed();
+    final arena = Arena();
+    final _nitroErr = calloc<NitroErrorFfi>();
+    try {
+      return NitroRuntime.openNativeAsync<int>(
+        call: (port) => _requestDevicePtr(
+          _instanceId,
+          adapter,
+          descriptor.toNative(arena),
+          _nitroErr,
+          port,
+        ),
+        unpack: (raw) {
+          NitroRuntime.throwIfOutParamErrorAndFree(
+            _nitroErr,
+            nativeFree: _nitroFree,
+          );
+          return ((raw) => raw as int)(raw);
+        },
+        methodName: 'requestDevice',
+      );
+    } finally {
+      arena.releaseAll();
+    }
+  }
+
+  @override
+  int deviceGetQueue(int device) {
+    checkDisposed();
+    return NitroRuntime.callSync(() {
+      final res = _deviceGetQueuePtr(_instanceId, device, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+      return res;
+    }, methodName: 'deviceGetQueue');
+  }
+
+  @override
+  void deviceDestroy(int device) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _deviceDestroyPtr(_instanceId, device, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'deviceDestroy');
+  }
+
+  @override
+  void deviceRelease(int device) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _deviceReleasePtr(_instanceId, device, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'deviceRelease');
+  }
+
+  @override
+  void queueRelease(int queue) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _queueReleasePtr(_instanceId, queue, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'queueRelease');
+  }
+
+  @override
+  void devicePushErrorScope(int device, int filter) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _devicePushErrorScopePtr(_instanceId, device, filter, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'devicePushErrorScope');
+  }
+
+  @override
+  Future<GpuError?> devicePopErrorScope(int device) {
+    checkDisposed();
+    final _nitroErr = calloc<NitroErrorFfi>();
+    return NitroRuntime.openNativeAsync<GpuError?>(
+      call: (port) =>
+          _devicePopErrorScopePtr(_instanceId, device, _nitroErr, port),
+      unpack: (raw) {
+        NitroRuntime.throwIfOutParamErrorAndFree(
+          _nitroErr,
+          nativeFree: _nitroFree,
+        );
+        return ((raw) {
+          final rawPtr = Pointer<Uint8>.fromAddress(raw as int);
+          if (rawPtr == nullptr) return null;
+          try {
+            return GpuErrorRecordExt.fromNative(rawPtr);
+          } finally {
+            _nitroFree(rawPtr);
+          }
+        })(raw);
+      },
+      methodName: 'devicePopErrorScope',
+    );
+  }
+
+  @override
+  Stream<GpuUncapturedError> get uncapturedErrors {
+    checkDisposed();
+    return NitroRuntime.openStream<GpuUncapturedError>(
+      register: (port) => _registerUncapturedErrorsPtr(_instanceId, port),
+      unpack: (message) {
+        if (message == null) {
+          throw StateError(
+            'Received null event on non-nullable stream uncapturedErrors',
+          );
+        }
+        final rawPtr = Pointer<Uint8>.fromAddress(message as int);
+        try {
+          return GpuUncapturedErrorRecordExt.fromNative(rawPtr);
+        } finally {
+          _nitroFree(rawPtr);
+        }
+      },
+      release: (port) => _releaseUncapturedErrorsPtr(port),
+      backpressure: Backpressure.bufferDrop,
+    );
+  }
+
+  @override
+  Stream<GpuDeviceLost> get deviceLostEvents {
+    checkDisposed();
+    return NitroRuntime.openStream<GpuDeviceLost>(
+      register: (port) => _registerDeviceLostEventsPtr(_instanceId, port),
+      unpack: (message) {
+        if (message == null) {
+          throw StateError(
+            'Received null event on non-nullable stream deviceLostEvents',
+          );
+        }
+        final rawPtr = Pointer<Uint8>.fromAddress(message as int);
+        try {
+          return GpuDeviceLostRecordExt.fromNative(rawPtr);
+        } finally {
+          _nitroFree(rawPtr);
+        }
+      },
+      release: (port) => _releaseDeviceLostEventsPtr(port),
+      backpressure: Backpressure.bufferDrop,
+    );
   }
 }
 
