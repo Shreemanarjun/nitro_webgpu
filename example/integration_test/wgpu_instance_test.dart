@@ -1282,6 +1282,521 @@ fn fs_main(@builtin(position) frag: vec4f) -> @location(0) vec4f {
     });
   });
 
+  group('WebGPU parity tail', () {
+    const fsTriVs = '''
+@vertex
+fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
+  var pos = array<vec2f, 3>(
+      vec2f(-1.0, -3.0), vec2f(3.0, 1.0), vec2f(-1.0, 1.0));
+  return vec4f(pos[i], 0.0, 1.0);
+}
+''';
+
+    test('requiredLimits lowers device limits and deviceGetLimits reads them',
+        () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice(
+        requiredLimits: const GpuRequiredLimits(maxTextureDimension2D: 4096),
+      );
+      expect(device.limits.maxTextureDimension2D, 4096);
+      device.dispose();
+      adapter.dispose();
+    });
+
+    test('render bundle records once and replays in a pass', () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+      final module = await device.createShaderModule('''
+$fsTriVs
+@fragment
+fn fs_main() -> @location(0) vec4f { return vec4f(0.0, 1.0, 1.0, 1.0); }
+''');
+      final pipeline = await device.createRenderPipeline(
+          module: module, targetFormat: GpuTextureFormat.rgba8Unorm);
+
+      final bundleEncoder = device.createRenderBundleEncoder(
+          colorFormats: [GpuTextureFormat.rgba8Unorm]);
+      bundleEncoder.setPipeline(pipeline);
+      bundleEncoder.draw(3);
+      final bundle = bundleEncoder.finish();
+
+      final target = device.createTexture(
+        width: 2,
+        height: 2,
+        format: GpuTextureFormat.rgba8Unorm,
+        usage: GpuTextureUsage.renderAttachment | GpuTextureUsage.copySrc,
+      );
+      final view = target.createView();
+      final readback = device.createBuffer(
+          size: 512,
+          usage: GpuBufferUsage.mapRead | GpuBufferUsage.copyDst);
+      final encoder = device.createCommandEncoder();
+      final pass = encoder.beginRenderPass(
+          colorAttachments: [GpuColorAttachmentInfo(view: view)]);
+      pass.executeBundle(bundle);
+      pass.end();
+      encoder.copyTextureToBuffer(target, readback, bytesPerRow: 256);
+      device.queue.submit([encoder.finish()]);
+      final bytes = await readback.mapRead();
+      expect(bytes.sublist(0, 4), [0, 255, 255, 255]);
+
+      readback.dispose();
+      view.dispose();
+      target.dispose();
+      bundle.dispose();
+      pipeline.dispose();
+      module.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+
+    test('occlusion queries count visible vs depth-occluded draws', () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+      final module = await device.createShaderModule('''
+struct VOut { @builtin(position) pos: vec4f, @location(0) color: vec4f };
+@vertex
+fn vs_main(@location(0) pos: vec3f, @location(1) color: vec4f) -> VOut {
+  var o: VOut;
+  o.pos = vec4f(pos, 1.0);
+  o.color = color;
+  return o;
+}
+@fragment
+fn fs_main(v: VOut) -> @location(0) vec4f { return v.color; }
+''');
+      final pipeline = await device.createRenderPipeline(
+        module: module,
+        targetFormat: GpuTextureFormat.rgba8Unorm,
+        depthFormat: GpuTextureFormat.depth24Plus,
+        vertexBuffers: [
+          GpuVertexLayout(arrayStride: 28, attributes: const [
+            GpuVertexAttr(
+                format: GpuVertexFormat.float32x3,
+                offset: 0,
+                shaderLocation: 0),
+            GpuVertexAttr(
+                format: GpuVertexFormat.float32x4,
+                offset: 12,
+                shaderLocation: 1),
+          ]),
+        ],
+      );
+
+      // Near green fullscreen quad (z=0.2), far red fullscreen quad (z=0.8).
+      final vertices = Float32List.fromList([
+        -1, -1, 0.2, 0, 1, 0, 1, 1, -1, 0.2, 0, 1, 0, 1, //
+        -1, 1, 0.2, 0, 1, 0, 1, 1, 1, 0.2, 0, 1, 0, 1, //
+        -1, -1, 0.8, 1, 0, 0, 1, 1, -1, 0.8, 1, 0, 0, 1, //
+        -1, 1, 0.8, 1, 0, 0, 1, 1, 1, 0.8, 1, 0, 0, 1, //
+      ]);
+      final indices =
+          Uint16List.fromList([0, 1, 2, 2, 1, 3, 4, 5, 6, 6, 5, 7]);
+      final vbuf = device.createBuffer(
+          size: vertices.lengthInBytes,
+          usage: GpuBufferUsage.vertex | GpuBufferUsage.copyDst);
+      final ibuf = device.createBuffer(
+          size: indices.lengthInBytes,
+          usage: GpuBufferUsage.index | GpuBufferUsage.copyDst);
+      device.queue.writeBuffer(vbuf, vertices.buffer.asUint8List());
+      device.queue.writeBuffer(ibuf, indices.buffer.asUint8List());
+
+      final querySet = await device.createOcclusionQuerySet(2);
+      final resolve = device.createBuffer(
+          size: 16,
+          usage: GpuBufferUsage.queryResolve | GpuBufferUsage.copySrc);
+      final staging = device.createBuffer(
+          size: 16, usage: GpuBufferUsage.mapRead | GpuBufferUsage.copyDst);
+
+      final target = device.createTexture(
+        width: 2,
+        height: 2,
+        format: GpuTextureFormat.rgba8Unorm,
+        usage: GpuTextureUsage.renderAttachment,
+      );
+      final depthTex = device.createTexture(
+        width: 2,
+        height: 2,
+        format: GpuTextureFormat.depth24Plus,
+        usage: GpuTextureUsage.renderAttachment,
+      );
+      final view = target.createView();
+      final depthView = depthTex.createView();
+
+      final encoder = device.createCommandEncoder();
+      final pass = encoder.beginRenderPass(
+        colorAttachments: [GpuColorAttachmentInfo(view: view)],
+        depthAttachment: GpuDepthAttachmentInfo(view: depthView),
+        occlusionQuerySet: querySet,
+      );
+      pass.setPipeline(pipeline);
+      pass.setVertexBuffer(0, vbuf);
+      pass.setIndexBuffer(ibuf, GpuIndexFormat.uint16);
+      pass.beginOcclusionQuery(0);
+      pass.drawIndexed(6); // near quad — fully visible
+      pass.endOcclusionQuery();
+      pass.beginOcclusionQuery(1);
+      pass.drawIndexed(6, firstIndex: 6); // far quad — fully occluded
+      pass.endOcclusionQuery();
+      pass.end();
+      encoder.resolveQuerySet(querySet, destination: resolve);
+      encoder.copyBufferToBuffer(resolve, staging);
+      device.queue.submit([encoder.finish()]);
+
+      final bytes = await staging.mapRead();
+      final counts = bytes.buffer.asUint64List(bytes.offsetInBytes, 2);
+      expect(counts[0], greaterThan(0), reason: 'near quad samples visible');
+      expect(counts[1], 0, reason: 'far quad fully occluded');
+
+      staging.dispose();
+      resolve.dispose();
+      querySet.dispose();
+      depthView.dispose();
+      view.dispose();
+      depthTex.dispose();
+      target.dispose();
+      ibuf.dispose();
+      vbuf.dispose();
+      pipeline.dispose();
+      module.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+
+    test('cube texture samples the +X face', () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+
+      final cube = device.createTexture(
+        width: 2,
+        height: 2,
+        format: GpuTextureFormat.rgba8Unorm,
+        usage: GpuTextureUsage.textureBinding | GpuTextureUsage.copyDst,
+        depthOrArrayLayers: 6,
+      );
+      // Layer 0 (+X) orange; the rest gray.
+      for (var layer = 0; layer < 6; layer++) {
+        final color = layer == 0 ? [255, 128, 0, 255] : [64, 64, 64, 255];
+        final data = Uint8List.fromList(
+            List.generate(4, (_) => color).expand((p) => p).toList());
+        device.queue.writeTexture(cube, data, arrayLayer: layer);
+      }
+      final cubeView =
+          cube.createView(dimension: GpuTextureViewDimension.cube);
+      final sampler = device.createSampler(
+          magFilter: GpuFilterMode.nearest, minFilter: GpuFilterMode.nearest);
+
+      final module = await device.createShaderModule('''
+@group(0) @binding(0) var samp: sampler;
+@group(0) @binding(1) var tex: texture_cube<f32>;
+$fsTriVs
+@fragment
+fn fs_main() -> @location(0) vec4f {
+  return textureSample(tex, samp, vec3f(1.0, 0.0, 0.0));
+}
+''');
+      final pipeline = await device.createRenderPipeline(
+          module: module, targetFormat: GpuTextureFormat.rgba8Unorm);
+      final layout = pipeline.getBindGroupLayout(0);
+      final bindGroup = device.createBindGroup(layout: layout, entries: [
+        GpuSamplerBinding(binding: 0, sampler: sampler),
+        GpuTextureBinding(binding: 1, view: cubeView),
+      ]);
+
+      final target = device.createTexture(
+        width: 2,
+        height: 2,
+        format: GpuTextureFormat.rgba8Unorm,
+        usage: GpuTextureUsage.renderAttachment | GpuTextureUsage.copySrc,
+      );
+      final view = target.createView();
+      final readback = device.createBuffer(
+          size: 512,
+          usage: GpuBufferUsage.mapRead | GpuBufferUsage.copyDst);
+      final encoder = device.createCommandEncoder();
+      final pass = encoder.beginRenderPass(
+          colorAttachments: [GpuColorAttachmentInfo(view: view)]);
+      pass.setPipeline(pipeline);
+      pass.setBindGroup(0, bindGroup);
+      pass.draw(3);
+      pass.end();
+      encoder.copyTextureToBuffer(target, readback, bytesPerRow: 256);
+      device.queue.submit([encoder.finish()]);
+      final bytes = await readback.mapRead();
+      expect(bytes.sublist(0, 4), [255, 128, 0, 255],
+          reason: '+X direction samples cube face 0');
+
+      readback.dispose();
+      view.dispose();
+      target.dispose();
+      bindGroup.dispose();
+      layout.dispose();
+      pipeline.dispose();
+      module.dispose();
+      sampler.dispose();
+      cubeView.dispose();
+      cube.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+
+    test('multiple color targets write per-location outputs', () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+      final module = await device.createShaderModule('''
+struct FOut {
+  @location(0) a: vec4f,
+  @location(1) b: vec4f,
+};
+$fsTriVs
+@fragment
+fn fs_main() -> FOut {
+  var o: FOut;
+  o.a = vec4f(1.0, 0.0, 0.0, 1.0);
+  o.b = vec4f(0.0, 1.0, 0.0, 1.0);
+  return o;
+}
+''');
+      final pipeline = await device.createRenderPipeline(
+        module: module,
+        targetFormat: GpuTextureFormat.rgba8Unorm,
+        extraTargetFormats: [GpuTextureFormat.rgba8Unorm],
+      );
+
+      GpuTexture makeTarget() => device.createTexture(
+            width: 2,
+            height: 2,
+            format: GpuTextureFormat.rgba8Unorm,
+            usage:
+                GpuTextureUsage.renderAttachment | GpuTextureUsage.copySrc,
+          );
+      final t0 = makeTarget();
+      final t1 = makeTarget();
+      final v0 = t0.createView();
+      final v1 = t1.createView();
+      final r0 = device.createBuffer(
+          size: 512,
+          usage: GpuBufferUsage.mapRead | GpuBufferUsage.copyDst);
+      final r1 = device.createBuffer(
+          size: 512,
+          usage: GpuBufferUsage.mapRead | GpuBufferUsage.copyDst);
+
+      final encoder = device.createCommandEncoder();
+      final pass = encoder.beginRenderPass(colorAttachments: [
+        GpuColorAttachmentInfo(view: v0),
+        GpuColorAttachmentInfo(view: v1),
+      ]);
+      pass.setPipeline(pipeline);
+      pass.draw(3);
+      pass.end();
+      encoder.copyTextureToBuffer(t0, r0, bytesPerRow: 256);
+      encoder.copyTextureToBuffer(t1, r1, bytesPerRow: 256);
+      device.queue.submit([encoder.finish()]);
+      expect((await r0.mapRead()).sublist(0, 4), [255, 0, 0, 255]);
+      expect((await r1.mapRead()).sublist(0, 4), [0, 255, 0, 255]);
+
+      r1.dispose();
+      r0.dispose();
+      v1.dispose();
+      v0.dispose();
+      t1.dispose();
+      t0.dispose();
+      pipeline.dispose();
+      module.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+
+    test('dynamic bind-group offsets select uniform slices', () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+
+      final bgl = device.createBindGroupLayout(entries: const [
+        GpuLayoutEntry(
+          binding: 0,
+          visibility: GpuShaderStage.fragment,
+          type: GpuBindingType.uniformBuffer,
+          hasDynamicOffset: true,
+        ),
+      ]);
+      final pipelineLayout = device.createPipelineLayout(layouts: [bgl]);
+      final module = await device.createShaderModule('''
+@group(0) @binding(0) var<uniform> tint: vec4f;
+$fsTriVs
+@fragment
+fn fs_main() -> @location(0) vec4f { return tint; }
+''');
+      final pipeline = await device.createRenderPipeline(
+          module: module,
+          targetFormat: GpuTextureFormat.rgba8Unorm,
+          layout: pipelineLayout);
+
+      // Two colors 256 bytes apart (min dynamic alignment).
+      final uniforms = device.createBuffer(
+          size: 512,
+          usage: GpuBufferUsage.uniform | GpuBufferUsage.copyDst);
+      final data = Uint8List(512);
+      data.buffer.asFloat32List(0, 4).setAll(0, [1, 0, 0, 1]); // red @ 0
+      data.buffer.asFloat32List(256, 4).setAll(0, [0, 0, 1, 1]); // blue @ 256
+      device.queue.writeBuffer(uniforms, data);
+      final bindGroup = device.createBindGroup(layout: bgl, entries: [
+        GpuBufferBinding(binding: 0, buffer: uniforms, size: 16),
+      ]);
+
+      final target = device.createTexture(
+        width: 2,
+        height: 2,
+        format: GpuTextureFormat.rgba8Unorm,
+        usage: GpuTextureUsage.renderAttachment | GpuTextureUsage.copySrc,
+      );
+      final view = target.createView();
+      final readback = device.createBuffer(
+          size: 512,
+          usage: GpuBufferUsage.mapRead | GpuBufferUsage.copyDst);
+      final encoder = device.createCommandEncoder();
+      final pass = encoder.beginRenderPass(
+          colorAttachments: [GpuColorAttachmentInfo(view: view)]);
+      pass.setPipeline(pipeline);
+      pass.setBindGroup(0, bindGroup, dynamicOffsets: [256]);
+      pass.draw(3);
+      pass.end();
+      encoder.copyTextureToBuffer(target, readback, bytesPerRow: 256);
+      device.queue.submit([encoder.finish()]);
+      final bytes = await readback.mapRead();
+      expect(bytes.sublist(0, 4), [0, 0, 255, 255],
+          reason: 'offset 256 selects the blue slice');
+
+      readback.dispose();
+      view.dispose();
+      target.dispose();
+      bindGroup.dispose();
+      uniforms.dispose();
+      pipeline.dispose();
+      module.dispose();
+      pipelineLayout.dispose();
+      bgl.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+
+    test('stencil write + test masks a second draw', () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+
+      // Pipeline A: left-half quad writes red + stencil ref (replace).
+      final moduleA = await device.createShaderModule('''
+@vertex
+fn vs_main(@location(0) pos: vec2f) -> @builtin(position) vec4f {
+  return vec4f(pos, 0.0, 1.0);
+}
+@fragment
+fn fs_main() -> @location(0) vec4f { return vec4f(1.0, 0.0, 0.0, 1.0); }
+''');
+      final pipeA = await device.createRenderPipeline(
+        module: moduleA,
+        targetFormat: GpuTextureFormat.rgba8Unorm,
+        depthFormat: GpuTextureFormat.depth24PlusStencil8,
+        depthWriteEnabled: false,
+        depthCompare: GpuCompareFunction.always,
+        stencilPassOp: GpuStencilOperation.replace,
+        vertexBuffers: [
+          GpuVertexLayout(arrayStride: 8, attributes: const [
+            GpuVertexAttr(
+                format: GpuVertexFormat.float32x2,
+                offset: 0,
+                shaderLocation: 0),
+          ]),
+        ],
+      );
+
+      // Pipeline B: fullscreen green, drawn only where stencil == ref.
+      final moduleB = await device.createShaderModule('''
+$fsTriVs
+@fragment
+fn fs_main() -> @location(0) vec4f { return vec4f(0.0, 1.0, 0.0, 1.0); }
+''');
+      final pipeB = await device.createRenderPipeline(
+        module: moduleB,
+        targetFormat: GpuTextureFormat.rgba8Unorm,
+        depthFormat: GpuTextureFormat.depth24PlusStencil8,
+        depthWriteEnabled: false,
+        depthCompare: GpuCompareFunction.always,
+        stencilCompare: GpuCompareFunction.equal,
+      );
+
+      final leftQuad = Float32List.fromList([
+        -1, -1, 0, -1, -1, 1, //
+        -1, 1, 0, -1, 0, 1, //
+      ]);
+      final vbuf = device.createBuffer(
+          size: leftQuad.lengthInBytes,
+          usage: GpuBufferUsage.vertex | GpuBufferUsage.copyDst);
+      device.queue.writeBuffer(vbuf, leftQuad.buffer.asUint8List());
+
+      final target = device.createTexture(
+        width: 2,
+        height: 2,
+        format: GpuTextureFormat.rgba8Unorm,
+        usage: GpuTextureUsage.renderAttachment | GpuTextureUsage.copySrc,
+      );
+      final depthTex = device.createTexture(
+        width: 2,
+        height: 2,
+        format: GpuTextureFormat.depth24PlusStencil8,
+        usage: GpuTextureUsage.renderAttachment,
+      );
+      final view = target.createView();
+      final depthView = depthTex.createView();
+      final readback = device.createBuffer(
+          size: 512,
+          usage: GpuBufferUsage.mapRead | GpuBufferUsage.copyDst);
+
+      final encoder = device.createCommandEncoder();
+      final pass = encoder.beginRenderPass(
+        colorAttachments: [GpuColorAttachmentInfo(view: view)],
+        depthAttachment: GpuDepthAttachmentInfo(
+          view: depthView,
+          stencilLoadOp: GpuLoadOp.clear,
+          stencilStoreOp: GpuStoreOp.discard,
+        ),
+      );
+      pass.setStencilReference(1);
+      pass.setPipeline(pipeA);
+      pass.setVertexBuffer(0, vbuf);
+      pass.draw(6); // stencil = 1 on the left half (red)
+      pass.setPipeline(pipeB);
+      pass.draw(3); // green only where stencil == 1
+      pass.end();
+      encoder.copyTextureToBuffer(target, readback, bytesPerRow: 256);
+      device.queue.submit([encoder.finish()]);
+      final bytes = await readback.mapRead();
+      expect(bytes.sublist(0, 4), [0, 255, 0, 255],
+          reason: 'left: stencil==1 lets green through');
+      expect(bytes.sublist(4, 8), [0, 0, 0, 255],
+          reason: 'right: stencil==0 rejects green, clear color remains');
+
+      readback.dispose();
+      depthView.dispose();
+      view.dispose();
+      depthTex.dispose();
+      target.dispose();
+      vbuf.dispose();
+      pipeB.dispose();
+      moduleB.dispose();
+      pipeA.dispose();
+      moduleA.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+  });
+
   group('M2.x timestamp queries', () {
     test('measures real GPU time for a compute pass', () async {
       final adapter =

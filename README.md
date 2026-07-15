@@ -35,9 +35,15 @@ Early development.
 - **Parity batch (done)**: viewport/scissor/blend-constant, buffer↔texture
   and texture↔texture copies, indirect draw/dispatch, 4× MSAA with resolve
   targets, write-only storage textures, mip-level uploads and mip-restricted
-  views, and a broad format set (r8/rg8/r32f/srgb/16f/32f). Remaining spec
-  tail: render bundles, occlusion queries, 3D/array/cube textures, multiple
-  color targets. Next: Android (M2.3), Windows/Linux (M2.4/M2.5).
+  views, and a broad format set (r8/rg8/r32f/srgb/16f/32f).
+- **Parity tail (done)**: render bundles (record once, replay via
+  `executeBundle`), occlusion queries, cube/array/3D textures (texture
+  `dimension` + `depthOrArrayLayers`, view `dimension`/array-layer ranges,
+  per-layer `writeTexture`), multiple color targets (up to 4), dynamic
+  bind-group offsets, full stencil state (`depth24PlusStencil8`, stencil
+  ops/compare, `setStencilReference`), and `requiredLimits` on device
+  request + `device.limits` readback. Next: Android (M2.3), Windows/Linux
+  (M2.4/M2.5).
 - Flutter Web (`navigator.gpu` via JS interop) is designed-for but deferred.
 
 Known upstream gaps (wgpu-native v29.0.1.1): the device-lost callback never
