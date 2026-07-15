@@ -63,10 +63,16 @@ class MockNitroWebgpu : public HybridNitroWebgpu {
     MOCK_METHOD(int64_t, deviceCreateRenderPipeline, (int64_t device, NitroCppBuffer descriptor), (override));
     MOCK_METHOD(void, renderPipelineRelease, (int64_t pipeline), (override));
     MOCK_METHOD(int64_t, renderPipelineGetBindGroupLayout, (int64_t pipeline, int64_t groupIndex), (override));
+    MOCK_METHOD(int64_t, deviceCreateBindGroupLayout, (int64_t device, NitroCppBuffer descriptor), (override));
+    MOCK_METHOD(int64_t, deviceCreatePipelineLayout, (int64_t device, NitroCppBuffer descriptor), (override));
+    MOCK_METHOD(void, pipelineLayoutRelease, (int64_t layout), (override));
     MOCK_METHOD(int64_t, encoderBeginRenderPass, (int64_t encoder, NitroCppBuffer descriptor), (override));
     MOCK_METHOD(void, renderPassSetPipeline, (int64_t pass, int64_t pipeline), (override));
     MOCK_METHOD(void, renderPassSetBindGroup, (int64_t pass, int64_t index, int64_t bindGroup), (override));
+    MOCK_METHOD(void, renderPassSetVertexBuffer, (int64_t pass, int64_t slot, int64_t buffer, int64_t offset), (override));
+    MOCK_METHOD(void, renderPassSetIndexBuffer, (int64_t pass, int64_t buffer, int64_t indexFormat, int64_t offset), (override));
     MOCK_METHOD(void, renderPassDraw, (int64_t pass, int64_t vertexCount, int64_t instanceCount, int64_t firstVertex, int64_t firstInstance), (override));
+    MOCK_METHOD(void, renderPassDrawIndexed, (int64_t pass, int64_t indexCount, int64_t instanceCount, int64_t firstIndex, int64_t baseVertex, int64_t firstInstance), (override));
     MOCK_METHOD(void, renderPassEnd, (int64_t pass), (override));
     MOCK_METHOD(void, renderPassRelease, (int64_t pass), (override));
     MOCK_METHOD(void, encoderCopyTextureToBuffer, (int64_t encoder, int64_t texture, int64_t buffer, int64_t bytesPerRow, int64_t width, int64_t height), (override));

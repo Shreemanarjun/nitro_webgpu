@@ -322,6 +322,23 @@ public:
         // return 0;
     }
 
+    int64_t deviceCreateBindGroupLayout(int64_t device, NitroCppBuffer descriptor) override {
+        // TODO: implement deviceCreateBindGroupLayout
+        throw std::runtime_error("Not implemented: deviceCreateBindGroupLayout");
+        // return 0;
+    }
+
+    int64_t deviceCreatePipelineLayout(int64_t device, NitroCppBuffer descriptor) override {
+        // TODO: implement deviceCreatePipelineLayout
+        throw std::runtime_error("Not implemented: deviceCreatePipelineLayout");
+        // return 0;
+    }
+
+    void pipelineLayoutRelease(int64_t layout) override {
+        // TODO: implement pipelineLayoutRelease
+        throw std::runtime_error("Not implemented: pipelineLayoutRelease");
+    }
+
     int64_t encoderBeginRenderPass(int64_t encoder, NitroCppBuffer descriptor) override {
         // TODO: implement encoderBeginRenderPass
         throw std::runtime_error("Not implemented: encoderBeginRenderPass");
@@ -338,9 +355,24 @@ public:
         throw std::runtime_error("Not implemented: renderPassSetBindGroup");
     }
 
+    void renderPassSetVertexBuffer(int64_t pass, int64_t slot, int64_t buffer, int64_t offset) override {
+        // TODO: implement renderPassSetVertexBuffer
+        throw std::runtime_error("Not implemented: renderPassSetVertexBuffer");
+    }
+
+    void renderPassSetIndexBuffer(int64_t pass, int64_t buffer, int64_t indexFormat, int64_t offset) override {
+        // TODO: implement renderPassSetIndexBuffer
+        throw std::runtime_error("Not implemented: renderPassSetIndexBuffer");
+    }
+
     void renderPassDraw(int64_t pass, int64_t vertexCount, int64_t instanceCount, int64_t firstVertex, int64_t firstInstance) override {
         // TODO: implement renderPassDraw
         throw std::runtime_error("Not implemented: renderPassDraw");
+    }
+
+    void renderPassDrawIndexed(int64_t pass, int64_t indexCount, int64_t instanceCount, int64_t firstIndex, int64_t baseVertex, int64_t firstInstance) override {
+        // TODO: implement renderPassDrawIndexed
+        throw std::runtime_error("Not implemented: renderPassDrawIndexed");
     }
 
     void renderPassEnd(int64_t pass) override {

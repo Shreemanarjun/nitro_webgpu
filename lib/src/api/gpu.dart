@@ -13,15 +13,135 @@ import 'dart:typed_data';
 import '../nitro_webgpu.native.dart';
 
 export '../nitro_webgpu.native.dart'
-    show GpuAdapterInfo, GpuLimits, GpuBackend, GpuBufferUsage, GpuTextureUsage;
+    show
+        GpuAdapterInfo,
+        GpuLimits,
+        GpuBackend,
+        GpuBufferUsage,
+        GpuTextureUsage,
+        GpuShaderStage;
 
 /// Texture formats supported by the curated layer (raw `WGPUTextureFormat`).
 enum GpuTextureFormat {
   rgba8Unorm(0x16),
-  bgra8Unorm(0x1B);
+  bgra8Unorm(0x1B),
+  depth24Plus(0x2E),
+  depth32Float(0x30);
 
   final int raw;
   const GpuTextureFormat(this.raw);
+}
+
+/// Vertex attribute data types (raw `WGPUVertexFormat`).
+enum GpuVertexFormat {
+  float32(0x1C),
+  float32x2(0x1D),
+  float32x3(0x1E),
+  float32x4(0x1F),
+  uint32(0x20);
+
+  final int raw;
+  const GpuVertexFormat(this.raw);
+}
+
+/// Whether a vertex buffer advances per vertex or per instance.
+enum GpuVertexStepMode {
+  vertex(1),
+  instance(2);
+
+  final int raw;
+  const GpuVertexStepMode(this.raw);
+}
+
+/// Index buffer element type.
+enum GpuIndexFormat {
+  uint16(1),
+  uint32(2);
+
+  final int raw;
+  const GpuIndexFormat(this.raw);
+}
+
+/// Depth/stencil comparison. Raw value = index + 1.
+enum GpuCompareFunction {
+  never,
+  less,
+  equal,
+  lessEqual,
+  greater,
+  notEqual,
+  greaterEqual,
+  always;
+
+  int get raw => index + 1;
+}
+
+/// Color blend presets for render pipelines. Raw value = index.
+enum GpuBlendMode {
+  /// Opaque — no blending.
+  none,
+
+  /// Classic alpha: `src.rgb·a + dst.rgb·(1−a)`.
+  alpha,
+
+  /// Additive: `src + dst`.
+  additive,
+
+  /// Premultiplied alpha: `src + dst·(1−a)`.
+  premultiplied,
+}
+
+/// One vertex attribute for [GpuVertexLayout].
+class GpuVertexAttr {
+  final GpuVertexFormat format;
+  final int offset;
+  final int shaderLocation;
+
+  const GpuVertexAttr({
+    required this.format,
+    required this.offset,
+    required this.shaderLocation,
+  });
+}
+
+/// The layout of one vertex buffer slot.
+class GpuVertexLayout {
+  final int arrayStride;
+  final GpuVertexStepMode stepMode;
+  final List<GpuVertexAttr> attributes;
+
+  const GpuVertexLayout({
+    required this.arrayStride,
+    this.stepMode = GpuVertexStepMode.vertex,
+    required this.attributes,
+  });
+}
+
+/// Resource types for explicit bind group layout entries.
+enum GpuBindingType {
+  uniformBuffer(1),
+  storageBuffer(2),
+  readOnlyStorageBuffer(3),
+  sampler(4),
+  texture(5);
+
+  final int raw;
+  const GpuBindingType(this.raw);
+}
+
+/// One entry for [GpuDevice.createBindGroupLayout].
+class GpuLayoutEntry {
+  final int binding;
+
+  /// Bitmask of [GpuShaderStage] values.
+  final int visibility;
+  final GpuBindingType type;
+
+  const GpuLayoutEntry({
+    required this.binding,
+    required this.visibility,
+    required this.type,
+  });
 }
 
 /// What happens to an attachment at the start of a render pass.
@@ -449,14 +569,24 @@ class GpuDevice {
     return GpuTexture._(address, width, height, format);
   }
 
-  /// Checked create of a curated render pipeline: one shader [module] for
-  /// both stages, one color target of [targetFormat], triangle list, no
-  /// vertex buffers, no depth/stencil.
+  /// Checked create of a render pipeline: one shader [module] for both
+  /// stages, one color target of [targetFormat]. Throws
+  /// [GpuValidationException] on invalid pipelines.
+  ///
+  /// [vertexBuffers] describe the vertex fetch layout; [depthFormat] enables
+  /// depth testing against a matching pass depth attachment; [blend] selects
+  /// a blending preset; [layout] overrides auto bind-group layout.
   Future<GpuRenderPipeline> createRenderPipeline({
     required GpuShaderModule module,
     required GpuTextureFormat targetFormat,
     String vertexEntryPoint = 'vs_main',
     String fragmentEntryPoint = 'fs_main',
+    List<GpuVertexLayout> vertexBuffers = const [],
+    GpuPipelineLayout? layout,
+    GpuTextureFormat? depthFormat,
+    bool depthWriteEnabled = true,
+    GpuCompareFunction depthCompare = GpuCompareFunction.less,
+    GpuBlendMode blend = GpuBlendMode.none,
     String label = '',
   }) async {
     _checkAlive();
@@ -469,6 +599,26 @@ class GpuDevice {
         vertexEntryPoint: vertexEntryPoint,
         fragmentEntryPoint: fragmentEntryPoint,
         targetFormat: targetFormat.raw,
+        vertexBuffers: [
+          for (final vb in vertexBuffers)
+            GpuVertexBufferLayout(
+              arrayStride: vb.arrayStride,
+              stepMode: vb.stepMode.raw,
+              attributes: [
+                for (final a in vb.attributes)
+                  GpuVertexAttribute(
+                    format: a.format.raw,
+                    offset: a.offset,
+                    shaderLocation: a.shaderLocation,
+                  ),
+              ],
+            ),
+        ],
+        layoutAddress: layout?._address ?? 0,
+        depthFormat: depthFormat?.raw ?? 0,
+        depthWriteEnabled: depthWriteEnabled,
+        depthCompare: depthCompare.raw,
+        blendMode: blend.index,
       ),
     );
     final error = await popErrorScope();
@@ -477,6 +627,52 @@ class GpuDevice {
       throw GpuValidationException('createRenderPipeline', error.message);
     }
     return GpuRenderPipeline._(address);
+  }
+
+  /// Explicit bind group layout (alternative to
+  /// `pipeline.getBindGroupLayout` auto layouts).
+  GpuBindGroupLayout createBindGroupLayout({
+    required List<GpuLayoutEntry> entries,
+    String label = '',
+  }) {
+    _checkAlive();
+    final address = NitroWebgpu.instance.deviceCreateBindGroupLayout(
+      _address,
+      GpuBindGroupLayoutDescriptor(
+        label: label,
+        entries: [
+          for (final e in entries)
+            GpuBindGroupLayoutEntry(
+              binding: e.binding,
+              visibility: e.visibility,
+              type: e.type.raw,
+            ),
+        ],
+      ),
+    );
+    return GpuBindGroupLayout._(address);
+  }
+
+  /// Pipeline layout from up to four bind group layouts.
+  GpuPipelineLayout createPipelineLayout({
+    required List<GpuBindGroupLayout> layouts,
+    String label = '',
+  }) {
+    _checkAlive();
+    if (layouts.length > 4) {
+      throw ArgumentError('at most 4 bind group layouts are supported');
+    }
+    final address = NitroWebgpu.instance.deviceCreatePipelineLayout(
+      _address,
+      GpuPipelineLayoutDescriptor(
+        label: label,
+        layout0: layouts.isNotEmpty ? layouts[0]._address : 0,
+        layout1: layouts.length > 1 ? layouts[1]._address : 0,
+        layout2: layouts.length > 2 ? layouts[2]._address : 0,
+        layout3: layouts.length > 3 ? layouts[3]._address : 0,
+      ),
+    );
+    return GpuPipelineLayout._(address);
   }
 
   /// WebGPU `device.destroy()`: tears down the device. All subsequent GPU
@@ -662,7 +858,29 @@ class GpuComputePipeline {
   }
 }
 
-/// A bind group layout (from [GpuComputePipeline.getBindGroupLayout]).
+/// A pipeline layout (see [GpuDevice.createPipelineLayout]).
+class GpuPipelineLayout {
+  static final Finalizer<int> _finalizer = Finalizer(
+      (address) => NitroWebgpu.instance.pipelineLayoutRelease(address));
+
+  final int _address;
+  bool _disposed = false;
+
+  GpuPipelineLayout._(this._address) {
+    _finalizer.attach(this, _address, detach: this);
+  }
+
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _finalizer.detach(this);
+    NitroWebgpu.instance.pipelineLayoutRelease(_address);
+  }
+}
+
+/// A bind group layout (from [GpuComputePipeline.getBindGroupLayout],
+/// [GpuRenderPipeline.getBindGroupLayout], or
+/// [GpuDevice.createBindGroupLayout]).
 class GpuBindGroupLayout {
   static final Finalizer<int> _finalizer = Finalizer(
       (address) => NitroWebgpu.instance.bindGroupLayoutRelease(address));
@@ -836,6 +1054,7 @@ class GpuCommandEncoder {
 
   GpuRenderPassEncoder beginRenderPass({
     required List<GpuColorAttachmentInfo> colorAttachments,
+    GpuDepthAttachmentInfo? depthAttachment,
     String label = '',
     GpuTimestampWrites? timestampWrites,
   }) {
@@ -859,6 +1078,10 @@ class GpuCommandEncoder {
         timestampQuerySetAddress: timestampWrites?.querySet._address ?? 0,
         timestampBeginIndex: timestampWrites?.beginIndex ?? 0,
         timestampEndIndex: timestampWrites?.endIndex ?? 1,
+        depthViewAddress: depthAttachment?.view._address ?? 0,
+        depthLoadOp: depthAttachment?.loadOp.raw ?? 2,
+        depthStoreOp: depthAttachment?.storeOp.raw ?? 2,
+        depthClearValue: depthAttachment?.clearValue ?? 1.0,
       ),
     );
     return GpuRenderPassEncoder._(address);
@@ -1090,6 +1313,23 @@ class GpuRenderPipeline {
   }
 }
 
+/// The depth attachment for [GpuCommandEncoder.beginRenderPass]. The view
+/// must be a [GpuTextureFormat.depth24Plus] / [GpuTextureFormat.depth32Float]
+/// texture matching the pipeline's `depthFormat`.
+class GpuDepthAttachmentInfo {
+  final GpuTextureView view;
+  final GpuLoadOp loadOp;
+  final GpuStoreOp storeOp;
+  final double clearValue;
+
+  const GpuDepthAttachmentInfo({
+    required this.view,
+    this.loadOp = GpuLoadOp.clear,
+    this.storeOp = GpuStoreOp.discard,
+    this.clearValue = 1.0,
+  });
+}
+
 /// One color attachment for [GpuCommandEncoder.beginRenderPass].
 class GpuColorAttachmentInfo {
   final GpuTextureView view;
@@ -1132,11 +1372,34 @@ class GpuRenderPassEncoder {
         .renderPassSetBindGroup(_address, index, bindGroup._address);
   }
 
+  void setVertexBuffer(int slot, GpuBuffer buffer, {int offset = 0}) {
+    _checkAlive();
+    NitroWebgpu.instance
+        .renderPassSetVertexBuffer(_address, slot, buffer._address, offset);
+  }
+
+  void setIndexBuffer(GpuBuffer buffer, GpuIndexFormat format,
+      {int offset = 0}) {
+    _checkAlive();
+    NitroWebgpu.instance.renderPassSetIndexBuffer(
+        _address, buffer._address, format.raw, offset);
+  }
+
   void draw(int vertexCount,
       {int instanceCount = 1, int firstVertex = 0, int firstInstance = 0}) {
     _checkAlive();
     NitroWebgpu.instance.renderPassDraw(
         _address, vertexCount, instanceCount, firstVertex, firstInstance);
+  }
+
+  void drawIndexed(int indexCount,
+      {int instanceCount = 1,
+      int firstIndex = 0,
+      int baseVertex = 0,
+      int firstInstance = 0}) {
+    _checkAlive();
+    NitroWebgpu.instance.renderPassDrawIndexed(_address, indexCount,
+        instanceCount, firstIndex, baseVertex, firstInstance);
   }
 
   /// Ends the pass and releases it.

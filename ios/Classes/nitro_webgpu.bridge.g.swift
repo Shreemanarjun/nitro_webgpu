@@ -741,13 +741,21 @@ public struct GpuRenderPassDescriptor: NitroEncodable {
   public var timestampQuerySetAddress: Int64
   public var timestampBeginIndex: Int64
   public var timestampEndIndex: Int64
+  public var depthViewAddress: Int64
+  public var depthLoadOp: Int64
+  public var depthStoreOp: Int64
+  public var depthClearValue: Double
 
-  public init(label: String, colorAttachments: [GpuColorAttachment], timestampQuerySetAddress: Int64, timestampBeginIndex: Int64, timestampEndIndex: Int64) {
+  public init(label: String, colorAttachments: [GpuColorAttachment], timestampQuerySetAddress: Int64, timestampBeginIndex: Int64, timestampEndIndex: Int64, depthViewAddress: Int64, depthLoadOp: Int64, depthStoreOp: Int64, depthClearValue: Double) {
     self.label = label
     self.colorAttachments = colorAttachments
     self.timestampQuerySetAddress = timestampQuerySetAddress
     self.timestampBeginIndex = timestampBeginIndex
     self.timestampEndIndex = timestampEndIndex
+    self.depthViewAddress = depthViewAddress
+    self.depthLoadOp = depthLoadOp
+    self.depthStoreOp = depthStoreOp
+    self.depthClearValue = depthClearValue
   }
 
   public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuRenderPassDescriptor {
@@ -761,6 +769,10 @@ public struct GpuRenderPassDescriptor: NitroEncodable {
       timestampQuerySetAddress: r.readInt(),
       timestampBeginIndex: r.readInt(),
       timestampEndIndex: r.readInt(),
+      depthViewAddress: r.readInt(),
+      depthLoadOp: r.readInt(),
+      depthStoreOp: r.readInt(),
+      depthClearValue: r.readDouble(),
     )
   }
 
@@ -771,6 +783,196 @@ public struct GpuRenderPassDescriptor: NitroEncodable {
     writer.writeInt(timestampQuerySetAddress)
     writer.writeInt(timestampBeginIndex)
     writer.writeInt(timestampEndIndex)
+    writer.writeInt(depthViewAddress)
+    writer.writeInt(depthLoadOp)
+    writer.writeInt(depthStoreOp)
+    writer.writeDouble(depthClearValue)
+  }
+
+  public func toNative() -> UnsafeMutablePointer<UInt8>? {
+    let writer = NitroRecordWriter()
+    writeFields(writer)
+    return writer.toNative()
+  }
+}
+
+public struct GpuVertexAttribute: NitroEncodable {
+  public var format: Int64
+  public var offset: Int64
+  public var shaderLocation: Int64
+
+  public init(format: Int64, offset: Int64, shaderLocation: Int64) {
+    self.format = format
+    self.offset = offset
+    self.shaderLocation = shaderLocation
+  }
+
+  public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuVertexAttribute {
+    return fromReader(NitroRecordReader(ptr: ptr))
+  }
+
+  public static func fromReader(_ r: NitroRecordReader) -> GpuVertexAttribute {
+    return GpuVertexAttribute(
+      format: r.readInt(),
+      offset: r.readInt(),
+      shaderLocation: r.readInt(),
+    )
+  }
+
+  public func writeFields(_ writer: NitroRecordWriter) {
+    writer.writeInt(format)
+    writer.writeInt(offset)
+    writer.writeInt(shaderLocation)
+  }
+
+  public func toNative() -> UnsafeMutablePointer<UInt8>? {
+    let writer = NitroRecordWriter()
+    writeFields(writer)
+    return writer.toNative()
+  }
+}
+
+public struct GpuVertexBufferLayout: NitroEncodable {
+  public var arrayStride: Int64
+  public var stepMode: Int64
+  public var attributes: [GpuVertexAttribute]
+
+  public init(arrayStride: Int64, stepMode: Int64, attributes: [GpuVertexAttribute]) {
+    self.arrayStride = arrayStride
+    self.stepMode = stepMode
+    self.attributes = attributes
+  }
+
+  public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuVertexBufferLayout {
+    return fromReader(NitroRecordReader(ptr: ptr))
+  }
+
+  public static func fromReader(_ r: NitroRecordReader) -> GpuVertexBufferLayout {
+    return GpuVertexBufferLayout(
+      arrayStride: r.readInt(),
+      stepMode: r.readInt(),
+      attributes: (0..<Int(r.readInt32())).map { _ in GpuVertexAttribute.fromReader(r) },
+    )
+  }
+
+  public func writeFields(_ writer: NitroRecordWriter) {
+    writer.writeInt(arrayStride)
+    writer.writeInt(stepMode)
+    writer.writeInt32(Int32(attributes.count))
+    for e in attributes { e.writeFields(writer) }
+  }
+
+  public func toNative() -> UnsafeMutablePointer<UInt8>? {
+    let writer = NitroRecordWriter()
+    writeFields(writer)
+    return writer.toNative()
+  }
+}
+
+public struct GpuBindGroupLayoutEntry: NitroEncodable {
+  public var binding: Int64
+  public var visibility: Int64
+  public var type: Int64
+
+  public init(binding: Int64, visibility: Int64, type: Int64) {
+    self.binding = binding
+    self.visibility = visibility
+    self.type = type
+  }
+
+  public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuBindGroupLayoutEntry {
+    return fromReader(NitroRecordReader(ptr: ptr))
+  }
+
+  public static func fromReader(_ r: NitroRecordReader) -> GpuBindGroupLayoutEntry {
+    return GpuBindGroupLayoutEntry(
+      binding: r.readInt(),
+      visibility: r.readInt(),
+      type: r.readInt(),
+    )
+  }
+
+  public func writeFields(_ writer: NitroRecordWriter) {
+    writer.writeInt(binding)
+    writer.writeInt(visibility)
+    writer.writeInt(type)
+  }
+
+  public func toNative() -> UnsafeMutablePointer<UInt8>? {
+    let writer = NitroRecordWriter()
+    writeFields(writer)
+    return writer.toNative()
+  }
+}
+
+public struct GpuBindGroupLayoutDescriptor: NitroEncodable {
+  public var label: String
+  public var entries: [GpuBindGroupLayoutEntry]
+
+  public init(label: String, entries: [GpuBindGroupLayoutEntry]) {
+    self.label = label
+    self.entries = entries
+  }
+
+  public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuBindGroupLayoutDescriptor {
+    return fromReader(NitroRecordReader(ptr: ptr))
+  }
+
+  public static func fromReader(_ r: NitroRecordReader) -> GpuBindGroupLayoutDescriptor {
+    return GpuBindGroupLayoutDescriptor(
+      label: r.readString(),
+      entries: (0..<Int(r.readInt32())).map { _ in GpuBindGroupLayoutEntry.fromReader(r) },
+    )
+  }
+
+  public func writeFields(_ writer: NitroRecordWriter) {
+    writer.writeString(label)
+    writer.writeInt32(Int32(entries.count))
+    for e in entries { e.writeFields(writer) }
+  }
+
+  public func toNative() -> UnsafeMutablePointer<UInt8>? {
+    let writer = NitroRecordWriter()
+    writeFields(writer)
+    return writer.toNative()
+  }
+}
+
+public struct GpuPipelineLayoutDescriptor: NitroEncodable {
+  public var label: String
+  public var layout0: Int64
+  public var layout1: Int64
+  public var layout2: Int64
+  public var layout3: Int64
+
+  public init(label: String, layout0: Int64, layout1: Int64, layout2: Int64, layout3: Int64) {
+    self.label = label
+    self.layout0 = layout0
+    self.layout1 = layout1
+    self.layout2 = layout2
+    self.layout3 = layout3
+  }
+
+  public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuPipelineLayoutDescriptor {
+    return fromReader(NitroRecordReader(ptr: ptr))
+  }
+
+  public static func fromReader(_ r: NitroRecordReader) -> GpuPipelineLayoutDescriptor {
+    return GpuPipelineLayoutDescriptor(
+      label: r.readString(),
+      layout0: r.readInt(),
+      layout1: r.readInt(),
+      layout2: r.readInt(),
+      layout3: r.readInt(),
+    )
+  }
+
+  public func writeFields(_ writer: NitroRecordWriter) {
+    writer.writeString(label)
+    writer.writeInt(layout0)
+    writer.writeInt(layout1)
+    writer.writeInt(layout2)
+    writer.writeInt(layout3)
   }
 
   public func toNative() -> UnsafeMutablePointer<UInt8>? {
@@ -787,14 +989,26 @@ public struct GpuRenderPipelineDescriptor: NitroEncodable {
   public var fragmentEntryPoint: String
   public var targetFormat: Int64
   public var topology: Int64
+  public var vertexBuffers: [GpuVertexBufferLayout]
+  public var layoutAddress: Int64
+  public var depthFormat: Int64
+  public var depthWriteEnabled: Bool
+  public var depthCompare: Int64
+  public var blendMode: Int64
 
-  public init(label: String, moduleAddress: Int64, vertexEntryPoint: String, fragmentEntryPoint: String, targetFormat: Int64, topology: Int64) {
+  public init(label: String, moduleAddress: Int64, vertexEntryPoint: String, fragmentEntryPoint: String, targetFormat: Int64, topology: Int64, vertexBuffers: [GpuVertexBufferLayout], layoutAddress: Int64, depthFormat: Int64, depthWriteEnabled: Bool, depthCompare: Int64, blendMode: Int64) {
     self.label = label
     self.moduleAddress = moduleAddress
     self.vertexEntryPoint = vertexEntryPoint
     self.fragmentEntryPoint = fragmentEntryPoint
     self.targetFormat = targetFormat
     self.topology = topology
+    self.vertexBuffers = vertexBuffers
+    self.layoutAddress = layoutAddress
+    self.depthFormat = depthFormat
+    self.depthWriteEnabled = depthWriteEnabled
+    self.depthCompare = depthCompare
+    self.blendMode = blendMode
   }
 
   public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuRenderPipelineDescriptor {
@@ -809,6 +1023,12 @@ public struct GpuRenderPipelineDescriptor: NitroEncodable {
       fragmentEntryPoint: r.readString(),
       targetFormat: r.readInt(),
       topology: r.readInt(),
+      vertexBuffers: (0..<Int(r.readInt32())).map { _ in GpuVertexBufferLayout.fromReader(r) },
+      layoutAddress: r.readInt(),
+      depthFormat: r.readInt(),
+      depthWriteEnabled: r.readBool(),
+      depthCompare: r.readInt(),
+      blendMode: r.readInt(),
     )
   }
 
@@ -819,6 +1039,13 @@ public struct GpuRenderPipelineDescriptor: NitroEncodable {
     writer.writeString(fragmentEntryPoint)
     writer.writeInt(targetFormat)
     writer.writeInt(topology)
+    writer.writeInt32(Int32(vertexBuffers.count))
+    for e in vertexBuffers { e.writeFields(writer) }
+    writer.writeInt(layoutAddress)
+    writer.writeInt(depthFormat)
+    writer.writeBool(depthWriteEnabled)
+    writer.writeInt(depthCompare)
+    writer.writeInt(blendMode)
   }
 
   public func toNative() -> UnsafeMutablePointer<UInt8>? {
@@ -888,10 +1115,16 @@ public protocol HybridNitroWebgpuProtocol: AnyObject {
     func deviceCreateRenderPipeline(device: Int64, descriptor: GpuRenderPipelineDescriptor) -> Int64
     func renderPipelineRelease(pipeline: Int64) -> Void
     func renderPipelineGetBindGroupLayout(pipeline: Int64, groupIndex: Int64) -> Int64
+    func deviceCreateBindGroupLayout(device: Int64, descriptor: GpuBindGroupLayoutDescriptor) -> Int64
+    func deviceCreatePipelineLayout(device: Int64, descriptor: GpuPipelineLayoutDescriptor) -> Int64
+    func pipelineLayoutRelease(layout: Int64) -> Void
     func encoderBeginRenderPass(encoder: Int64, descriptor: GpuRenderPassDescriptor) -> Int64
     func renderPassSetPipeline(pass: Int64, pipeline: Int64) -> Void
     func renderPassSetBindGroup(pass: Int64, index: Int64, bindGroup: Int64) -> Void
+    func renderPassSetVertexBuffer(pass: Int64, slot: Int64, buffer: Int64, offset: Int64) -> Void
+    func renderPassSetIndexBuffer(pass: Int64, buffer: Int64, indexFormat: Int64, offset: Int64) -> Void
     func renderPassDraw(pass: Int64, vertexCount: Int64, instanceCount: Int64, firstVertex: Int64, firstInstance: Int64) -> Void
+    func renderPassDrawIndexed(pass: Int64, indexCount: Int64, instanceCount: Int64, firstIndex: Int64, baseVertex: Int64, firstInstance: Int64) -> Void
     func renderPassEnd(pass: Int64) -> Void
     func renderPassRelease(pass: Int64) -> Void
     func encoderCopyTextureToBuffer(encoder: Int64, texture: Int64, buffer: Int64, bytesPerRow: Int64, width: Int64, height: Int64) -> Void

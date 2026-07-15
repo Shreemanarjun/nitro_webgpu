@@ -17,7 +17,7 @@ NITRO_EXPORT uint32_t nitro_webgpu_nitro_abi_version(void) {
     return 1;
 }
 NITRO_EXPORT const char* nitro_webgpu_nitro_bridge_checksum(void) {
-    return "2fb879c72c172c95";
+    return "d29f2950234c4d41";
 }
 NITRO_EXPORT intptr_t nitro_webgpu_init_dart_api_dl(void* data) {
     return Dart_InitializeApiDL(data);
@@ -957,6 +957,51 @@ int64_t nitro_webgpu_render_pipeline_get_bind_group_layout(int64_t instanceId, i
     }
 }
 
+int64_t nitro_webgpu_device_create_bind_group_layout(int64_t instanceId, int64_t device, void* descriptor, NitroError* _nitro_err) {
+    if (_nitro_err) { _nitro_err->hasError = 0; }  // S8: clear slot
+    auto _impl = _nitro_get_instance(instanceId);
+    if (!_impl) { _nitro_out_err(_nitro_err, "NotInitialized", "No C++ implementation registered. Call nitro_webgpu_register_factory() or nitro_webgpu_register_impl()."); return 0; }
+    try {
+        NitroCppBuffer _buf_descriptor = { (const uint8_t*)descriptor + 4, (size_t)*(int32_t*)descriptor };
+        return _impl->deviceCreateBindGroupLayout(device, _buf_descriptor);
+    } catch (const std::exception& e) {
+        _nitro_out_err(_nitro_err, "CppException", e.what());
+        return 0;
+    } catch (...) {
+        _nitro_out_err(_nitro_err, "CppException", "Unknown C++ exception");
+        return 0;
+    }
+}
+
+int64_t nitro_webgpu_device_create_pipeline_layout(int64_t instanceId, int64_t device, void* descriptor, NitroError* _nitro_err) {
+    if (_nitro_err) { _nitro_err->hasError = 0; }  // S8: clear slot
+    auto _impl = _nitro_get_instance(instanceId);
+    if (!_impl) { _nitro_out_err(_nitro_err, "NotInitialized", "No C++ implementation registered. Call nitro_webgpu_register_factory() or nitro_webgpu_register_impl()."); return 0; }
+    try {
+        NitroCppBuffer _buf_descriptor = { (const uint8_t*)descriptor + 4, (size_t)*(int32_t*)descriptor };
+        return _impl->deviceCreatePipelineLayout(device, _buf_descriptor);
+    } catch (const std::exception& e) {
+        _nitro_out_err(_nitro_err, "CppException", e.what());
+        return 0;
+    } catch (...) {
+        _nitro_out_err(_nitro_err, "CppException", "Unknown C++ exception");
+        return 0;
+    }
+}
+
+void nitro_webgpu_pipeline_layout_release(int64_t instanceId, int64_t layout, NitroError* _nitro_err) {
+    if (_nitro_err) { _nitro_err->hasError = 0; }  // S8: clear slot
+    auto _impl = _nitro_get_instance(instanceId);
+    if (!_impl) { _nitro_out_err(_nitro_err, "NotInitialized", "No C++ implementation registered. Call nitro_webgpu_register_factory() or nitro_webgpu_register_impl()."); return; }
+    try {
+        _impl->pipelineLayoutRelease(layout);
+    } catch (const std::exception& e) {
+        _nitro_out_err(_nitro_err, "CppException", e.what());
+    } catch (...) {
+        _nitro_out_err(_nitro_err, "CppException", "Unknown C++ exception");
+    }
+}
+
 int64_t nitro_webgpu_encoder_begin_render_pass(int64_t instanceId, int64_t encoder, void* descriptor, NitroError* _nitro_err) {
     if (_nitro_err) { _nitro_err->hasError = 0; }  // S8: clear slot
     auto _impl = _nitro_get_instance(instanceId);
@@ -999,12 +1044,51 @@ void nitro_webgpu_render_pass_set_bind_group(int64_t instanceId, int64_t pass, i
     }
 }
 
+void nitro_webgpu_render_pass_set_vertex_buffer(int64_t instanceId, int64_t pass, int64_t slot, int64_t buffer, int64_t offset, NitroError* _nitro_err) {
+    if (_nitro_err) { _nitro_err->hasError = 0; }  // S8: clear slot
+    auto _impl = _nitro_get_instance(instanceId);
+    if (!_impl) { _nitro_out_err(_nitro_err, "NotInitialized", "No C++ implementation registered. Call nitro_webgpu_register_factory() or nitro_webgpu_register_impl()."); return; }
+    try {
+        _impl->renderPassSetVertexBuffer(pass, slot, buffer, offset);
+    } catch (const std::exception& e) {
+        _nitro_out_err(_nitro_err, "CppException", e.what());
+    } catch (...) {
+        _nitro_out_err(_nitro_err, "CppException", "Unknown C++ exception");
+    }
+}
+
+void nitro_webgpu_render_pass_set_index_buffer(int64_t instanceId, int64_t pass, int64_t buffer, int64_t indexFormat, int64_t offset, NitroError* _nitro_err) {
+    if (_nitro_err) { _nitro_err->hasError = 0; }  // S8: clear slot
+    auto _impl = _nitro_get_instance(instanceId);
+    if (!_impl) { _nitro_out_err(_nitro_err, "NotInitialized", "No C++ implementation registered. Call nitro_webgpu_register_factory() or nitro_webgpu_register_impl()."); return; }
+    try {
+        _impl->renderPassSetIndexBuffer(pass, buffer, indexFormat, offset);
+    } catch (const std::exception& e) {
+        _nitro_out_err(_nitro_err, "CppException", e.what());
+    } catch (...) {
+        _nitro_out_err(_nitro_err, "CppException", "Unknown C++ exception");
+    }
+}
+
 void nitro_webgpu_render_pass_draw(int64_t instanceId, int64_t pass, int64_t vertexCount, int64_t instanceCount, int64_t firstVertex, int64_t firstInstance, NitroError* _nitro_err) {
     if (_nitro_err) { _nitro_err->hasError = 0; }  // S8: clear slot
     auto _impl = _nitro_get_instance(instanceId);
     if (!_impl) { _nitro_out_err(_nitro_err, "NotInitialized", "No C++ implementation registered. Call nitro_webgpu_register_factory() or nitro_webgpu_register_impl()."); return; }
     try {
         _impl->renderPassDraw(pass, vertexCount, instanceCount, firstVertex, firstInstance);
+    } catch (const std::exception& e) {
+        _nitro_out_err(_nitro_err, "CppException", e.what());
+    } catch (...) {
+        _nitro_out_err(_nitro_err, "CppException", "Unknown C++ exception");
+    }
+}
+
+void nitro_webgpu_render_pass_draw_indexed(int64_t instanceId, int64_t pass, int64_t indexCount, int64_t instanceCount, int64_t firstIndex, int64_t baseVertex, int64_t firstInstance, NitroError* _nitro_err) {
+    if (_nitro_err) { _nitro_err->hasError = 0; }  // S8: clear slot
+    auto _impl = _nitro_get_instance(instanceId);
+    if (!_impl) { _nitro_out_err(_nitro_err, "NotInitialized", "No C++ implementation registered. Call nitro_webgpu_register_factory() or nitro_webgpu_register_impl()."); return; }
+    try {
+        _impl->renderPassDrawIndexed(pass, indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
     } catch (const std::exception& e) {
         _nitro_out_err(_nitro_err, "CppException", e.what());
     } catch (...) {

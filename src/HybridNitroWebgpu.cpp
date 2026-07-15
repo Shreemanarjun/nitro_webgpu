@@ -840,18 +840,79 @@ public:
         WGPUColorTargetState target = WGPU_COLOR_TARGET_STATE_INIT;
         target.format = (WGPUTextureFormat)d.targetFormat;
 
+        // Blend presets: 1 = classic alpha, 2 = additive, 3 = premultiplied.
+        WGPUBlendState blend = WGPU_BLEND_STATE_INIT;
+        if (d.blendMode == 1) {
+            blend.color = {WGPUBlendOperation_Add, WGPUBlendFactor_SrcAlpha,
+                           WGPUBlendFactor_OneMinusSrcAlpha};
+            blend.alpha = {WGPUBlendOperation_Add, WGPUBlendFactor_One,
+                           WGPUBlendFactor_OneMinusSrcAlpha};
+            target.blend = &blend;
+        } else if (d.blendMode == 2) {
+            blend.color = {WGPUBlendOperation_Add, WGPUBlendFactor_One,
+                           WGPUBlendFactor_One};
+            blend.alpha = {WGPUBlendOperation_Add, WGPUBlendFactor_One,
+                           WGPUBlendFactor_One};
+            target.blend = &blend;
+        } else if (d.blendMode == 3) {
+            blend.color = {WGPUBlendOperation_Add, WGPUBlendFactor_One,
+                           WGPUBlendFactor_OneMinusSrcAlpha};
+            blend.alpha = {WGPUBlendOperation_Add, WGPUBlendFactor_One,
+                           WGPUBlendFactor_OneMinusSrcAlpha};
+            target.blend = &blend;
+        }
+
         WGPUFragmentState fragment = WGPU_FRAGMENT_STATE_INIT;
         fragment.module = (WGPUShaderModule)(intptr_t)d.moduleAddress;
         fragment.entryPoint = toView(d.fragmentEntryPoint);
         fragment.targetCount = 1;
         fragment.targets = &target;
 
+        // Vertex buffer layouts (attribute arrays must outlive the create).
+        std::vector<std::vector<WGPUVertexAttribute>> attrStorage;
+        std::vector<WGPUVertexBufferLayout> layouts;
+        attrStorage.reserve(d.vertexBuffers.size());
+        layouts.reserve(d.vertexBuffers.size());
+        for (const auto& vb : d.vertexBuffers) {
+            std::vector<WGPUVertexAttribute> attrs;
+            attrs.reserve(vb.attributes.size());
+            for (const auto& a : vb.attributes) {
+                WGPUVertexAttribute wa = WGPU_VERTEX_ATTRIBUTE_INIT;
+                wa.format = (WGPUVertexFormat)a.format;
+                wa.offset = (uint64_t)a.offset;
+                wa.shaderLocation = (uint32_t)a.shaderLocation;
+                attrs.push_back(wa);
+            }
+            attrStorage.push_back(std::move(attrs));
+            WGPUVertexBufferLayout wl = WGPU_VERTEX_BUFFER_LAYOUT_INIT;
+            wl.arrayStride = (uint64_t)vb.arrayStride;
+            wl.stepMode = (WGPUVertexStepMode)vb.stepMode;
+            wl.attributeCount = attrStorage.back().size();
+            wl.attributes = attrStorage.back().data();
+            layouts.push_back(wl);
+        }
+
         WGPURenderPipelineDescriptor wd = WGPU_RENDER_PIPELINE_DESCRIPTOR_INIT;
         wd.label = toView(d.label);
+        wd.layout = d.layoutAddress
+                        ? (WGPUPipelineLayout)(intptr_t)d.layoutAddress
+                        : nullptr;
         wd.vertex.module = (WGPUShaderModule)(intptr_t)d.moduleAddress;
         wd.vertex.entryPoint = toView(d.vertexEntryPoint);
+        wd.vertex.bufferCount = layouts.size();
+        wd.vertex.buffers = layouts.empty() ? nullptr : layouts.data();
         wd.primitive.topology = (WGPUPrimitiveTopology)d.topology;
         wd.fragment = &fragment;
+
+        WGPUDepthStencilState depth = WGPU_DEPTH_STENCIL_STATE_INIT;
+        if (d.depthFormat) {
+            depth.format = (WGPUTextureFormat)d.depthFormat;
+            depth.depthWriteEnabled = d.depthWriteEnabled
+                                          ? WGPUOptionalBool_True
+                                          : WGPUOptionalBool_False;
+            depth.depthCompare = (WGPUCompareFunction)d.depthCompare;
+            wd.depthStencil = &depth;
+        }
 
         WGPURenderPipeline p =
             wgpuDeviceCreateRenderPipeline((WGPUDevice)(intptr_t)device, &wd);
@@ -890,6 +951,15 @@ public:
         wd.label = toView(d.label);
         wd.colorAttachmentCount = attachments.size();
         wd.colorAttachments = attachments.data();
+        WGPURenderPassDepthStencilAttachment depth =
+            WGPU_RENDER_PASS_DEPTH_STENCIL_ATTACHMENT_INIT;
+        if (d.depthViewAddress) {
+            depth.view = (WGPUTextureView)(intptr_t)d.depthViewAddress;
+            depth.depthLoadOp = (WGPULoadOp)d.depthLoadOp;
+            depth.depthStoreOp = (WGPUStoreOp)d.depthStoreOp;
+            depth.depthClearValue = (float)d.depthClearValue;
+            wd.depthStencilAttachment = &depth;
+        }
         WGPUPassTimestampWrites tw = {};
         if (d.timestampQuerySetAddress) {
             tw.querySet = (WGPUQuerySet)(intptr_t)d.timestampQuerySetAddress;
@@ -914,6 +984,102 @@ public:
         wgpuRenderPassEncoderSetBindGroup(
             (WGPURenderPassEncoder)(intptr_t)pass, (uint32_t)index,
             (WGPUBindGroup)(intptr_t)bindGroup, 0, nullptr);
+    }
+
+    void renderPassSetVertexBuffer(int64_t pass, int64_t slot, int64_t buffer,
+                                   int64_t offset) override {
+        wgpuRenderPassEncoderSetVertexBuffer(
+            (WGPURenderPassEncoder)(intptr_t)pass, (uint32_t)slot,
+            (WGPUBuffer)(intptr_t)buffer, (uint64_t)offset, WGPU_WHOLE_SIZE);
+    }
+
+    void renderPassSetIndexBuffer(int64_t pass, int64_t buffer,
+                                  int64_t indexFormat, int64_t offset) override {
+        wgpuRenderPassEncoderSetIndexBuffer(
+            (WGPURenderPassEncoder)(intptr_t)pass,
+            (WGPUBuffer)(intptr_t)buffer, (WGPUIndexFormat)indexFormat,
+            (uint64_t)offset, WGPU_WHOLE_SIZE);
+    }
+
+    void renderPassDrawIndexed(int64_t pass, int64_t indexCount,
+                               int64_t instanceCount, int64_t firstIndex,
+                               int64_t baseVertex,
+                               int64_t firstInstance) override {
+        wgpuRenderPassEncoderDrawIndexed(
+            (WGPURenderPassEncoder)(intptr_t)pass, (uint32_t)indexCount,
+            (uint32_t)instanceCount, (uint32_t)firstIndex,
+            (int32_t)baseVertex, (uint32_t)firstInstance);
+    }
+
+    // ── Explicit layouts ─────────────────────────────────────────────────
+
+    int64_t deviceCreateBindGroupLayout(int64_t device,
+                                        NitroCppBuffer descriptor) override {
+        const auto d = GpuBindGroupLayoutDescriptor::fromNative(descriptor);
+        std::vector<WGPUBindGroupLayoutEntry> entries;
+        entries.reserve(d.entries.size());
+        for (const auto& e : d.entries) {
+            WGPUBindGroupLayoutEntry we = WGPU_BIND_GROUP_LAYOUT_ENTRY_INIT;
+            we.binding = (uint32_t)e.binding;
+            we.visibility = (WGPUShaderStage)e.visibility;
+            switch (e.type) {
+                case 1:
+                    we.buffer.type = WGPUBufferBindingType_Uniform;
+                    break;
+                case 2:
+                    we.buffer.type = WGPUBufferBindingType_Storage;
+                    break;
+                case 3:
+                    we.buffer.type = WGPUBufferBindingType_ReadOnlyStorage;
+                    break;
+                case 4:
+                    we.sampler.type = WGPUSamplerBindingType_Filtering;
+                    break;
+                case 5:
+                    we.texture.sampleType = WGPUTextureSampleType_Float;
+                    we.texture.viewDimension = WGPUTextureViewDimension_2D;
+                    break;
+                default:
+                    throw std::runtime_error(
+                        "GpuBindGroupLayoutEntry.type must be 1..5");
+            }
+            entries.push_back(we);
+        }
+        WGPUBindGroupLayoutDescriptor wd = WGPU_BIND_GROUP_LAYOUT_DESCRIPTOR_INIT;
+        wd.label = toView(d.label);
+        wd.entryCount = entries.size();
+        wd.entries = entries.data();
+        WGPUBindGroupLayout layout =
+            wgpuDeviceCreateBindGroupLayout((WGPUDevice)(intptr_t)device, &wd);
+        if (!layout) {
+            throw std::runtime_error("wgpuDeviceCreateBindGroupLayout failed");
+        }
+        return (int64_t)(intptr_t)layout;
+    }
+
+    int64_t deviceCreatePipelineLayout(int64_t device,
+                                       NitroCppBuffer descriptor) override {
+        const auto d = GpuPipelineLayoutDescriptor::fromNative(descriptor);
+        WGPUBindGroupLayout layouts[4];
+        size_t count = 0;
+        const int64_t addrs[4] = {d.layout0, d.layout1, d.layout2, d.layout3};
+        for (int i = 0; i < 4 && addrs[i]; i++) {
+            layouts[count++] = (WGPUBindGroupLayout)(intptr_t)addrs[i];
+        }
+        WGPUPipelineLayoutDescriptor wd = WGPU_PIPELINE_LAYOUT_DESCRIPTOR_INIT;
+        wd.label = toView(d.label);
+        wd.bindGroupLayoutCount = count;
+        wd.bindGroupLayouts = count ? layouts : nullptr;
+        WGPUPipelineLayout layout =
+            wgpuDeviceCreatePipelineLayout((WGPUDevice)(intptr_t)device, &wd);
+        if (!layout) {
+            throw std::runtime_error("wgpuDeviceCreatePipelineLayout failed");
+        }
+        return (int64_t)(intptr_t)layout;
+    }
+
+    void pipelineLayoutRelease(int64_t layout) override {
+        wgpuPipelineLayoutRelease((WGPUPipelineLayout)(intptr_t)layout);
     }
 
     void renderPassDraw(int64_t pass, int64_t vertexCount, int64_t instanceCount,

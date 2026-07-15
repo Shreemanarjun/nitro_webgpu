@@ -386,18 +386,121 @@ class GpuRenderPassDescriptor {
   final int timestampBeginIndex;
   final int timestampEndIndex;
 
+  /// Raw `WGPUTextureView` address of the depth attachment; 0 = none.
+  final int depthViewAddress;
+
+  /// Raw `WGPULoadOp` for depth: 1 = load, 2 = clear.
+  final int depthLoadOp;
+
+  /// Raw `WGPUStoreOp` for depth: 1 = store, 2 = discard.
+  final int depthStoreOp;
+  final double depthClearValue;
+
   const GpuRenderPassDescriptor({
     this.label = '',
     required this.colorAttachments,
     this.timestampQuerySetAddress = 0,
     this.timestampBeginIndex = 0,
     this.timestampEndIndex = 1,
+    this.depthViewAddress = 0,
+    this.depthLoadOp = 2,
+    this.depthStoreOp = 2,
+    this.depthClearValue = 1.0,
   });
 }
 
-/// Curated render pipeline: one shader module, one color target, no vertex
-/// buffers, no depth/stencil, no blending. Covers fullscreen passes and
-/// vertex-index-driven geometry; grows on demand.
+/// Shader stage visibility bits (spec values, identical to JS
+/// `GPUShaderStage`).
+abstract final class GpuShaderStage {
+  static const int vertex = 1;
+  static const int fragment = 2;
+  static const int compute = 4;
+}
+
+/// One vertex attribute within a [GpuVertexBufferLayout].
+@hybridRecord
+class GpuVertexAttribute {
+  /// Raw `WGPUVertexFormat` (0x1C = float32, 0x1D = float32x2,
+  /// 0x1E = float32x3, 0x1F = float32x4, 0x20 = uint32).
+  final int format;
+  final int offset;
+  final int shaderLocation;
+
+  const GpuVertexAttribute({
+    required this.format,
+    required this.offset,
+    required this.shaderLocation,
+  });
+}
+
+/// One vertex buffer slot's layout.
+@hybridRecord
+class GpuVertexBufferLayout {
+  final int arrayStride;
+
+  /// Raw `WGPUVertexStepMode`: 1 = per-vertex, 2 = per-instance.
+  final int stepMode;
+  final List<GpuVertexAttribute> attributes;
+
+  const GpuVertexBufferLayout({
+    required this.arrayStride,
+    this.stepMode = 1,
+    required this.attributes,
+  });
+}
+
+/// One entry of an explicit bind group layout. [type] is curated:
+/// 1 = uniform buffer, 2 = storage buffer, 3 = read-only storage buffer,
+/// 4 = filtering sampler, 5 = float 2D texture.
+@hybridRecord
+class GpuBindGroupLayoutEntry {
+  final int binding;
+
+  /// Bitmask of [GpuShaderStage] values.
+  final int visibility;
+  final int type;
+
+  const GpuBindGroupLayoutEntry({
+    required this.binding,
+    required this.visibility,
+    required this.type,
+  });
+}
+
+/// Descriptor for [NitroWebgpu.deviceCreateBindGroupLayout].
+@hybridRecord
+class GpuBindGroupLayoutDescriptor {
+  final String label;
+  final List<GpuBindGroupLayoutEntry> entries;
+
+  const GpuBindGroupLayoutDescriptor({
+    this.label = '',
+    required this.entries,
+  });
+}
+
+/// Descriptor for [NitroWebgpu.deviceCreatePipelineLayout]. Up to four bind
+/// group layouts (WebGPU's guaranteed minimum); 0 = slot unused. Unused
+/// slots must be trailing.
+@hybridRecord
+class GpuPipelineLayoutDescriptor {
+  final String label;
+  final int layout0;
+  final int layout1;
+  final int layout2;
+  final int layout3;
+
+  const GpuPipelineLayoutDescriptor({
+    this.label = '',
+    this.layout0 = 0,
+    this.layout1 = 0,
+    this.layout2 = 0,
+    this.layout3 = 0,
+  });
+}
+
+/// Curated render pipeline: one shader module, one color target, optional
+/// vertex buffers, optional depth, preset blending.
 @hybridRecord
 class GpuRenderPipelineDescriptor {
   final String label;
@@ -413,6 +516,22 @@ class GpuRenderPipelineDescriptor {
   /// Raw `WGPUPrimitiveTopology`; 4 = triangle list.
   final int topology;
 
+  /// Vertex buffer slots; empty = geometry from `vertex_index` only.
+  final List<GpuVertexBufferLayout> vertexBuffers;
+
+  /// Raw `WGPUPipelineLayout` address; 0 = auto layout.
+  final int layoutAddress;
+
+  /// Raw `WGPUTextureFormat` of the depth attachment; 0 = no depth.
+  final int depthFormat;
+  final bool depthWriteEnabled;
+
+  /// Raw `WGPUCompareFunction`; 2 = less (standard depth test).
+  final int depthCompare;
+
+  /// Blend preset: 0 = opaque, 1 = alpha, 2 = additive, 3 = premultiplied.
+  final int blendMode;
+
   const GpuRenderPipelineDescriptor({
     this.label = '',
     required this.moduleAddress,
@@ -420,6 +539,12 @@ class GpuRenderPipelineDescriptor {
     this.fragmentEntryPoint = 'fs_main',
     required this.targetFormat,
     this.topology = 4,
+    this.vertexBuffers = const [],
+    this.layoutAddress = 0,
+    this.depthFormat = 0,
+    this.depthWriteEnabled = true,
+    this.depthCompare = 2,
+    this.blendMode = 0,
   });
 }
 
@@ -589,11 +714,28 @@ abstract class NitroWebgpu extends HybridObject {
   /// [bindGroupLayoutRelease]).
   int renderPipelineGetBindGroupLayout(int pipeline, int groupIndex);
 
+  // ── Explicit layouts ───────────────────────────────────────────────────
+
+  int deviceCreateBindGroupLayout(
+      int device, GpuBindGroupLayoutDescriptor descriptor);
+  int deviceCreatePipelineLayout(
+      int device, GpuPipelineLayoutDescriptor descriptor);
+  void pipelineLayoutRelease(int layout);
+
   int encoderBeginRenderPass(int encoder, GpuRenderPassDescriptor descriptor);
   void renderPassSetPipeline(int pass, int pipeline);
   void renderPassSetBindGroup(int pass, int index, int bindGroup);
+
+  void renderPassSetVertexBuffer(int pass, int slot, int buffer, int offset);
+
+  /// indexFormat: raw `WGPUIndexFormat` — 1 = uint16, 2 = uint32.
+  void renderPassSetIndexBuffer(
+      int pass, int buffer, int indexFormat, int offset);
+
   void renderPassDraw(int pass, int vertexCount, int instanceCount,
       int firstVertex, int firstInstance);
+  void renderPassDrawIndexed(int pass, int indexCount, int instanceCount,
+      int firstIndex, int baseVertex, int firstInstance);
   void renderPassEnd(int pass);
   void renderPassRelease(int pass);
 

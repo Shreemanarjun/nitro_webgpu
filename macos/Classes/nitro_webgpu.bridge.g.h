@@ -104,10 +104,16 @@ NITRO_EXPORT void nitro_webgpu_sampler_release(int64_t instanceId, int64_t sampl
 NITRO_EXPORT int64_t nitro_webgpu_device_create_render_pipeline(int64_t instanceId, int64_t device, void* descriptor, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_render_pipeline_release(int64_t instanceId, int64_t pipeline, NitroError* _nitro_err);
 NITRO_EXPORT int64_t nitro_webgpu_render_pipeline_get_bind_group_layout(int64_t instanceId, int64_t pipeline, int64_t groupIndex, NitroError* _nitro_err);
+NITRO_EXPORT int64_t nitro_webgpu_device_create_bind_group_layout(int64_t instanceId, int64_t device, void* descriptor, NitroError* _nitro_err);
+NITRO_EXPORT int64_t nitro_webgpu_device_create_pipeline_layout(int64_t instanceId, int64_t device, void* descriptor, NitroError* _nitro_err);
+NITRO_EXPORT void nitro_webgpu_pipeline_layout_release(int64_t instanceId, int64_t layout, NitroError* _nitro_err);
 NITRO_EXPORT int64_t nitro_webgpu_encoder_begin_render_pass(int64_t instanceId, int64_t encoder, void* descriptor, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_render_pass_set_pipeline(int64_t instanceId, int64_t pass, int64_t pipeline, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_render_pass_set_bind_group(int64_t instanceId, int64_t pass, int64_t index, int64_t bindGroup, NitroError* _nitro_err);
+NITRO_EXPORT void nitro_webgpu_render_pass_set_vertex_buffer(int64_t instanceId, int64_t pass, int64_t slot, int64_t buffer, int64_t offset, NitroError* _nitro_err);
+NITRO_EXPORT void nitro_webgpu_render_pass_set_index_buffer(int64_t instanceId, int64_t pass, int64_t buffer, int64_t indexFormat, int64_t offset, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_render_pass_draw(int64_t instanceId, int64_t pass, int64_t vertexCount, int64_t instanceCount, int64_t firstVertex, int64_t firstInstance, NitroError* _nitro_err);
+NITRO_EXPORT void nitro_webgpu_render_pass_draw_indexed(int64_t instanceId, int64_t pass, int64_t indexCount, int64_t instanceCount, int64_t firstIndex, int64_t baseVertex, int64_t firstInstance, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_render_pass_end(int64_t instanceId, int64_t pass, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_render_pass_release(int64_t instanceId, int64_t pass, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_encoder_copy_texture_to_buffer(int64_t instanceId, int64_t encoder, int64_t texture, int64_t buffer, int64_t bytesPerRow, int64_t width, int64_t height, NitroError* _nitro_err);

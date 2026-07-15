@@ -474,6 +474,10 @@ extension GpuRenderPassDescriptorRecordExt on GpuRenderPassDescriptor {
         timestampQuerySetAddress: r.readInt(),
         timestampBeginIndex: r.readInt(),
         timestampEndIndex: r.readInt(),
+        depthViewAddress: r.readInt(),
+        depthLoadOp: r.readInt(),
+        depthStoreOp: r.readInt(),
+        depthClearValue: r.readDouble(),
       );
 
   void writeFields(RecordWriter writer) {
@@ -485,6 +489,144 @@ extension GpuRenderPassDescriptorRecordExt on GpuRenderPassDescriptor {
     writer.writeInt(timestampQuerySetAddress);
     writer.writeInt(timestampBeginIndex);
     writer.writeInt(timestampEndIndex);
+    writer.writeInt(depthViewAddress);
+    writer.writeInt(depthLoadOp);
+    writer.writeInt(depthStoreOp);
+    writer.writeDouble(depthClearValue);
+  }
+
+  Pointer<Uint8> toNative(Allocator alloc) {
+    final writer = RecordWriter();
+    writeFields(writer);
+    return writer.toNative(alloc);
+  }
+}
+
+extension GpuVertexAttributeRecordExt on GpuVertexAttribute {
+  static GpuVertexAttribute fromNative(Pointer<Uint8> ptr) =>
+      fromReader(RecordReader.fromNative(ptr));
+
+  static GpuVertexAttribute fromReader(RecordReader r) => GpuVertexAttribute(
+    format: r.readInt(),
+    offset: r.readInt(),
+    shaderLocation: r.readInt(),
+  );
+
+  void writeFields(RecordWriter writer) {
+    writer.writeInt(format);
+    writer.writeInt(offset);
+    writer.writeInt(shaderLocation);
+  }
+
+  Pointer<Uint8> toNative(Allocator alloc) {
+    final writer = RecordWriter();
+    writeFields(writer);
+    return writer.toNative(alloc);
+  }
+}
+
+extension GpuVertexBufferLayoutRecordExt on GpuVertexBufferLayout {
+  static GpuVertexBufferLayout fromNative(Pointer<Uint8> ptr) =>
+      fromReader(RecordReader.fromNative(ptr));
+
+  static GpuVertexBufferLayout fromReader(RecordReader r) =>
+      GpuVertexBufferLayout(
+        arrayStride: r.readInt(),
+        stepMode: r.readInt(),
+        attributes: List.generate(
+          r.readInt32(),
+          (_) => GpuVertexAttributeRecordExt.fromReader(r),
+        ),
+      );
+
+  void writeFields(RecordWriter writer) {
+    writer.writeInt(arrayStride);
+    writer.writeInt(stepMode);
+    writer.writeInt32(attributes.length);
+    for (final e in attributes) {
+      e.writeFields(writer);
+    }
+  }
+
+  Pointer<Uint8> toNative(Allocator alloc) {
+    final writer = RecordWriter();
+    writeFields(writer);
+    return writer.toNative(alloc);
+  }
+}
+
+extension GpuBindGroupLayoutEntryRecordExt on GpuBindGroupLayoutEntry {
+  static GpuBindGroupLayoutEntry fromNative(Pointer<Uint8> ptr) =>
+      fromReader(RecordReader.fromNative(ptr));
+
+  static GpuBindGroupLayoutEntry fromReader(RecordReader r) =>
+      GpuBindGroupLayoutEntry(
+        binding: r.readInt(),
+        visibility: r.readInt(),
+        type: r.readInt(),
+      );
+
+  void writeFields(RecordWriter writer) {
+    writer.writeInt(binding);
+    writer.writeInt(visibility);
+    writer.writeInt(type);
+  }
+
+  Pointer<Uint8> toNative(Allocator alloc) {
+    final writer = RecordWriter();
+    writeFields(writer);
+    return writer.toNative(alloc);
+  }
+}
+
+extension GpuBindGroupLayoutDescriptorRecordExt
+    on GpuBindGroupLayoutDescriptor {
+  static GpuBindGroupLayoutDescriptor fromNative(Pointer<Uint8> ptr) =>
+      fromReader(RecordReader.fromNative(ptr));
+
+  static GpuBindGroupLayoutDescriptor fromReader(RecordReader r) =>
+      GpuBindGroupLayoutDescriptor(
+        label: r.readString(),
+        entries: List.generate(
+          r.readInt32(),
+          (_) => GpuBindGroupLayoutEntryRecordExt.fromReader(r),
+        ),
+      );
+
+  void writeFields(RecordWriter writer) {
+    writer.writeString(label);
+    writer.writeInt32(entries.length);
+    for (final e in entries) {
+      e.writeFields(writer);
+    }
+  }
+
+  Pointer<Uint8> toNative(Allocator alloc) {
+    final writer = RecordWriter();
+    writeFields(writer);
+    return writer.toNative(alloc);
+  }
+}
+
+extension GpuPipelineLayoutDescriptorRecordExt on GpuPipelineLayoutDescriptor {
+  static GpuPipelineLayoutDescriptor fromNative(Pointer<Uint8> ptr) =>
+      fromReader(RecordReader.fromNative(ptr));
+
+  static GpuPipelineLayoutDescriptor fromReader(RecordReader r) =>
+      GpuPipelineLayoutDescriptor(
+        label: r.readString(),
+        layout0: r.readInt(),
+        layout1: r.readInt(),
+        layout2: r.readInt(),
+        layout3: r.readInt(),
+      );
+
+  void writeFields(RecordWriter writer) {
+    writer.writeString(label);
+    writer.writeInt(layout0);
+    writer.writeInt(layout1);
+    writer.writeInt(layout2);
+    writer.writeInt(layout3);
   }
 
   Pointer<Uint8> toNative(Allocator alloc) {
@@ -506,6 +648,15 @@ extension GpuRenderPipelineDescriptorRecordExt on GpuRenderPipelineDescriptor {
         fragmentEntryPoint: r.readString(),
         targetFormat: r.readInt(),
         topology: r.readInt(),
+        vertexBuffers: List.generate(
+          r.readInt32(),
+          (_) => GpuVertexBufferLayoutRecordExt.fromReader(r),
+        ),
+        layoutAddress: r.readInt(),
+        depthFormat: r.readInt(),
+        depthWriteEnabled: r.readBool(),
+        depthCompare: r.readInt(),
+        blendMode: r.readInt(),
       );
 
   void writeFields(RecordWriter writer) {
@@ -515,6 +666,15 @@ extension GpuRenderPipelineDescriptorRecordExt on GpuRenderPipelineDescriptor {
     writer.writeString(fragmentEntryPoint);
     writer.writeInt(targetFormat);
     writer.writeInt(topology);
+    writer.writeInt32(vertexBuffers.length);
+    for (final e in vertexBuffers) {
+      e.writeFields(writer);
+    }
+    writer.writeInt(layoutAddress);
+    writer.writeInt(depthFormat);
+    writer.writeBool(depthWriteEnabled);
+    writer.writeInt(depthCompare);
+    writer.writeInt(blendMode);
   }
 
   Pointer<Uint8> toNative(Allocator alloc) {
@@ -600,7 +760,7 @@ class _NitroWebgpuImpl extends NitroWebgpu {
     }
     NitroRuntime.checkLinkChecksum(
       'nitro_webgpu',
-      '2fb879c72c172c95',
+      'd29f2950234c4d41',
       () => _dylib
           .lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
             'nitro_webgpu_nitro_bridge_checksum',
@@ -1140,6 +1300,26 @@ class _NitroWebgpuImpl extends NitroWebgpu {
         isLeaf: true,
       );
   late final int Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>)
+  _deviceCreateBindGroupLayoutPtr = _dylib
+      .lookupFunction<
+        Int64 Function(Int64, Int64, Pointer<Uint8>, Pointer<NitroErrorFfi>),
+        int Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>)
+      >('nitro_webgpu_device_create_bind_group_layout');
+  late final int Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>)
+  _deviceCreatePipelineLayoutPtr = _dylib
+      .lookupFunction<
+        Int64 Function(Int64, Int64, Pointer<Uint8>, Pointer<NitroErrorFfi>),
+        int Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>)
+      >('nitro_webgpu_device_create_pipeline_layout');
+  late final void Function(int, int, Pointer<NitroErrorFfi>)
+  _pipelineLayoutReleasePtr = _dylib
+      .lookup<
+        NativeFunction<Void Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+      >('nitro_webgpu_pipeline_layout_release')
+      .asFunction<void Function(int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final int Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>)
   _encoderBeginRenderPassPtr = _dylib
       .lookupFunction<
         Int64 Function(Int64, Int64, Pointer<Uint8>, Pointer<NitroErrorFfi>),
@@ -1165,6 +1345,40 @@ class _NitroWebgpuImpl extends NitroWebgpu {
       .asFunction<void Function(int, int, int, int, Pointer<NitroErrorFfi>)>(
         isLeaf: true,
       );
+  late final void Function(int, int, int, int, int, Pointer<NitroErrorFfi>)
+  _renderPassSetVertexBufferPtr = _dylib
+      .lookup<
+        NativeFunction<
+          Void Function(
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Pointer<NitroErrorFfi>,
+          )
+        >
+      >('nitro_webgpu_render_pass_set_vertex_buffer')
+      .asFunction<
+        void Function(int, int, int, int, int, Pointer<NitroErrorFfi>)
+      >(isLeaf: true);
+  late final void Function(int, int, int, int, int, Pointer<NitroErrorFfi>)
+  _renderPassSetIndexBufferPtr = _dylib
+      .lookup<
+        NativeFunction<
+          Void Function(
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Pointer<NitroErrorFfi>,
+          )
+        >
+      >('nitro_webgpu_render_pass_set_index_buffer')
+      .asFunction<
+        void Function(int, int, int, int, int, Pointer<NitroErrorFfi>)
+      >(isLeaf: true);
   late final void Function(int, int, int, int, int, int, Pointer<NitroErrorFfi>)
   _renderPassDrawPtr = _dylib
       .lookup<
@@ -1182,6 +1396,34 @@ class _NitroWebgpuImpl extends NitroWebgpu {
       >('nitro_webgpu_render_pass_draw')
       .asFunction<
         void Function(int, int, int, int, int, int, Pointer<NitroErrorFfi>)
+      >(isLeaf: true);
+  late final void Function(
+    int,
+    int,
+    int,
+    int,
+    int,
+    int,
+    int,
+    Pointer<NitroErrorFfi>,
+  )
+  _renderPassDrawIndexedPtr = _dylib
+      .lookup<
+        NativeFunction<
+          Void Function(
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Int64,
+            Pointer<NitroErrorFfi>,
+          )
+        >
+      >('nitro_webgpu_render_pass_draw_indexed')
+      .asFunction<
+        void Function(int, int, int, int, int, int, int, Pointer<NitroErrorFfi>)
       >(isLeaf: true);
   late final void Function(int, int, Pointer<NitroErrorFfi>) _renderPassEndPtr =
       _dylib
@@ -2076,6 +2318,57 @@ class _NitroWebgpuImpl extends NitroWebgpu {
   }
 
   @override
+  int deviceCreateBindGroupLayout(
+    int device,
+    GpuBindGroupLayoutDescriptor descriptor,
+  ) {
+    checkDisposed();
+    return NitroRuntime.callSync(
+      () => withArena((arena) {
+        final res = _deviceCreateBindGroupLayoutPtr(
+          _instanceId,
+          device,
+          descriptor.toNative(arena),
+          _nitroErr,
+        );
+        NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+        return res;
+      }),
+      methodName: 'deviceCreateBindGroupLayout',
+    );
+  }
+
+  @override
+  int deviceCreatePipelineLayout(
+    int device,
+    GpuPipelineLayoutDescriptor descriptor,
+  ) {
+    checkDisposed();
+    return NitroRuntime.callSync(
+      () => withArena((arena) {
+        final res = _deviceCreatePipelineLayoutPtr(
+          _instanceId,
+          device,
+          descriptor.toNative(arena),
+          _nitroErr,
+        );
+        NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+        return res;
+      }),
+      methodName: 'deviceCreatePipelineLayout',
+    );
+  }
+
+  @override
+  void pipelineLayoutRelease(int layout) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _pipelineLayoutReleasePtr(_instanceId, layout, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'pipelineLayoutRelease');
+  }
+
+  @override
   int encoderBeginRenderPass(int encoder, GpuRenderPassDescriptor descriptor) {
     checkDisposed();
     return NitroRuntime.callSync(
@@ -2118,6 +2411,43 @@ class _NitroWebgpuImpl extends NitroWebgpu {
   }
 
   @override
+  void renderPassSetVertexBuffer(int pass, int slot, int buffer, int offset) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _renderPassSetVertexBufferPtr(
+        _instanceId,
+        pass,
+        slot,
+        buffer,
+        offset,
+        _nitroErr,
+      );
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'renderPassSetVertexBuffer');
+  }
+
+  @override
+  void renderPassSetIndexBuffer(
+    int pass,
+    int buffer,
+    int indexFormat,
+    int offset,
+  ) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _renderPassSetIndexBufferPtr(
+        _instanceId,
+        pass,
+        buffer,
+        indexFormat,
+        offset,
+        _nitroErr,
+      );
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'renderPassSetIndexBuffer');
+  }
+
+  @override
   void renderPassDraw(
     int pass,
     int vertexCount,
@@ -2138,6 +2468,31 @@ class _NitroWebgpuImpl extends NitroWebgpu {
       );
       NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
     }, methodName: 'renderPassDraw');
+  }
+
+  @override
+  void renderPassDrawIndexed(
+    int pass,
+    int indexCount,
+    int instanceCount,
+    int firstIndex,
+    int baseVertex,
+    int firstInstance,
+  ) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _renderPassDrawIndexedPtr(
+        _instanceId,
+        pass,
+        indexCount,
+        instanceCount,
+        firstIndex,
+        baseVertex,
+        firstInstance,
+        _nitroErr,
+      );
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'renderPassDrawIndexed');
   }
 
   @override
