@@ -23,8 +23,15 @@ export '../nitro_webgpu.native.dart'
 
 /// Texture formats supported by the curated layer (raw `WGPUTextureFormat`).
 enum GpuTextureFormat {
+  r8Unorm(0x01),
+  rg8Unorm(0x0A),
+  r32Float(0x0E),
   rgba8Unorm(0x16),
+  rgba8UnormSrgb(0x17),
   bgra8Unorm(0x1B),
+  bgra8UnormSrgb(0x1C),
+  rgba16Float(0x28),
+  rgba32Float(0x29),
   depth24Plus(0x2E),
   depth32Float(0x30);
 
@@ -34,11 +41,14 @@ enum GpuTextureFormat {
 
 /// Vertex attribute data types (raw `WGPUVertexFormat`).
 enum GpuVertexFormat {
+  unorm8x4(0x09),
+  float16x4(0x1B),
   float32(0x1C),
   float32x2(0x1D),
   float32x3(0x1E),
   float32x4(0x1F),
-  uint32(0x20);
+  uint32(0x20),
+  sint32(0x24);
 
   final int raw;
   const GpuVertexFormat(this.raw);
@@ -123,7 +133,10 @@ enum GpuBindingType {
   storageBuffer(2),
   readOnlyStorageBuffer(3),
   sampler(4),
-  texture(5);
+  texture(5),
+
+  /// Write-only rgba8unorm 2D storage texture (compute image output).
+  storageTexture(6);
 
   final int raw;
   const GpuBindingType(this.raw);
@@ -465,6 +478,7 @@ class GpuDevice {
   Future<GpuComputePipeline> createComputePipeline({
     required GpuShaderModule module,
     String entryPoint = 'main',
+    GpuPipelineLayout? layout,
     String label = '',
   }) async {
     _checkAlive();
@@ -475,6 +489,7 @@ class GpuDevice {
         label: label,
         moduleAddress: module._address,
         entryPoint: entryPoint,
+        layoutAddress: layout?._address ?? 0,
       ),
     );
     final error = await popErrorScope();
@@ -553,6 +568,8 @@ class GpuDevice {
     required int height,
     required GpuTextureFormat format,
     required int usage,
+    int mipLevelCount = 1,
+    int sampleCount = 1,
     String label = '',
   }) {
     _checkAlive();
@@ -564,6 +581,8 @@ class GpuDevice {
         height: height,
         format: format.raw,
         usage: usage,
+        mipLevelCount: mipLevelCount,
+        sampleCount: sampleCount,
       ),
     );
     return GpuTexture._(address, width, height, format);
@@ -587,6 +606,7 @@ class GpuDevice {
     bool depthWriteEnabled = true,
     GpuCompareFunction depthCompare = GpuCompareFunction.less,
     GpuBlendMode blend = GpuBlendMode.none,
+    int sampleCount = 1,
     String label = '',
   }) async {
     _checkAlive();
@@ -619,6 +639,7 @@ class GpuDevice {
         depthWriteEnabled: depthWriteEnabled,
         depthCompare: depthCompare.raw,
         blendMode: blend.index,
+        sampleCount: sampleCount,
       ),
     );
     final error = await popErrorScope();
@@ -719,15 +740,21 @@ class GpuQueue {
   /// Copies [data] into mip 0 of a 2D [texture] (usage must include
   /// [GpuTextureUsage.copyDst]). [bytesPerRow] defaults to the tight stride
   /// for 4-byte formats; wgpu copies synchronously.
-  void writeTexture(GpuTexture texture, Uint8List data, {int? bytesPerRow}) {
+  /// [width]/[height] default to the texture's mip-0 size; pass explicit
+  /// dimensions when writing to a higher [mipLevel].
+  void writeTexture(GpuTexture texture, Uint8List data,
+      {int? bytesPerRow, int mipLevel = 0, int? width, int? height}) {
     _checkAlive();
+    final w = width ?? texture.width;
+    final h = height ?? texture.height;
     NitroWebgpu.instance.queueWriteTexture(
       _address,
       texture._address,
       data,
-      bytesPerRow ?? texture.width * 4,
-      texture.width,
-      texture.height,
+      bytesPerRow ?? w * 4,
+      w,
+      h,
+      mipLevel,
     );
   }
 
@@ -1073,6 +1100,7 @@ class GpuCommandEncoder {
               clearG: a.clearColor.g,
               clearB: a.clearColor.b,
               clearA: a.clearColor.a,
+              resolveTargetAddress: a.resolveTarget?._address ?? 0,
             ),
         ],
         timestampQuerySetAddress: timestampWrites?.querySet._address ?? 0,
@@ -1105,6 +1133,31 @@ class GpuCommandEncoder {
       destination._address,
       destinationOffset,
     );
+  }
+
+  /// Copies [source] buffer contents into mip [mipLevel] of [texture].
+  /// [bytesPerRow] must be a multiple of 256 for buffer-to-texture copies.
+  void copyBufferToTexture(GpuBuffer source, GpuTexture texture,
+      {int? bytesPerRow, int mipLevel = 0, int? width, int? height}) {
+    _checkAlive();
+    final w = width ?? texture.width;
+    final h = height ?? texture.height;
+    NitroWebgpu.instance.encoderCopyBufferToTexture(
+        _address, source._address, bytesPerRow ?? w * 4, texture._address,
+        mipLevel, w, h);
+  }
+
+  /// Copies a region between mip 0 of two textures (defaults to the source's
+  /// full size).
+  void copyTextureToTexture(GpuTexture source, GpuTexture destination,
+      {int? width, int? height}) {
+    _checkAlive();
+    NitroWebgpu.instance.encoderCopyTextureToTexture(
+        _address,
+        source._address,
+        destination._address,
+        width ?? source.width,
+        height ?? source.height);
   }
 
   /// Copies the full contents of [texture] (mip 0) into [destination].
@@ -1187,6 +1240,13 @@ class GpuComputePassEncoder {
     NitroWebgpu.instance.computePassDispatchWorkgroups(_address, x, y, z);
   }
 
+  /// [indirectBuffer] holds `[x, y, z]` workgroup counts as u32 at [offset].
+  void dispatchWorkgroupsIndirect(GpuBuffer indirectBuffer, {int offset = 0}) {
+    _checkAlive();
+    NitroWebgpu.instance.computePassDispatchWorkgroupsIndirect(
+        _address, indirectBuffer._address, offset);
+  }
+
   /// Ends the pass and releases it.
   void end() {
     _checkAlive();
@@ -1216,10 +1276,12 @@ class GpuTexture {
     if (_disposed) throw StateError('GpuTexture used after dispose()');
   }
 
-  /// Creates the default full-texture view.
-  GpuTextureView createView({String label = ''}) {
+  /// Creates a view. [mipLevelCount] null = all remaining levels.
+  GpuTextureView createView(
+      {String label = '', int baseMipLevel = 0, int? mipLevelCount}) {
     _checkAlive();
-    final address = NitroWebgpu.instance.textureCreateView(_address, label);
+    final address = NitroWebgpu.instance
+        .textureCreateView(_address, label, baseMipLevel, mipLevelCount ?? 0);
     return GpuTextureView._(address);
   }
 
@@ -1337,11 +1399,15 @@ class GpuColorAttachmentInfo {
   final GpuStoreOp storeOp;
   final GpuColor clearColor;
 
+  /// MSAA resolve destination (single-sampled) when [view] is multisampled.
+  final GpuTextureView? resolveTarget;
+
   const GpuColorAttachmentInfo({
     required this.view,
     this.loadOp = GpuLoadOp.clear,
     this.storeOp = GpuStoreOp.store,
     this.clearColor = GpuColor.black,
+    this.resolveTarget,
   });
 }
 
@@ -1390,6 +1456,41 @@ class GpuRenderPassEncoder {
     _checkAlive();
     NitroWebgpu.instance.renderPassDraw(
         _address, vertexCount, instanceCount, firstVertex, firstInstance);
+  }
+
+  void setViewport(double x, double y, double width, double height,
+      {double minDepth = 0.0, double maxDepth = 1.0}) {
+    _checkAlive();
+    NitroWebgpu.instance
+        .renderPassSetViewport(_address, x, y, width, height, minDepth, maxDepth);
+  }
+
+  void setScissorRect(int x, int y, int width, int height) {
+    _checkAlive();
+    NitroWebgpu.instance
+        .renderPassSetScissorRect(_address, x, y, width, height);
+  }
+
+  void setBlendConstant(GpuColor color) {
+    _checkAlive();
+    NitroWebgpu.instance.renderPassSetBlendConstant(
+        _address, color.r, color.g, color.b, color.a);
+  }
+
+  /// [indirectBuffer] holds `[vertexCount, instanceCount, firstVertex,
+  /// firstInstance]` as u32 at [offset] (usage: [GpuBufferUsage.indirect]).
+  void drawIndirect(GpuBuffer indirectBuffer, {int offset = 0}) {
+    _checkAlive();
+    NitroWebgpu.instance
+        .renderPassDrawIndirect(_address, indirectBuffer._address, offset);
+  }
+
+  /// [indirectBuffer] holds `[indexCount, instanceCount, firstIndex,
+  /// baseVertex, firstInstance]` at [offset].
+  void drawIndexedIndirect(GpuBuffer indirectBuffer, {int offset = 0}) {
+    _checkAlive();
+    NitroWebgpu.instance.renderPassDrawIndexedIndirect(
+        _address, indirectBuffer._address, offset);
   }
 
   void drawIndexed(int indexCount,

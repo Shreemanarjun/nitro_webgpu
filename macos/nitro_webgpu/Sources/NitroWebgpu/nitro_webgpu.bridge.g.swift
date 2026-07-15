@@ -213,10 +213,12 @@ public struct GpuLimits: NitroEncodable {
 public struct GpuDeviceDescriptor: NitroEncodable {
   public var label: String
   public var requireTimestampQueries: Bool
+  public var requiredLimits: GpuRequiredLimits?
 
-  public init(label: String, requireTimestampQueries: Bool) {
+  public init(label: String, requireTimestampQueries: Bool, requiredLimits: GpuRequiredLimits?) {
     self.label = label
     self.requireTimestampQueries = requireTimestampQueries
+    self.requiredLimits = requiredLimits
   }
 
   public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuDeviceDescriptor {
@@ -227,12 +229,15 @@ public struct GpuDeviceDescriptor: NitroEncodable {
     return GpuDeviceDescriptor(
       label: r.readString(),
       requireTimestampQueries: r.readBool(),
+      requiredLimits: r.readNullTag() ? nil : GpuRequiredLimits.fromReader(r),
     )
   }
 
   public func writeFields(_ writer: NitroRecordWriter) {
     writer.writeString(label)
     writer.writeBool(requireTimestampQueries)
+    writer.writeNullTag(requiredLimits == nil)
+    if let val = requiredLimits { val.writeFields(writer) }
   }
 
   public func toNative() -> UnsafeMutablePointer<UInt8>? {
@@ -639,8 +644,10 @@ public struct GpuTextureDescriptor: NitroEncodable {
   public var usage: Int64
   public var mipLevelCount: Int64
   public var sampleCount: Int64
+  public var dimension: Int64
+  public var depthOrArrayLayers: Int64
 
-  public init(label: String, width: Int64, height: Int64, format: Int64, usage: Int64, mipLevelCount: Int64, sampleCount: Int64) {
+  public init(label: String, width: Int64, height: Int64, format: Int64, usage: Int64, mipLevelCount: Int64, sampleCount: Int64, dimension: Int64, depthOrArrayLayers: Int64) {
     self.label = label
     self.width = width
     self.height = height
@@ -648,6 +655,8 @@ public struct GpuTextureDescriptor: NitroEncodable {
     self.usage = usage
     self.mipLevelCount = mipLevelCount
     self.sampleCount = sampleCount
+    self.dimension = dimension
+    self.depthOrArrayLayers = depthOrArrayLayers
   }
 
   public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuTextureDescriptor {
@@ -663,6 +672,8 @@ public struct GpuTextureDescriptor: NitroEncodable {
       usage: r.readInt(),
       mipLevelCount: r.readInt(),
       sampleCount: r.readInt(),
+      dimension: r.readInt(),
+      depthOrArrayLayers: r.readInt(),
     )
   }
 
@@ -673,6 +684,160 @@ public struct GpuTextureDescriptor: NitroEncodable {
     writer.writeInt(format)
     writer.writeInt(usage)
     writer.writeInt(mipLevelCount)
+    writer.writeInt(sampleCount)
+    writer.writeInt(dimension)
+    writer.writeInt(depthOrArrayLayers)
+  }
+
+  public func toNative() -> UnsafeMutablePointer<UInt8>? {
+    let writer = NitroRecordWriter()
+    writeFields(writer)
+    return writer.toNative()
+  }
+}
+
+public struct GpuTextureViewDescriptor: NitroEncodable {
+  public var label: String
+  public var baseMipLevel: Int64
+  public var mipLevelCount: Int64
+  public var dimension: Int64
+  public var baseArrayLayer: Int64
+  public var arrayLayerCount: Int64
+
+  public init(label: String, baseMipLevel: Int64, mipLevelCount: Int64, dimension: Int64, baseArrayLayer: Int64, arrayLayerCount: Int64) {
+    self.label = label
+    self.baseMipLevel = baseMipLevel
+    self.mipLevelCount = mipLevelCount
+    self.dimension = dimension
+    self.baseArrayLayer = baseArrayLayer
+    self.arrayLayerCount = arrayLayerCount
+  }
+
+  public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuTextureViewDescriptor {
+    return fromReader(NitroRecordReader(ptr: ptr))
+  }
+
+  public static func fromReader(_ r: NitroRecordReader) -> GpuTextureViewDescriptor {
+    return GpuTextureViewDescriptor(
+      label: r.readString(),
+      baseMipLevel: r.readInt(),
+      mipLevelCount: r.readInt(),
+      dimension: r.readInt(),
+      baseArrayLayer: r.readInt(),
+      arrayLayerCount: r.readInt(),
+    )
+  }
+
+  public func writeFields(_ writer: NitroRecordWriter) {
+    writer.writeString(label)
+    writer.writeInt(baseMipLevel)
+    writer.writeInt(mipLevelCount)
+    writer.writeInt(dimension)
+    writer.writeInt(baseArrayLayer)
+    writer.writeInt(arrayLayerCount)
+  }
+
+  public func toNative() -> UnsafeMutablePointer<UInt8>? {
+    let writer = NitroRecordWriter()
+    writeFields(writer)
+    return writer.toNative()
+  }
+}
+
+public struct GpuRequiredLimits: NitroEncodable {
+  public var maxTextureDimension2D: Int64
+  public var maxTextureArrayLayers: Int64
+  public var maxBindGroups: Int64
+  public var maxUniformBufferBindingSize: Int64
+  public var maxStorageBufferBindingSize: Int64
+  public var maxBufferSize: Int64
+  public var maxComputeInvocationsPerWorkgroup: Int64
+
+  public init(maxTextureDimension2D: Int64, maxTextureArrayLayers: Int64, maxBindGroups: Int64, maxUniformBufferBindingSize: Int64, maxStorageBufferBindingSize: Int64, maxBufferSize: Int64, maxComputeInvocationsPerWorkgroup: Int64) {
+    self.maxTextureDimension2D = maxTextureDimension2D
+    self.maxTextureArrayLayers = maxTextureArrayLayers
+    self.maxBindGroups = maxBindGroups
+    self.maxUniformBufferBindingSize = maxUniformBufferBindingSize
+    self.maxStorageBufferBindingSize = maxStorageBufferBindingSize
+    self.maxBufferSize = maxBufferSize
+    self.maxComputeInvocationsPerWorkgroup = maxComputeInvocationsPerWorkgroup
+  }
+
+  public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuRequiredLimits {
+    return fromReader(NitroRecordReader(ptr: ptr))
+  }
+
+  public static func fromReader(_ r: NitroRecordReader) -> GpuRequiredLimits {
+    return GpuRequiredLimits(
+      maxTextureDimension2D: r.readInt(),
+      maxTextureArrayLayers: r.readInt(),
+      maxBindGroups: r.readInt(),
+      maxUniformBufferBindingSize: r.readInt(),
+      maxStorageBufferBindingSize: r.readInt(),
+      maxBufferSize: r.readInt(),
+      maxComputeInvocationsPerWorkgroup: r.readInt(),
+    )
+  }
+
+  public func writeFields(_ writer: NitroRecordWriter) {
+    writer.writeInt(maxTextureDimension2D)
+    writer.writeInt(maxTextureArrayLayers)
+    writer.writeInt(maxBindGroups)
+    writer.writeInt(maxUniformBufferBindingSize)
+    writer.writeInt(maxStorageBufferBindingSize)
+    writer.writeInt(maxBufferSize)
+    writer.writeInt(maxComputeInvocationsPerWorkgroup)
+  }
+
+  public func toNative() -> UnsafeMutablePointer<UInt8>? {
+    let writer = NitroRecordWriter()
+    writeFields(writer)
+    return writer.toNative()
+  }
+}
+
+public struct GpuRenderBundleEncoderDescriptor: NitroEncodable {
+  public var label: String
+  public var format0: Int64
+  public var format1: Int64
+  public var format2: Int64
+  public var format3: Int64
+  public var depthFormat: Int64
+  public var sampleCount: Int64
+
+  public init(label: String, format0: Int64, format1: Int64, format2: Int64, format3: Int64, depthFormat: Int64, sampleCount: Int64) {
+    self.label = label
+    self.format0 = format0
+    self.format1 = format1
+    self.format2 = format2
+    self.format3 = format3
+    self.depthFormat = depthFormat
+    self.sampleCount = sampleCount
+  }
+
+  public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuRenderBundleEncoderDescriptor {
+    return fromReader(NitroRecordReader(ptr: ptr))
+  }
+
+  public static func fromReader(_ r: NitroRecordReader) -> GpuRenderBundleEncoderDescriptor {
+    return GpuRenderBundleEncoderDescriptor(
+      label: r.readString(),
+      format0: r.readInt(),
+      format1: r.readInt(),
+      format2: r.readInt(),
+      format3: r.readInt(),
+      depthFormat: r.readInt(),
+      sampleCount: r.readInt(),
+    )
+  }
+
+  public func writeFields(_ writer: NitroRecordWriter) {
+    writer.writeString(label)
+    writer.writeInt(format0)
+    writer.writeInt(format1)
+    writer.writeInt(format2)
+    writer.writeInt(format3)
+    writer.writeInt(depthFormat)
     writer.writeInt(sampleCount)
   }
 
@@ -691,8 +856,9 @@ public struct GpuColorAttachment: NitroEncodable {
   public var clearG: Double
   public var clearB: Double
   public var clearA: Double
+  public var resolveTargetAddress: Int64
 
-  public init(viewAddress: Int64, loadOp: Int64, storeOp: Int64, clearR: Double, clearG: Double, clearB: Double, clearA: Double) {
+  public init(viewAddress: Int64, loadOp: Int64, storeOp: Int64, clearR: Double, clearG: Double, clearB: Double, clearA: Double, resolveTargetAddress: Int64) {
     self.viewAddress = viewAddress
     self.loadOp = loadOp
     self.storeOp = storeOp
@@ -700,6 +866,7 @@ public struct GpuColorAttachment: NitroEncodable {
     self.clearG = clearG
     self.clearB = clearB
     self.clearA = clearA
+    self.resolveTargetAddress = resolveTargetAddress
   }
 
   public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuColorAttachment {
@@ -715,6 +882,7 @@ public struct GpuColorAttachment: NitroEncodable {
       clearG: r.readDouble(),
       clearB: r.readDouble(),
       clearA: r.readDouble(),
+      resolveTargetAddress: r.readInt(),
     )
   }
 
@@ -726,6 +894,7 @@ public struct GpuColorAttachment: NitroEncodable {
     writer.writeDouble(clearG)
     writer.writeDouble(clearB)
     writer.writeDouble(clearA)
+    writer.writeInt(resolveTargetAddress)
   }
 
   public func toNative() -> UnsafeMutablePointer<UInt8>? {
@@ -745,8 +914,12 @@ public struct GpuRenderPassDescriptor: NitroEncodable {
   public var depthLoadOp: Int64
   public var depthStoreOp: Int64
   public var depthClearValue: Double
+  public var stencilLoadOp: Int64
+  public var stencilStoreOp: Int64
+  public var stencilClearValue: Int64
+  public var occlusionQuerySetAddress: Int64
 
-  public init(label: String, colorAttachments: [GpuColorAttachment], timestampQuerySetAddress: Int64, timestampBeginIndex: Int64, timestampEndIndex: Int64, depthViewAddress: Int64, depthLoadOp: Int64, depthStoreOp: Int64, depthClearValue: Double) {
+  public init(label: String, colorAttachments: [GpuColorAttachment], timestampQuerySetAddress: Int64, timestampBeginIndex: Int64, timestampEndIndex: Int64, depthViewAddress: Int64, depthLoadOp: Int64, depthStoreOp: Int64, depthClearValue: Double, stencilLoadOp: Int64, stencilStoreOp: Int64, stencilClearValue: Int64, occlusionQuerySetAddress: Int64) {
     self.label = label
     self.colorAttachments = colorAttachments
     self.timestampQuerySetAddress = timestampQuerySetAddress
@@ -756,6 +929,10 @@ public struct GpuRenderPassDescriptor: NitroEncodable {
     self.depthLoadOp = depthLoadOp
     self.depthStoreOp = depthStoreOp
     self.depthClearValue = depthClearValue
+    self.stencilLoadOp = stencilLoadOp
+    self.stencilStoreOp = stencilStoreOp
+    self.stencilClearValue = stencilClearValue
+    self.occlusionQuerySetAddress = occlusionQuerySetAddress
   }
 
   public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuRenderPassDescriptor {
@@ -773,6 +950,10 @@ public struct GpuRenderPassDescriptor: NitroEncodable {
       depthLoadOp: r.readInt(),
       depthStoreOp: r.readInt(),
       depthClearValue: r.readDouble(),
+      stencilLoadOp: r.readInt(),
+      stencilStoreOp: r.readInt(),
+      stencilClearValue: r.readInt(),
+      occlusionQuerySetAddress: r.readInt(),
     )
   }
 
@@ -787,6 +968,10 @@ public struct GpuRenderPassDescriptor: NitroEncodable {
     writer.writeInt(depthLoadOp)
     writer.writeInt(depthStoreOp)
     writer.writeDouble(depthClearValue)
+    writer.writeInt(stencilLoadOp)
+    writer.writeInt(stencilStoreOp)
+    writer.writeInt(stencilClearValue)
+    writer.writeInt(occlusionQuerySetAddress)
   }
 
   public func toNative() -> UnsafeMutablePointer<UInt8>? {
@@ -873,11 +1058,15 @@ public struct GpuBindGroupLayoutEntry: NitroEncodable {
   public var binding: Int64
   public var visibility: Int64
   public var type: Int64
+  public var viewDimension: Int64
+  public var hasDynamicOffset: Bool
 
-  public init(binding: Int64, visibility: Int64, type: Int64) {
+  public init(binding: Int64, visibility: Int64, type: Int64, viewDimension: Int64, hasDynamicOffset: Bool) {
     self.binding = binding
     self.visibility = visibility
     self.type = type
+    self.viewDimension = viewDimension
+    self.hasDynamicOffset = hasDynamicOffset
   }
 
   public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuBindGroupLayoutEntry {
@@ -889,6 +1078,8 @@ public struct GpuBindGroupLayoutEntry: NitroEncodable {
       binding: r.readInt(),
       visibility: r.readInt(),
       type: r.readInt(),
+      viewDimension: r.readInt(),
+      hasDynamicOffset: r.readBool(),
     )
   }
 
@@ -896,6 +1087,8 @@ public struct GpuBindGroupLayoutEntry: NitroEncodable {
     writer.writeInt(binding)
     writer.writeInt(visibility)
     writer.writeInt(type)
+    writer.writeInt(viewDimension)
+    writer.writeBool(hasDynamicOffset)
   }
 
   public func toNative() -> UnsafeMutablePointer<UInt8>? {
@@ -995,8 +1188,16 @@ public struct GpuRenderPipelineDescriptor: NitroEncodable {
   public var depthWriteEnabled: Bool
   public var depthCompare: Int64
   public var blendMode: Int64
+  public var sampleCount: Int64
+  public var targetFormat1: Int64
+  public var targetFormat2: Int64
+  public var targetFormat3: Int64
+  public var stencilCompare: Int64
+  public var stencilFailOp: Int64
+  public var stencilDepthFailOp: Int64
+  public var stencilPassOp: Int64
 
-  public init(label: String, moduleAddress: Int64, vertexEntryPoint: String, fragmentEntryPoint: String, targetFormat: Int64, topology: Int64, vertexBuffers: [GpuVertexBufferLayout], layoutAddress: Int64, depthFormat: Int64, depthWriteEnabled: Bool, depthCompare: Int64, blendMode: Int64) {
+  public init(label: String, moduleAddress: Int64, vertexEntryPoint: String, fragmentEntryPoint: String, targetFormat: Int64, topology: Int64, vertexBuffers: [GpuVertexBufferLayout], layoutAddress: Int64, depthFormat: Int64, depthWriteEnabled: Bool, depthCompare: Int64, blendMode: Int64, sampleCount: Int64, targetFormat1: Int64, targetFormat2: Int64, targetFormat3: Int64, stencilCompare: Int64, stencilFailOp: Int64, stencilDepthFailOp: Int64, stencilPassOp: Int64) {
     self.label = label
     self.moduleAddress = moduleAddress
     self.vertexEntryPoint = vertexEntryPoint
@@ -1009,6 +1210,14 @@ public struct GpuRenderPipelineDescriptor: NitroEncodable {
     self.depthWriteEnabled = depthWriteEnabled
     self.depthCompare = depthCompare
     self.blendMode = blendMode
+    self.sampleCount = sampleCount
+    self.targetFormat1 = targetFormat1
+    self.targetFormat2 = targetFormat2
+    self.targetFormat3 = targetFormat3
+    self.stencilCompare = stencilCompare
+    self.stencilFailOp = stencilFailOp
+    self.stencilDepthFailOp = stencilDepthFailOp
+    self.stencilPassOp = stencilPassOp
   }
 
   public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuRenderPipelineDescriptor {
@@ -1029,6 +1238,14 @@ public struct GpuRenderPipelineDescriptor: NitroEncodable {
       depthWriteEnabled: r.readBool(),
       depthCompare: r.readInt(),
       blendMode: r.readInt(),
+      sampleCount: r.readInt(),
+      targetFormat1: r.readInt(),
+      targetFormat2: r.readInt(),
+      targetFormat3: r.readInt(),
+      stencilCompare: r.readInt(),
+      stencilFailOp: r.readInt(),
+      stencilDepthFailOp: r.readInt(),
+      stencilPassOp: r.readInt(),
     )
   }
 
@@ -1046,6 +1263,14 @@ public struct GpuRenderPipelineDescriptor: NitroEncodable {
     writer.writeBool(depthWriteEnabled)
     writer.writeInt(depthCompare)
     writer.writeInt(blendMode)
+    writer.writeInt(sampleCount)
+    writer.writeInt(targetFormat1)
+    writer.writeInt(targetFormat2)
+    writer.writeInt(targetFormat3)
+    writer.writeInt(stencilCompare)
+    writer.writeInt(stencilFailOp)
+    writer.writeInt(stencilDepthFailOp)
+    writer.writeInt(stencilPassOp)
   }
 
   public func toNative() -> UnsafeMutablePointer<UInt8>? {
@@ -1107,9 +1332,9 @@ public protocol HybridNitroWebgpuProtocol: AnyObject {
     func deviceCreateTexture(device: Int64, descriptor: GpuTextureDescriptor) -> Int64
     func textureDestroy(texture: Int64) -> Void
     func textureRelease(texture: Int64) -> Void
-    func textureCreateView(texture: Int64, label: String) -> Int64
+    func textureCreateView(texture: Int64, descriptor: GpuTextureViewDescriptor) -> Int64
     func textureViewRelease(view: Int64) -> Void
-    func queueWriteTexture(queue: Int64, texture: Int64, data: Data, bytesPerRow: Int64, width: Int64, height: Int64) -> Void
+    func queueWriteTexture(queue: Int64, texture: Int64, data: Data, bytesPerRow: Int64, width: Int64, height: Int64, mipLevel: Int64, arrayLayer: Int64) -> Void
     func deviceCreateSampler(device: Int64, descriptor: GpuSamplerDescriptor) -> Int64
     func samplerRelease(sampler: Int64) -> Void
     func deviceCreateRenderPipeline(device: Int64, descriptor: GpuRenderPipelineDescriptor) -> Int64
@@ -1128,6 +1353,32 @@ public protocol HybridNitroWebgpuProtocol: AnyObject {
     func renderPassEnd(pass: Int64) -> Void
     func renderPassRelease(pass: Int64) -> Void
     func encoderCopyTextureToBuffer(encoder: Int64, texture: Int64, buffer: Int64, bytesPerRow: Int64, width: Int64, height: Int64) -> Void
+    func encoderCopyBufferToTexture(encoder: Int64, buffer: Int64, bytesPerRow: Int64, texture: Int64, mipLevel: Int64, width: Int64, height: Int64) -> Void
+    func encoderCopyTextureToTexture(encoder: Int64, srcTexture: Int64, dstTexture: Int64, width: Int64, height: Int64) -> Void
+    func renderPassSetViewport(pass: Int64, x: Double, y: Double, width: Double, height: Double, minDepth: Double, maxDepth: Double) -> Void
+    func renderPassSetScissorRect(pass: Int64, x: Int64, y: Int64, width: Int64, height: Int64) -> Void
+    func renderPassSetBlendConstant(pass: Int64, r: Double, g: Double, b: Double, a: Double) -> Void
+    func renderPassDrawIndirect(pass: Int64, buffer: Int64, offset: Int64) -> Void
+    func renderPassDrawIndexedIndirect(pass: Int64, buffer: Int64, offset: Int64) -> Void
+    func computePassDispatchWorkgroupsIndirect(pass: Int64, buffer: Int64, offset: Int64) -> Void
+    func deviceCreateOcclusionQuerySet(device: Int64, count: Int64) -> Int64
+    func deviceGetLimits(device: Int64) -> GpuLimits
+    func renderPassBeginOcclusionQuery(pass: Int64, queryIndex: Int64) -> Void
+    func renderPassEndOcclusionQuery(pass: Int64) -> Void
+    func renderPassSetStencilReference(pass: Int64, reference: Int64) -> Void
+    func renderPassSetBindGroupOffsets(pass: Int64, index: Int64, bindGroup: Int64, offsetCount: Int64, o0: Int64, o1: Int64, o2: Int64, o3: Int64) -> Void
+    func computePassSetBindGroupOffsets(pass: Int64, index: Int64, bindGroup: Int64, offsetCount: Int64, o0: Int64, o1: Int64, o2: Int64, o3: Int64) -> Void
+    func deviceCreateRenderBundleEncoder(device: Int64, descriptor: GpuRenderBundleEncoderDescriptor) -> Int64
+    func bundleSetPipeline(bundleEncoder: Int64, pipeline: Int64) -> Void
+    func bundleSetBindGroup(bundleEncoder: Int64, index: Int64, bindGroup: Int64) -> Void
+    func bundleSetVertexBuffer(bundleEncoder: Int64, slot: Int64, buffer: Int64, offset: Int64) -> Void
+    func bundleSetIndexBuffer(bundleEncoder: Int64, buffer: Int64, indexFormat: Int64, offset: Int64) -> Void
+    func bundleDraw(bundleEncoder: Int64, vertexCount: Int64, instanceCount: Int64, firstVertex: Int64, firstInstance: Int64) -> Void
+    func bundleDrawIndexed(bundleEncoder: Int64, indexCount: Int64, instanceCount: Int64, firstIndex: Int64, baseVertex: Int64, firstInstance: Int64) -> Void
+    func bundleFinish(bundleEncoder: Int64, label: String) -> Int64
+    func renderBundleEncoderRelease(bundleEncoder: Int64) -> Void
+    func renderBundleRelease(bundle: Int64) -> Void
+    func renderPassExecuteBundle(pass: Int64, bundle: Int64) -> Void
     func deviceCreateTimestampQuerySet(device: Int64, count: Int64) -> Int64
     func querySetRelease(querySet: Int64) -> Void
     func encoderResolveQuerySet(encoder: Int64, querySet: Int64, firstQuery: Int64, queryCount: Int64, destination: Int64, destinationOffset: Int64) -> Void

@@ -31,8 +31,13 @@ Early development.
 - **3D rendering (done)**: vertex + index buffers with attribute layouts,
   instancing, depth testing (`depth24plus`/`depth32float`), alpha/additive/
   premultiplied blend presets, and explicit bind-group/pipeline layouts —
-  real mesh rendering, verified by readback tests. Next: Android (M2.3),
-  Windows/Linux (M2.4/M2.5), viewport/scissor + texture copies + MSAA.
+  real mesh rendering, verified by readback tests.
+- **Parity batch (done)**: viewport/scissor/blend-constant, buffer↔texture
+  and texture↔texture copies, indirect draw/dispatch, 4× MSAA with resolve
+  targets, write-only storage textures, mip-level uploads and mip-restricted
+  views, and a broad format set (r8/rg8/r32f/srgb/16f/32f). Remaining spec
+  tail: render bundles, occlusion queries, 3D/array/cube textures, multiple
+  color targets. Next: Android (M2.3), Windows/Linux (M2.4/M2.5).
 - Flutter Web (`navigator.gpu` via JS interop) is designed-for but deferred.
 
 Known upstream gaps (wgpu-native v29.0.1.1): the device-lost callback never

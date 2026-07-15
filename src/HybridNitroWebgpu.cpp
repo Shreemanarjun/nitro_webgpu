@@ -352,6 +352,29 @@ public:
             wgpuDesc.requiredFeatures = kTimestampFeature;
         }
 
+        WGPULimits limits = WGPU_LIMITS_INIT;
+        if (desc.requiredLimits.has_value()) {
+            const auto& rl = *desc.requiredLimits;
+            if (rl.maxTextureDimension2D >= 0)
+                limits.maxTextureDimension2D = (uint32_t)rl.maxTextureDimension2D;
+            if (rl.maxTextureArrayLayers >= 0)
+                limits.maxTextureArrayLayers = (uint32_t)rl.maxTextureArrayLayers;
+            if (rl.maxBindGroups >= 0)
+                limits.maxBindGroups = (uint32_t)rl.maxBindGroups;
+            if (rl.maxUniformBufferBindingSize >= 0)
+                limits.maxUniformBufferBindingSize =
+                    (uint64_t)rl.maxUniformBufferBindingSize;
+            if (rl.maxStorageBufferBindingSize >= 0)
+                limits.maxStorageBufferBindingSize =
+                    (uint64_t)rl.maxStorageBufferBindingSize;
+            if (rl.maxBufferSize >= 0)
+                limits.maxBufferSize = (uint64_t)rl.maxBufferSize;
+            if (rl.maxComputeInvocationsPerWorkgroup >= 0)
+                limits.maxComputeInvocationsPerWorkgroup =
+                    (uint32_t)rl.maxComputeInvocationsPerWorkgroup;
+            wgpuDesc.requiredLimits = &limits;
+        }
+
         wgpuDesc.deviceLostCallbackInfo.mode = WGPUCallbackMode_AllowSpontaneous;
         wgpuDesc.deviceLostCallbackInfo.callback =
             [](WGPUDevice const* device, WGPUDeviceLostReason reason,
@@ -767,8 +790,9 @@ public:
         WGPUTextureDescriptor wd = WGPU_TEXTURE_DESCRIPTOR_INIT;
         wd.label = toView(d.label);
         wd.usage = (WGPUTextureUsage)d.usage;
-        wd.dimension = WGPUTextureDimension_2D;
-        wd.size = {(uint32_t)d.width, (uint32_t)d.height, 1};
+        wd.dimension = (WGPUTextureDimension)d.dimension;
+        wd.size = {(uint32_t)d.width, (uint32_t)d.height,
+                   (uint32_t)d.depthOrArrayLayers};
         wd.format = (WGPUTextureFormat)d.format;
         wd.mipLevelCount = (uint32_t)d.mipLevelCount;
         wd.sampleCount = (uint32_t)d.sampleCount;
@@ -785,9 +809,20 @@ public:
         wgpuTextureRelease((WGPUTexture)(intptr_t)texture);
     }
 
-    int64_t textureCreateView(int64_t texture, const std::string& label) override {
+    int64_t textureCreateView(int64_t texture,
+                              NitroCppBuffer descriptor) override {
+        const auto d = GpuTextureViewDescriptor::fromNative(descriptor);
         WGPUTextureViewDescriptor wd = WGPU_TEXTURE_VIEW_DESCRIPTOR_INIT;
-        wd.label = toView(label);
+        wd.label = toView(d.label);
+        wd.baseMipLevel = (uint32_t)d.baseMipLevel;
+        if (d.mipLevelCount > 0) wd.mipLevelCount = (uint32_t)d.mipLevelCount;
+        if (d.dimension > 0) {
+            wd.dimension = (WGPUTextureViewDimension)d.dimension;
+        }
+        wd.baseArrayLayer = (uint32_t)d.baseArrayLayer;
+        if (d.arrayLayerCount > 0) {
+            wd.arrayLayerCount = (uint32_t)d.arrayLayerCount;
+        }
         WGPUTextureView view =
             wgpuTextureCreateView((WGPUTexture)(intptr_t)texture, &wd);
         if (!view) throw std::runtime_error("wgpuTextureCreateView failed");
@@ -800,9 +835,12 @@ public:
 
     void queueWriteTexture(int64_t queue, int64_t texture, const uint8_t* data,
                            size_t data_length, int64_t bytesPerRow,
-                           int64_t width, int64_t height) override {
+                           int64_t width, int64_t height, int64_t mipLevel,
+                           int64_t arrayLayer) override {
         WGPUTexelCopyTextureInfo dst = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
         dst.texture = (WGPUTexture)(intptr_t)texture;
+        dst.mipLevel = (uint32_t)mipLevel;
+        dst.origin = {0, 0, (uint32_t)arrayLayer};
         WGPUTexelCopyBufferLayout layout = {};
         layout.offset = 0;
         layout.bytesPerRow = (uint32_t)bytesPerRow;
@@ -862,11 +900,22 @@ public:
             target.blend = &blend;
         }
 
+        WGPUColorTargetState targets[4];
+        targets[0] = target;
+        size_t targetCount = 1;
+        const int64_t extraFormats[3] = {d.targetFormat1, d.targetFormat2,
+                                         d.targetFormat3};
+        for (int i = 0; i < 3 && extraFormats[i]; i++) {
+            WGPUColorTargetState extra = WGPU_COLOR_TARGET_STATE_INIT;
+            extra.format = (WGPUTextureFormat)extraFormats[i];
+            targets[targetCount++] = extra;
+        }
+
         WGPUFragmentState fragment = WGPU_FRAGMENT_STATE_INIT;
         fragment.module = (WGPUShaderModule)(intptr_t)d.moduleAddress;
         fragment.entryPoint = toView(d.fragmentEntryPoint);
-        fragment.targetCount = 1;
-        fragment.targets = &target;
+        fragment.targetCount = targetCount;
+        fragment.targets = targets;
 
         // Vertex buffer layouts (attribute arrays must outlive the create).
         std::vector<std::vector<WGPUVertexAttribute>> attrStorage;
@@ -902,6 +951,7 @@ public:
         wd.vertex.bufferCount = layouts.size();
         wd.vertex.buffers = layouts.empty() ? nullptr : layouts.data();
         wd.primitive.topology = (WGPUPrimitiveTopology)d.topology;
+        wd.multisample.count = (uint32_t)d.sampleCount;
         wd.fragment = &fragment;
 
         WGPUDepthStencilState depth = WGPU_DEPTH_STENCIL_STATE_INIT;
@@ -911,6 +961,13 @@ public:
                                           ? WGPUOptionalBool_True
                                           : WGPUOptionalBool_False;
             depth.depthCompare = (WGPUCompareFunction)d.depthCompare;
+            WGPUStencilFaceState face = {};
+            face.compare = (WGPUCompareFunction)d.stencilCompare;
+            face.failOp = (WGPUStencilOperation)d.stencilFailOp;
+            face.depthFailOp = (WGPUStencilOperation)d.stencilDepthFailOp;
+            face.passOp = (WGPUStencilOperation)d.stencilPassOp;
+            depth.stencilFront = face;
+            depth.stencilBack = face;
             wd.depthStencil = &depth;
         }
 
@@ -946,6 +1003,10 @@ public:
             attachments[i].loadOp = (WGPULoadOp)a.loadOp;
             attachments[i].storeOp = (WGPUStoreOp)a.storeOp;
             attachments[i].clearValue = {a.clearR, a.clearG, a.clearB, a.clearA};
+            if (a.resolveTargetAddress) {
+                attachments[i].resolveTarget =
+                    (WGPUTextureView)(intptr_t)a.resolveTargetAddress;
+            }
         }
         WGPURenderPassDescriptor wd = WGPU_RENDER_PASS_DESCRIPTOR_INIT;
         wd.label = toView(d.label);
@@ -958,7 +1019,16 @@ public:
             depth.depthLoadOp = (WGPULoadOp)d.depthLoadOp;
             depth.depthStoreOp = (WGPUStoreOp)d.depthStoreOp;
             depth.depthClearValue = (float)d.depthClearValue;
+            if (d.stencilLoadOp) {
+                depth.stencilLoadOp = (WGPULoadOp)d.stencilLoadOp;
+                depth.stencilStoreOp = (WGPUStoreOp)d.stencilStoreOp;
+                depth.stencilClearValue = (uint32_t)d.stencilClearValue;
+            }
             wd.depthStencilAttachment = &depth;
+        }
+        if (d.occlusionQuerySetAddress) {
+            wd.occlusionQuerySet =
+                (WGPUQuerySet)(intptr_t)d.occlusionQuerySetAddress;
         }
         WGPUPassTimestampWrites tw = {};
         if (d.timestampQuerySetAddress) {
@@ -1025,23 +1095,32 @@ public:
             switch (e.type) {
                 case 1:
                     we.buffer.type = WGPUBufferBindingType_Uniform;
+                    we.buffer.hasDynamicOffset = e.hasDynamicOffset ? 1 : 0;
                     break;
                 case 2:
                     we.buffer.type = WGPUBufferBindingType_Storage;
+                    we.buffer.hasDynamicOffset = e.hasDynamicOffset ? 1 : 0;
                     break;
                 case 3:
                     we.buffer.type = WGPUBufferBindingType_ReadOnlyStorage;
+                    we.buffer.hasDynamicOffset = e.hasDynamicOffset ? 1 : 0;
                     break;
                 case 4:
                     we.sampler.type = WGPUSamplerBindingType_Filtering;
                     break;
                 case 5:
                     we.texture.sampleType = WGPUTextureSampleType_Float;
-                    we.texture.viewDimension = WGPUTextureViewDimension_2D;
+                    we.texture.viewDimension =
+                        (WGPUTextureViewDimension)e.viewDimension;
+                    break;
+                case 6:
+                    we.storageTexture.access = WGPUStorageTextureAccess_WriteOnly;
+                    we.storageTexture.format = WGPUTextureFormat_RGBA8Unorm;
+                    we.storageTexture.viewDimension = WGPUTextureViewDimension_2D;
                     break;
                 default:
                     throw std::runtime_error(
-                        "GpuBindGroupLayoutEntry.type must be 1..5");
+                        "GpuBindGroupLayoutEntry.type must be 1..6");
             }
             entries.push_back(we);
         }
@@ -1095,6 +1174,265 @@ public:
 
     void renderPassRelease(int64_t pass) override {
         wgpuRenderPassEncoderRelease((WGPURenderPassEncoder)(intptr_t)pass);
+    }
+
+    void encoderCopyBufferToTexture(int64_t encoder, int64_t buffer,
+                                    int64_t bytesPerRow, int64_t texture,
+                                    int64_t mipLevel, int64_t width,
+                                    int64_t height) override {
+        WGPUTexelCopyBufferInfo src = WGPU_TEXEL_COPY_BUFFER_INFO_INIT;
+        src.buffer = (WGPUBuffer)(intptr_t)buffer;
+        src.layout.offset = 0;
+        src.layout.bytesPerRow = (uint32_t)bytesPerRow;
+        src.layout.rowsPerImage = (uint32_t)height;
+        WGPUTexelCopyTextureInfo dst = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
+        dst.texture = (WGPUTexture)(intptr_t)texture;
+        dst.mipLevel = (uint32_t)mipLevel;
+        WGPUExtent3D extent = {(uint32_t)width, (uint32_t)height, 1};
+        wgpuCommandEncoderCopyBufferToTexture(
+            (WGPUCommandEncoder)(intptr_t)encoder, &src, &dst, &extent);
+    }
+
+    void encoderCopyTextureToTexture(int64_t encoder, int64_t srcTexture,
+                                     int64_t dstTexture, int64_t width,
+                                     int64_t height) override {
+        WGPUTexelCopyTextureInfo src = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
+        src.texture = (WGPUTexture)(intptr_t)srcTexture;
+        WGPUTexelCopyTextureInfo dst = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
+        dst.texture = (WGPUTexture)(intptr_t)dstTexture;
+        WGPUExtent3D extent = {(uint32_t)width, (uint32_t)height, 1};
+        wgpuCommandEncoderCopyTextureToTexture(
+            (WGPUCommandEncoder)(intptr_t)encoder, &src, &dst, &extent);
+    }
+
+    // ── Render pass state ────────────────────────────────────────────────
+
+    void renderPassSetViewport(int64_t pass, double x, double y, double width,
+                               double height, double minDepth,
+                               double maxDepth) override {
+        wgpuRenderPassEncoderSetViewport(
+            (WGPURenderPassEncoder)(intptr_t)pass, (float)x, (float)y,
+            (float)width, (float)height, (float)minDepth, (float)maxDepth);
+    }
+
+    void renderPassSetScissorRect(int64_t pass, int64_t x, int64_t y,
+                                  int64_t width, int64_t height) override {
+        wgpuRenderPassEncoderSetScissorRect(
+            (WGPURenderPassEncoder)(intptr_t)pass, (uint32_t)x, (uint32_t)y,
+            (uint32_t)width, (uint32_t)height);
+    }
+
+    void renderPassSetBlendConstant(int64_t pass, double r, double g, double b,
+                                    double a) override {
+        WGPUColor color = {r, g, b, a};
+        wgpuRenderPassEncoderSetBlendConstant(
+            (WGPURenderPassEncoder)(intptr_t)pass, &color);
+    }
+
+    // ── Indirect execution ───────────────────────────────────────────────
+
+    void renderPassDrawIndirect(int64_t pass, int64_t buffer,
+                                int64_t offset) override {
+        wgpuRenderPassEncoderDrawIndirect(
+            (WGPURenderPassEncoder)(intptr_t)pass,
+            (WGPUBuffer)(intptr_t)buffer, (uint64_t)offset);
+    }
+
+    void renderPassDrawIndexedIndirect(int64_t pass, int64_t buffer,
+                                       int64_t offset) override {
+        wgpuRenderPassEncoderDrawIndexedIndirect(
+            (WGPURenderPassEncoder)(intptr_t)pass,
+            (WGPUBuffer)(intptr_t)buffer, (uint64_t)offset);
+    }
+
+    void computePassDispatchWorkgroupsIndirect(int64_t pass, int64_t buffer,
+                                               int64_t offset) override {
+        wgpuComputePassEncoderDispatchWorkgroupsIndirect(
+            (WGPUComputePassEncoder)(intptr_t)pass,
+            (WGPUBuffer)(intptr_t)buffer, (uint64_t)offset);
+    }
+
+    // ── Occlusion / stencil / dynamic offsets ────────────────────────────
+
+    int64_t deviceCreateOcclusionQuerySet(int64_t device,
+                                          int64_t count) override {
+        WGPUQuerySetDescriptor wd = WGPU_QUERY_SET_DESCRIPTOR_INIT;
+        wd.label = {"occlusion_query_set", WGPU_STRLEN};
+        wd.type = WGPUQueryType_Occlusion;
+        wd.count = (uint32_t)count;
+        WGPUQuerySet qs =
+            wgpuDeviceCreateQuerySet((WGPUDevice)(intptr_t)device, &wd);
+        if (!qs) throw std::runtime_error("wgpuDeviceCreateQuerySet failed");
+        return (int64_t)(intptr_t)qs;
+    }
+
+    NitroCppBuffer deviceGetLimits(int64_t device) override {
+        WGPULimits limits = WGPU_LIMITS_INIT;
+        if (wgpuDeviceGetLimits((WGPUDevice)(intptr_t)device, &limits) !=
+            WGPUStatus_Success) {
+            throw std::runtime_error("wgpuDeviceGetLimits failed");
+        }
+        GpuLimits out;
+        out.maxTextureDimension1D = limits.maxTextureDimension1D;
+        out.maxTextureDimension2D = limits.maxTextureDimension2D;
+        out.maxTextureDimension3D = limits.maxTextureDimension3D;
+        out.maxTextureArrayLayers = limits.maxTextureArrayLayers;
+        out.maxBindGroups = limits.maxBindGroups;
+        out.maxBindingsPerBindGroup = limits.maxBindingsPerBindGroup;
+        out.maxUniformBufferBindingSize =
+            (int64_t)limits.maxUniformBufferBindingSize;
+        out.maxStorageBufferBindingSize =
+            (int64_t)limits.maxStorageBufferBindingSize;
+        out.minUniformBufferOffsetAlignment =
+            limits.minUniformBufferOffsetAlignment;
+        out.minStorageBufferOffsetAlignment =
+            limits.minStorageBufferOffsetAlignment;
+        out.maxBufferSize = (int64_t)limits.maxBufferSize;
+        out.maxComputeWorkgroupStorageSize =
+            limits.maxComputeWorkgroupStorageSize;
+        out.maxComputeInvocationsPerWorkgroup =
+            limits.maxComputeInvocationsPerWorkgroup;
+        out.maxComputeWorkgroupSizeX = limits.maxComputeWorkgroupSizeX;
+        out.maxComputeWorkgroupSizeY = limits.maxComputeWorkgroupSizeY;
+        out.maxComputeWorkgroupSizeZ = limits.maxComputeWorkgroupSizeZ;
+        return out.toNativeBuffer();
+    }
+
+    void renderPassBeginOcclusionQuery(int64_t pass,
+                                       int64_t queryIndex) override {
+        wgpuRenderPassEncoderBeginOcclusionQuery(
+            (WGPURenderPassEncoder)(intptr_t)pass, (uint32_t)queryIndex);
+    }
+
+    void renderPassEndOcclusionQuery(int64_t pass) override {
+        wgpuRenderPassEncoderEndOcclusionQuery(
+            (WGPURenderPassEncoder)(intptr_t)pass);
+    }
+
+    void renderPassSetStencilReference(int64_t pass,
+                                       int64_t reference) override {
+        wgpuRenderPassEncoderSetStencilReference(
+            (WGPURenderPassEncoder)(intptr_t)pass, (uint32_t)reference);
+    }
+
+    void renderPassSetBindGroupOffsets(int64_t pass, int64_t index,
+                                       int64_t bindGroup, int64_t offsetCount,
+                                       int64_t o0, int64_t o1, int64_t o2,
+                                       int64_t o3) override {
+        const uint32_t offsets[4] = {(uint32_t)o0, (uint32_t)o1, (uint32_t)o2,
+                                     (uint32_t)o3};
+        wgpuRenderPassEncoderSetBindGroup(
+            (WGPURenderPassEncoder)(intptr_t)pass, (uint32_t)index,
+            (WGPUBindGroup)(intptr_t)bindGroup, (size_t)offsetCount, offsets);
+    }
+
+    void computePassSetBindGroupOffsets(int64_t pass, int64_t index,
+                                        int64_t bindGroup, int64_t offsetCount,
+                                        int64_t o0, int64_t o1, int64_t o2,
+                                        int64_t o3) override {
+        const uint32_t offsets[4] = {(uint32_t)o0, (uint32_t)o1, (uint32_t)o2,
+                                     (uint32_t)o3};
+        wgpuComputePassEncoderSetBindGroup(
+            (WGPUComputePassEncoder)(intptr_t)pass, (uint32_t)index,
+            (WGPUBindGroup)(intptr_t)bindGroup, (size_t)offsetCount, offsets);
+    }
+
+    // ── Render bundles ───────────────────────────────────────────────────
+
+    int64_t deviceCreateRenderBundleEncoder(int64_t device,
+                                            NitroCppBuffer descriptor) override {
+        const auto d = GpuRenderBundleEncoderDescriptor::fromNative(descriptor);
+        WGPUTextureFormat formats[4];
+        size_t count = 0;
+        const int64_t f[4] = {d.format0, d.format1, d.format2, d.format3};
+        for (int i = 0; i < 4 && f[i]; i++) {
+            formats[count++] = (WGPUTextureFormat)f[i];
+        }
+        WGPURenderBundleEncoderDescriptor wd = {};
+        std::string label = d.label;
+        wd.label = toView(label);
+        wd.colorFormatCount = count;
+        wd.colorFormats = formats;
+        wd.depthStencilFormat = (WGPUTextureFormat)d.depthFormat;
+        wd.sampleCount = (uint32_t)d.sampleCount;
+        WGPURenderBundleEncoder enc = wgpuDeviceCreateRenderBundleEncoder(
+            (WGPUDevice)(intptr_t)device, &wd);
+        if (!enc) {
+            throw std::runtime_error("wgpuDeviceCreateRenderBundleEncoder failed");
+        }
+        return (int64_t)(intptr_t)enc;
+    }
+
+    void bundleSetPipeline(int64_t bundleEncoder, int64_t pipeline) override {
+        wgpuRenderBundleEncoderSetPipeline(
+            (WGPURenderBundleEncoder)(intptr_t)bundleEncoder,
+            (WGPURenderPipeline)(intptr_t)pipeline);
+    }
+
+    void bundleSetBindGroup(int64_t bundleEncoder, int64_t index,
+                            int64_t bindGroup) override {
+        wgpuRenderBundleEncoderSetBindGroup(
+            (WGPURenderBundleEncoder)(intptr_t)bundleEncoder, (uint32_t)index,
+            (WGPUBindGroup)(intptr_t)bindGroup, 0, nullptr);
+    }
+
+    void bundleSetVertexBuffer(int64_t bundleEncoder, int64_t slot,
+                               int64_t buffer, int64_t offset) override {
+        wgpuRenderBundleEncoderSetVertexBuffer(
+            (WGPURenderBundleEncoder)(intptr_t)bundleEncoder, (uint32_t)slot,
+            (WGPUBuffer)(intptr_t)buffer, (uint64_t)offset, WGPU_WHOLE_SIZE);
+    }
+
+    void bundleSetIndexBuffer(int64_t bundleEncoder, int64_t buffer,
+                              int64_t indexFormat, int64_t offset) override {
+        wgpuRenderBundleEncoderSetIndexBuffer(
+            (WGPURenderBundleEncoder)(intptr_t)bundleEncoder,
+            (WGPUBuffer)(intptr_t)buffer, (WGPUIndexFormat)indexFormat,
+            (uint64_t)offset, WGPU_WHOLE_SIZE);
+    }
+
+    void bundleDraw(int64_t bundleEncoder, int64_t vertexCount,
+                    int64_t instanceCount, int64_t firstVertex,
+                    int64_t firstInstance) override {
+        wgpuRenderBundleEncoderDraw(
+            (WGPURenderBundleEncoder)(intptr_t)bundleEncoder,
+            (uint32_t)vertexCount, (uint32_t)instanceCount,
+            (uint32_t)firstVertex, (uint32_t)firstInstance);
+    }
+
+    void bundleDrawIndexed(int64_t bundleEncoder, int64_t indexCount,
+                           int64_t instanceCount, int64_t firstIndex,
+                           int64_t baseVertex, int64_t firstInstance) override {
+        wgpuRenderBundleEncoderDrawIndexed(
+            (WGPURenderBundleEncoder)(intptr_t)bundleEncoder,
+            (uint32_t)indexCount, (uint32_t)instanceCount,
+            (uint32_t)firstIndex, (int32_t)baseVertex,
+            (uint32_t)firstInstance);
+    }
+
+    int64_t bundleFinish(int64_t bundleEncoder,
+                         const std::string& label) override {
+        WGPURenderBundleDescriptor wd = {};
+        wd.label = toView(label);
+        WGPURenderBundle bundle = wgpuRenderBundleEncoderFinish(
+            (WGPURenderBundleEncoder)(intptr_t)bundleEncoder, &wd);
+        if (!bundle) throw std::runtime_error("bundleFinish failed");
+        return (int64_t)(intptr_t)bundle;
+    }
+
+    void renderBundleEncoderRelease(int64_t bundleEncoder) override {
+        wgpuRenderBundleEncoderRelease(
+            (WGPURenderBundleEncoder)(intptr_t)bundleEncoder);
+    }
+
+    void renderBundleRelease(int64_t bundle) override {
+        wgpuRenderBundleRelease((WGPURenderBundle)(intptr_t)bundle);
+    }
+
+    void renderPassExecuteBundle(int64_t pass, int64_t bundle) override {
+        WGPURenderBundle b = (WGPURenderBundle)(intptr_t)bundle;
+        wgpuRenderPassEncoderExecuteBundles(
+            (WGPURenderPassEncoder)(intptr_t)pass, 1, &b);
     }
 
     // ── Timestamp queries ────────────────────────────────────────────────

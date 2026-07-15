@@ -129,9 +129,13 @@ class GpuDeviceDescriptor {
   /// unsupported feature fails device creation).
   final bool requireTimestampQueries;
 
+  /// Limit overrides; null keeps every limit at its default.
+  final GpuRequiredLimits? requiredLimits;
+
   const GpuDeviceDescriptor({
     this.label = '',
     this.requireTimestampQueries = false,
+    this.requiredLimits,
   });
 }
 
@@ -337,6 +341,12 @@ class GpuTextureDescriptor {
   final int mipLevelCount;
   final int sampleCount;
 
+  /// Raw `WGPUTextureDimension`: 1 = 1D, 2 = 2D, 3 = 3D.
+  final int dimension;
+
+  /// Depth for 3D textures / array layer count for 2D (6 for cubes).
+  final int depthOrArrayLayers;
+
   const GpuTextureDescriptor({
     this.label = '',
     required this.width,
@@ -344,6 +354,80 @@ class GpuTextureDescriptor {
     required this.format,
     required this.usage,
     this.mipLevelCount = 1,
+    this.sampleCount = 1,
+    this.dimension = 2,
+    this.depthOrArrayLayers = 1,
+  });
+}
+
+/// Descriptor for [NitroWebgpu.textureCreateView]. Zeros mean "default/all".
+@hybridRecord
+class GpuTextureViewDescriptor {
+  final String label;
+  final int baseMipLevel;
+
+  /// 0 = all remaining mip levels.
+  final int mipLevelCount;
+
+  /// Raw `WGPUTextureViewDimension`: 0 = infer, 1 = 1D, 2 = 2D,
+  /// 3 = 2D-array, 4 = cube, 5 = cube-array, 6 = 3D.
+  final int dimension;
+  final int baseArrayLayer;
+
+  /// 0 = all remaining array layers.
+  final int arrayLayerCount;
+
+  const GpuTextureViewDescriptor({
+    this.label = '',
+    this.baseMipLevel = 0,
+    this.mipLevelCount = 0,
+    this.dimension = 0,
+    this.baseArrayLayer = 0,
+    this.arrayLayerCount = 0,
+  });
+}
+
+/// Requested device limits; -1 leaves a limit at its default.
+@hybridRecord
+class GpuRequiredLimits {
+  final int maxTextureDimension2D;
+  final int maxTextureArrayLayers;
+  final int maxBindGroups;
+  final int maxUniformBufferBindingSize;
+  final int maxStorageBufferBindingSize;
+  final int maxBufferSize;
+  final int maxComputeInvocationsPerWorkgroup;
+
+  const GpuRequiredLimits({
+    this.maxTextureDimension2D = -1,
+    this.maxTextureArrayLayers = -1,
+    this.maxBindGroups = -1,
+    this.maxUniformBufferBindingSize = -1,
+    this.maxStorageBufferBindingSize = -1,
+    this.maxBufferSize = -1,
+    this.maxComputeInvocationsPerWorkgroup = -1,
+  });
+}
+
+/// Descriptor for [NitroWebgpu.deviceCreateRenderBundleEncoder]. Color
+/// formats are raw `WGPUTextureFormat`; 0 = slot unused (trailing only).
+@hybridRecord
+class GpuRenderBundleEncoderDescriptor {
+  final String label;
+  final int format0;
+  final int format1;
+  final int format2;
+  final int format3;
+  final int depthFormat;
+  final int sampleCount;
+
+  const GpuRenderBundleEncoderDescriptor({
+    this.label = '',
+    required this.format0,
+    this.format1 = 0,
+    this.format2 = 0,
+    this.format3 = 0,
+    this.depthFormat = 0,
     this.sampleCount = 1,
   });
 }
@@ -364,6 +448,9 @@ class GpuColorAttachment {
   final double clearB;
   final double clearA;
 
+  /// Raw `WGPUTextureView` address of the MSAA resolve target; 0 = none.
+  final int resolveTargetAddress;
+
   const GpuColorAttachment({
     required this.viewAddress,
     this.loadOp = 2,
@@ -372,6 +459,7 @@ class GpuColorAttachment {
     this.clearG = 0,
     this.clearB = 0,
     this.clearA = 1,
+    this.resolveTargetAddress = 0,
   });
 }
 
@@ -396,6 +484,14 @@ class GpuRenderPassDescriptor {
   final int depthStoreOp;
   final double depthClearValue;
 
+  /// Raw stencil load/store ops; 0 = format has no stencil aspect.
+  final int stencilLoadOp;
+  final int stencilStoreOp;
+  final int stencilClearValue;
+
+  /// Raw `WGPUQuerySet` (occlusion type) address; 0 = none.
+  final int occlusionQuerySetAddress;
+
   const GpuRenderPassDescriptor({
     this.label = '',
     required this.colorAttachments,
@@ -406,6 +502,10 @@ class GpuRenderPassDescriptor {
     this.depthLoadOp = 2,
     this.depthStoreOp = 2,
     this.depthClearValue = 1.0,
+    this.stencilLoadOp = 0,
+    this.stencilStoreOp = 0,
+    this.stencilClearValue = 0,
+    this.occlusionQuerySetAddress = 0,
   });
 }
 
@@ -460,10 +560,18 @@ class GpuBindGroupLayoutEntry {
   final int visibility;
   final int type;
 
+  /// For texture entries (type 5): raw `WGPUTextureViewDimension`.
+  final int viewDimension;
+
+  /// For buffer entries (types 1–3): bind with dynamic offsets.
+  final bool hasDynamicOffset;
+
   const GpuBindGroupLayoutEntry({
     required this.binding,
     required this.visibility,
     required this.type,
+    this.viewDimension = 2,
+    this.hasDynamicOffset = false,
   });
 }
 
@@ -530,7 +638,24 @@ class GpuRenderPipelineDescriptor {
   final int depthCompare;
 
   /// Blend preset: 0 = opaque, 1 = alpha, 2 = additive, 3 = premultiplied.
+  /// Applies to the first color target.
   final int blendMode;
+
+  /// MSAA sample count (1 or 4). Attachments must match.
+  final int sampleCount;
+
+  /// Extra color target formats (raw); 0 = unused (trailing only).
+  final int targetFormat1;
+  final int targetFormat2;
+  final int targetFormat3;
+
+  /// Raw `WGPUCompareFunction` for stencil (8 = always). Both faces.
+  final int stencilCompare;
+
+  /// Raw `WGPUStencilOperation` (1 = keep, 3 = replace). Both faces.
+  final int stencilFailOp;
+  final int stencilDepthFailOp;
+  final int stencilPassOp;
 
   const GpuRenderPipelineDescriptor({
     this.label = '',
@@ -545,6 +670,14 @@ class GpuRenderPipelineDescriptor {
     this.depthWriteEnabled = true,
     this.depthCompare = 2,
     this.blendMode = 0,
+    this.sampleCount = 1,
+    this.targetFormat1 = 0,
+    this.targetFormat2 = 0,
+    this.targetFormat3 = 0,
+    this.stencilCompare = 8,
+    this.stencilFailOp = 1,
+    this.stencilDepthFailOp = 1,
+    this.stencilPassOp = 1,
   });
 }
 
@@ -694,15 +827,14 @@ abstract class NitroWebgpu extends HybridObject {
   void textureDestroy(int texture);
   void textureRelease(int texture);
 
-  /// Creates the default full-texture view.
-  int textureCreateView(int texture, String label);
+  int textureCreateView(int texture, GpuTextureViewDescriptor descriptor);
   void textureViewRelease(int view);
 
-  /// Copies [data] into mip 0 of a 2D [texture] (usage must include
+  /// Copies [data] into mip [mipLevel] of a 2D [texture] (usage must include
   /// `GpuTextureUsage.copyDst`). No 256-byte row alignment is required for
   /// writeTexture; [bytesPerRow] is the tight source stride.
   void queueWriteTexture(int queue, int texture, @zeroCopy Uint8List data,
-      int bytesPerRow, int width, int height);
+      int bytesPerRow, int width, int height, int mipLevel, int arrayLayer);
 
   int deviceCreateSampler(int device, GpuSamplerDescriptor descriptor);
   void samplerRelease(int sampler);
@@ -743,6 +875,77 @@ abstract class NitroWebgpu extends HybridObject {
   /// multiple of 256 per the WebGPU spec.
   void encoderCopyTextureToBuffer(int encoder, int texture, int buffer,
       int bytesPerRow, int width, int height);
+
+  /// Copies [buffer] contents into mip [mipLevel] of a 2D [texture].
+  /// [bytesPerRow] must be a multiple of 256 for buffer↔texture copies.
+  void encoderCopyBufferToTexture(int encoder, int buffer, int bytesPerRow,
+      int texture, int mipLevel, int width, int height);
+
+  /// Copies a [width]×[height] region between mip 0 of two 2D textures.
+  void encoderCopyTextureToTexture(
+      int encoder, int srcTexture, int dstTexture, int width, int height);
+
+  // ── Render pass state ──────────────────────────────────────────────────
+
+  void renderPassSetViewport(int pass, double x, double y, double width,
+      double height, double minDepth, double maxDepth);
+  void renderPassSetScissorRect(
+      int pass, int x, int y, int width, int height);
+  void renderPassSetBlendConstant(
+      int pass, double r, double g, double b, double a);
+
+  // ── Indirect execution ─────────────────────────────────────────────────
+
+  /// [buffer] holds `[vertexCount, instanceCount, firstVertex,
+  /// firstInstance]` as u32 at [offset]; usage needs
+  /// `GpuBufferUsage.indirect`.
+  void renderPassDrawIndirect(int pass, int buffer, int offset);
+
+  /// [buffer] holds `[indexCount, instanceCount, firstIndex, baseVertex,
+  /// firstInstance]` as u32/i32 at [offset].
+  void renderPassDrawIndexedIndirect(int pass, int buffer, int offset);
+
+  /// [buffer] holds `[x, y, z]` workgroup counts as u32 at [offset].
+  void computePassDispatchWorkgroupsIndirect(int pass, int buffer, int offset);
+
+  // ── Occlusion queries / stencil / dynamic offsets ──────────────────────
+
+  /// Creates an occlusion `WGPUQuerySet` with [count] slots.
+  int deviceCreateOcclusionQuerySet(int device, int count);
+
+  /// The device's actual limits (after requiredLimits were applied).
+  GpuLimits deviceGetLimits(int device);
+
+  void renderPassBeginOcclusionQuery(int pass, int queryIndex);
+  void renderPassEndOcclusionQuery(int pass);
+  void renderPassSetStencilReference(int pass, int reference);
+
+  /// setBindGroup with up to four dynamic offsets (count = how many apply).
+  void renderPassSetBindGroupOffsets(int pass, int index, int bindGroup,
+      int offsetCount, int o0, int o1, int o2, int o3);
+  void computePassSetBindGroupOffsets(int pass, int index, int bindGroup,
+      int offsetCount, int o0, int o1, int o2, int o3);
+
+  // ── Render bundles ─────────────────────────────────────────────────────
+
+  int deviceCreateRenderBundleEncoder(
+      int device, GpuRenderBundleEncoderDescriptor descriptor);
+  void bundleSetPipeline(int bundleEncoder, int pipeline);
+  void bundleSetBindGroup(int bundleEncoder, int index, int bindGroup);
+  void bundleSetVertexBuffer(
+      int bundleEncoder, int slot, int buffer, int offset);
+  void bundleSetIndexBuffer(
+      int bundleEncoder, int buffer, int indexFormat, int offset);
+  void bundleDraw(int bundleEncoder, int vertexCount, int instanceCount,
+      int firstVertex, int firstInstance);
+  void bundleDrawIndexed(int bundleEncoder, int indexCount, int instanceCount,
+      int firstIndex, int baseVertex, int firstInstance);
+
+  /// Finishes recording; the encoder is invalid afterwards (still release it).
+  int bundleFinish(int bundleEncoder, String label);
+  void renderBundleEncoderRelease(int bundleEncoder);
+  void renderBundleRelease(int bundle);
+  void renderPassExecuteBundle(int pass, int bundle);
 
   // ── Timestamp queries ──────────────────────────────────────────────────
 

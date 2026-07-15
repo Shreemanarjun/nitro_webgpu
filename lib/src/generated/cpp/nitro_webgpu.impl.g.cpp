@@ -278,7 +278,7 @@ public:
         throw std::runtime_error("Not implemented: textureRelease");
     }
 
-    int64_t textureCreateView(int64_t texture, const std::string& label) override {
+    int64_t textureCreateView(int64_t texture, NitroCppBuffer descriptor) override {
         // TODO: implement textureCreateView
         throw std::runtime_error("Not implemented: textureCreateView");
         // return 0;
@@ -289,7 +289,7 @@ public:
         throw std::runtime_error("Not implemented: textureViewRelease");
     }
 
-    void queueWriteTexture(int64_t queue, int64_t texture, const uint8_t* data, size_t data_length, int64_t bytesPerRow, int64_t width, int64_t height) override {
+    void queueWriteTexture(int64_t queue, int64_t texture, const uint8_t* data, size_t data_length, int64_t bytesPerRow, int64_t width, int64_t height, int64_t mipLevel, int64_t arrayLayer) override {
         // TODO: implement queueWriteTexture
         throw std::runtime_error("Not implemented: queueWriteTexture");
     }
@@ -388,6 +388,140 @@ public:
     void encoderCopyTextureToBuffer(int64_t encoder, int64_t texture, int64_t buffer, int64_t bytesPerRow, int64_t width, int64_t height) override {
         // TODO: implement encoderCopyTextureToBuffer
         throw std::runtime_error("Not implemented: encoderCopyTextureToBuffer");
+    }
+
+    void encoderCopyBufferToTexture(int64_t encoder, int64_t buffer, int64_t bytesPerRow, int64_t texture, int64_t mipLevel, int64_t width, int64_t height) override {
+        // TODO: implement encoderCopyBufferToTexture
+        throw std::runtime_error("Not implemented: encoderCopyBufferToTexture");
+    }
+
+    void encoderCopyTextureToTexture(int64_t encoder, int64_t srcTexture, int64_t dstTexture, int64_t width, int64_t height) override {
+        // TODO: implement encoderCopyTextureToTexture
+        throw std::runtime_error("Not implemented: encoderCopyTextureToTexture");
+    }
+
+    void renderPassSetViewport(int64_t pass, double x, double y, double width, double height, double minDepth, double maxDepth) override {
+        // TODO: implement renderPassSetViewport
+        throw std::runtime_error("Not implemented: renderPassSetViewport");
+    }
+
+    void renderPassSetScissorRect(int64_t pass, int64_t x, int64_t y, int64_t width, int64_t height) override {
+        // TODO: implement renderPassSetScissorRect
+        throw std::runtime_error("Not implemented: renderPassSetScissorRect");
+    }
+
+    void renderPassSetBlendConstant(int64_t pass, double r, double g, double b, double a) override {
+        // TODO: implement renderPassSetBlendConstant
+        throw std::runtime_error("Not implemented: renderPassSetBlendConstant");
+    }
+
+    void renderPassDrawIndirect(int64_t pass, int64_t buffer, int64_t offset) override {
+        // TODO: implement renderPassDrawIndirect
+        throw std::runtime_error("Not implemented: renderPassDrawIndirect");
+    }
+
+    void renderPassDrawIndexedIndirect(int64_t pass, int64_t buffer, int64_t offset) override {
+        // TODO: implement renderPassDrawIndexedIndirect
+        throw std::runtime_error("Not implemented: renderPassDrawIndexedIndirect");
+    }
+
+    void computePassDispatchWorkgroupsIndirect(int64_t pass, int64_t buffer, int64_t offset) override {
+        // TODO: implement computePassDispatchWorkgroupsIndirect
+        throw std::runtime_error("Not implemented: computePassDispatchWorkgroupsIndirect");
+    }
+
+    int64_t deviceCreateOcclusionQuerySet(int64_t device, int64_t count) override {
+        // TODO: implement deviceCreateOcclusionQuerySet
+        throw std::runtime_error("Not implemented: deviceCreateOcclusionQuerySet");
+        // return 0;
+    }
+
+    NitroCppBuffer deviceGetLimits(int64_t device) override {
+        // TODO: implement deviceGetLimits
+        throw std::runtime_error("Not implemented: deviceGetLimits");
+        // return { nullptr, 0 };
+    }
+
+    void renderPassBeginOcclusionQuery(int64_t pass, int64_t queryIndex) override {
+        // TODO: implement renderPassBeginOcclusionQuery
+        throw std::runtime_error("Not implemented: renderPassBeginOcclusionQuery");
+    }
+
+    void renderPassEndOcclusionQuery(int64_t pass) override {
+        // TODO: implement renderPassEndOcclusionQuery
+        throw std::runtime_error("Not implemented: renderPassEndOcclusionQuery");
+    }
+
+    void renderPassSetStencilReference(int64_t pass, int64_t reference) override {
+        // TODO: implement renderPassSetStencilReference
+        throw std::runtime_error("Not implemented: renderPassSetStencilReference");
+    }
+
+    void renderPassSetBindGroupOffsets(int64_t pass, int64_t index, int64_t bindGroup, int64_t offsetCount, int64_t o0, int64_t o1, int64_t o2, int64_t o3) override {
+        // TODO: implement renderPassSetBindGroupOffsets
+        throw std::runtime_error("Not implemented: renderPassSetBindGroupOffsets");
+    }
+
+    void computePassSetBindGroupOffsets(int64_t pass, int64_t index, int64_t bindGroup, int64_t offsetCount, int64_t o0, int64_t o1, int64_t o2, int64_t o3) override {
+        // TODO: implement computePassSetBindGroupOffsets
+        throw std::runtime_error("Not implemented: computePassSetBindGroupOffsets");
+    }
+
+    int64_t deviceCreateRenderBundleEncoder(int64_t device, NitroCppBuffer descriptor) override {
+        // TODO: implement deviceCreateRenderBundleEncoder
+        throw std::runtime_error("Not implemented: deviceCreateRenderBundleEncoder");
+        // return 0;
+    }
+
+    void bundleSetPipeline(int64_t bundleEncoder, int64_t pipeline) override {
+        // TODO: implement bundleSetPipeline
+        throw std::runtime_error("Not implemented: bundleSetPipeline");
+    }
+
+    void bundleSetBindGroup(int64_t bundleEncoder, int64_t index, int64_t bindGroup) override {
+        // TODO: implement bundleSetBindGroup
+        throw std::runtime_error("Not implemented: bundleSetBindGroup");
+    }
+
+    void bundleSetVertexBuffer(int64_t bundleEncoder, int64_t slot, int64_t buffer, int64_t offset) override {
+        // TODO: implement bundleSetVertexBuffer
+        throw std::runtime_error("Not implemented: bundleSetVertexBuffer");
+    }
+
+    void bundleSetIndexBuffer(int64_t bundleEncoder, int64_t buffer, int64_t indexFormat, int64_t offset) override {
+        // TODO: implement bundleSetIndexBuffer
+        throw std::runtime_error("Not implemented: bundleSetIndexBuffer");
+    }
+
+    void bundleDraw(int64_t bundleEncoder, int64_t vertexCount, int64_t instanceCount, int64_t firstVertex, int64_t firstInstance) override {
+        // TODO: implement bundleDraw
+        throw std::runtime_error("Not implemented: bundleDraw");
+    }
+
+    void bundleDrawIndexed(int64_t bundleEncoder, int64_t indexCount, int64_t instanceCount, int64_t firstIndex, int64_t baseVertex, int64_t firstInstance) override {
+        // TODO: implement bundleDrawIndexed
+        throw std::runtime_error("Not implemented: bundleDrawIndexed");
+    }
+
+    int64_t bundleFinish(int64_t bundleEncoder, const std::string& label) override {
+        // TODO: implement bundleFinish
+        throw std::runtime_error("Not implemented: bundleFinish");
+        // return 0;
+    }
+
+    void renderBundleEncoderRelease(int64_t bundleEncoder) override {
+        // TODO: implement renderBundleEncoderRelease
+        throw std::runtime_error("Not implemented: renderBundleEncoderRelease");
+    }
+
+    void renderBundleRelease(int64_t bundle) override {
+        // TODO: implement renderBundleRelease
+        throw std::runtime_error("Not implemented: renderBundleRelease");
+    }
+
+    void renderPassExecuteBundle(int64_t pass, int64_t bundle) override {
+        // TODO: implement renderPassExecuteBundle
+        throw std::runtime_error("Not implemented: renderPassExecuteBundle");
     }
 
     int64_t deviceCreateTimestampQuerySet(int64_t device, int64_t count) override {
