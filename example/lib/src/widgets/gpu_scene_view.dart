@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:nitro_webgpu/nitro_webgpu.dart';
 
@@ -25,10 +27,24 @@ class GpuSceneView extends StatefulWidget {
     this.logLabel,
     this.onStats,
     this.renderScale = 1.0,
+    this.dynamicResolution = false,
+    this.targetFps,
   });
 
   /// Render-resolution multiplier (see [WebGpuView.renderScale]).
   final double renderScale;
+
+  /// Dynamic resolution scaling: uses the exact per-pass GPU timings to
+  /// steer the internal render scale so the scene holds [targetFps]
+  /// regardless of window size (like games do). The overlay shows the
+  /// current `res N.NN×` when scaled down. Requires timestamp queries;
+  /// no-op on the estimate fallback.
+  final bool dynamicResolution;
+
+  /// Frame-rate target for [dynamicResolution]. Null (default) targets the
+  /// display's actual refresh rate — 120 on ProMotion, 60 elsewhere —
+  /// re-read when the window moves between monitors.
+  final int? targetFps;
 
   final GpuScene scene;
   final bool ownsScene;
@@ -55,6 +71,49 @@ class _GpuSceneViewState extends State<GpuSceneView> {
   GpuPassTimer? _timer;
   String? _error;
   int _frameIndex = 0;
+  double _dynScale = 1.0;
+  double _displayFps = 60;
+
+  double get _targetFps => widget.targetFps?.toDouble() ?? _displayFps;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final rate = View.of(context).display.refreshRate;
+    if (rate > 0) _displayFps = rate;
+  }
+  // Sample the GPU cost every N frames: quickly while over budget (fast DRS
+  // convergence at low fps), sparsely once settled (each sample briefly
+  // stalls the pipeline for the readback).
+  int _sampleInterval = 10;
+
+  double get _effectiveScale =>
+      (widget.renderScale * (widget.dynamicResolution ? _dynScale : 1.0))
+          .clamp(0.1, 2.0);
+
+  /// Closed-loop control: GPU cost is ~linear in pixel count, so the scale
+  /// correction is the square root of budget/actual.
+  ///
+  /// Asymmetric on purpose: scale down fast when over budget (dropped frames
+  /// hurt), scale back up slowly and only when comfortably under budget —
+  /// every scale change is a visible resample step, so upscale thrash reads
+  /// as flicker.
+  void _steerResolution(double gpuMs) {
+    if (!widget.dynamicResolution || gpuMs <= 0) return;
+    const headroom = 0.85;
+    final budgetMs = 1000.0 / _targetFps * headroom;
+    final ratio = budgetMs / gpuMs;
+    _sampleInterval = ratio < 0.85 ? 10 : 30;
+    // Dead-band: within ±15% of budget (or already at 1.0 and under budget),
+    // leave the scale alone.
+    if (ratio > 0.85 && (ratio < 1.15 || _dynScale >= 1.0)) return;
+    final ideal = (_dynScale * math.sqrt(ratio)).clamp(0.25, 1.0);
+    final gain = ideal < _dynScale ? 0.6 : 0.2;
+    final damped = _dynScale + (ideal - _dynScale) * gain;
+    if ((damped - _dynScale).abs() > 0.03) {
+      setState(() => _dynScale = damped);
+    }
+  }
 
   void _onStatsPublished() {
     final stats = _perf.stats.value;
@@ -84,7 +143,7 @@ class _GpuSceneViewState extends State<GpuSceneView> {
 
   Future<void> _onFrame(GpuRenderTarget target, Duration elapsed) async {
     _frameIndex++;
-    final sample = _frameIndex % 30 == 0;
+    final sample = _frameIndex % _sampleInterval == 0;
 
     // Real on-GPU pass timing via timestamp queries; falls back to sampling
     // the queue-drain latency when the feature is unavailable.
@@ -100,6 +159,7 @@ class _GpuSceneViewState extends State<GpuSceneView> {
     if (timestamps != null) {
       gpuMs = await _timer!.finish();
       gpuIsExact = gpuMs != null;
+      if (gpuMs != null && mounted) _steerResolution(gpuMs);
     } else if (sample && _timer == null) {
       final drain = Stopwatch()..start();
       await _ctx!.device.queue.onSubmittedWorkDone();
@@ -110,6 +170,7 @@ class _GpuSceneViewState extends State<GpuSceneView> {
       encodeMs: encode.elapsedMicroseconds / 1000.0,
       gpuMs: gpuMs,
       gpuIsExact: gpuIsExact,
+      scale: _effectiveScale,
     );
   }
 
@@ -138,7 +199,7 @@ class _GpuSceneViewState extends State<GpuSceneView> {
         WebGpuView(
           device: ctx.device,
           onFrame: _onFrame,
-          renderScale: widget.renderScale,
+          renderScale: _effectiveScale,
         ),
         if (widget.showPerf)
           Positioned(

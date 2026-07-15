@@ -9,6 +9,7 @@ class PerfStats {
     this.encodeMs = 0,
     this.gpuMs,
     this.gpuIsExact = false,
+    this.scale = 1.0,
   });
 
   /// Presented frames per second (rolling ~2 s window).
@@ -30,6 +31,9 @@ class PerfStats {
 
   /// True when [gpuMs] is a real on-GPU timestamp-query measurement.
   final bool gpuIsExact;
+
+  /// Effective render-resolution multiplier (1.0 = native pixels).
+  final double scale;
 }
 
 /// Rolling per-view performance measurement.
@@ -43,12 +47,19 @@ class PerfTracker {
   final List<double> _encodeMs = <double>[];
   double? _lastGpuMs;
   bool _lastGpuIsExact = false;
+  double _lastScale = 1.0;
   int _lastPublishMs = 0;
   bool _disposed = false;
 
-  void tick({required double encodeMs, double? gpuMs, bool gpuIsExact = false}) {
+  void tick({
+    required double encodeMs,
+    double? gpuMs,
+    bool gpuIsExact = false,
+    double scale = 1.0,
+  }) {
     // A frame may still be in flight when the owning view unmounts.
     if (_disposed) return;
+    _lastScale = scale;
     final nowUs = DateTime.now().microsecondsSinceEpoch;
     _frameTimesUs.add(nowUs);
     _encodeMs.add(encodeMs);
@@ -86,6 +97,7 @@ class PerfTracker {
         encodeMs: avgEncode,
         gpuMs: _lastGpuMs,
         gpuIsExact: _lastGpuIsExact,
+        scale: _lastScale,
       );
     }
   }
@@ -127,6 +139,9 @@ class PerfOverlay extends StatelessWidget {
           if (s.gpuMs != null) {
             final approx = s.gpuIsExact ? '' : '~';
             lines.write('  gpu $approx${s.gpuMs!.toStringAsFixed(2)}ms');
+          }
+          if (s.scale < 0.999) {
+            lines.write('\nres ${s.scale.toStringAsFixed(2)}×');
           }
         }
         return DecoratedBox(

@@ -32,7 +32,11 @@ class MultiViewPage extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    GpuSceneView(scene: scene, detailedPerf: false),
+                    GpuSceneView(
+                      scene: scene,
+                      detailedPerf: false,
+                      dynamicResolution: true,
+                    ),
                     Positioned(
                       bottom: 6,
                       right: 10,

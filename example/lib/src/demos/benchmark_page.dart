@@ -151,12 +151,23 @@ class _BenchmarkPageState extends State<BenchmarkPage> {
   Widget _buildRunning(BuildContext context) {
     final (name, builder) = _scenes[_runIndex];
     return Column(children: [
+      // Fixed logical size so results are comparable across window sizes
+      // (fragment cost is linear in pixel count).
       Expanded(
-        child: GpuSceneView(
-          key: ValueKey('bench-$_runIndex'),
-          scene: builder(),
-          logLabel: 'bench-$name',
-          onStats: _collect,
+        child: Center(
+          child: SizedBox(
+            width: 960,
+            height: 540,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: GpuSceneView(
+                key: ValueKey('bench-$_runIndex'),
+                scene: builder(),
+                logLabel: 'bench-$name',
+                onStats: _collect,
+              ),
+            ),
+          ),
         ),
       ),
       Padding(
@@ -179,8 +190,9 @@ class _BenchmarkPageState extends State<BenchmarkPage> {
       Text('Results', style: Theme.of(context).textTheme.titleLarge),
       const SizedBox(height: 8),
       Text(
-        '2 s warmup, 5 s measurement per scene, fullscreen. GPU column is '
-        'the on-GPU pass time from timestamp queries.',
+        '2 s warmup, 5 s measurement per scene at a fixed 960×540 logical '
+        'size (window-size independent). GPU column is the on-GPU pass time '
+        'from timestamp queries.',
         style: Theme.of(context).textTheme.bodySmall,
       ),
       const SizedBox(height: 12),

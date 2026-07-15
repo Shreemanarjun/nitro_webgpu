@@ -21,6 +21,7 @@ class _ShaderToyPageState extends State<ShaderToyPage> {
   double _speed = 1.0;
   double _param = 0.5;
   double _renderScale = 1.0;
+  bool _autoRes = true;
   bool _paused = false;
 
   @override
@@ -108,11 +109,22 @@ class _ShaderToyPageState extends State<ShaderToyPage> {
                 min: 0.25,
                 max: 1.0,
                 divisions: 6,
-                onChanged: (v) => setState(() => _renderScale = v),
+                onChanged: _autoRes
+                    ? null
+                    : (v) => setState(() => _renderScale = v),
               ),
             ),
             SizedBox(
-                width: 36, child: Text('${_renderScale.toStringAsFixed(2)}×')),
+              width: 76,
+              child: Row(children: [
+                Checkbox(
+                  value: _autoRes,
+                  onChanged: (v) =>
+                      setState(() => _autoRes = v ?? true),
+                ),
+                const Text('auto', style: TextStyle(fontSize: 12)),
+              ]),
+            ),
           ],
         ),
         Row(
@@ -188,7 +200,8 @@ class _ShaderToyPageState extends State<ShaderToyPage> {
       child: GpuSceneView(
         scene: _scene,
         ownsScene: false,
-        renderScale: _renderScale,
+        renderScale: _autoRes ? 1.0 : _renderScale,
+        dynamicResolution: _autoRes,
       ),
     );
     final panel = Column(

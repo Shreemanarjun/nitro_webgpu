@@ -323,6 +323,109 @@ fn fs_main() -> @location(0) vec4<f32> {
     });
   });
 
+  group('M2.1 presenter ring', () {
+    test('acquire hands out distinct slots and the ring recovers', () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+      final token = NitroWebgpuPresent.instance
+          .createPresenter(device.debugAddress, 64, 64);
+      expect(token, isNonZero);
+
+      // Round-robin: two back-to-back acquires must hand out different
+      // render targets — this is what lets frame N+1 overlap frame N.
+      final a1 = await NitroWebgpuPresent.instance.acquireFrame(token);
+      expect(a1, isNonZero);
+      NitroWebgpuPresent.instance.presentFrame(token);
+      final a2 = await NitroWebgpuPresent.instance.acquireFrame(token);
+      expect(a2, isNonZero);
+      expect(a2, isNot(a1), reason: 'second acquire must use another slot');
+      NitroWebgpuPresent.instance.presentFrame(token);
+
+      // Hammer the ring: with the 2-in-flight backpressure cap this must
+      // never crash, and acquires either succeed or drop cleanly (0).
+      var drops = 0;
+      for (var i = 0; i < 50; i++) {
+        final v = await NitroWebgpuPresent.instance.acquireFrame(token);
+        if (v == 0) {
+          drops++;
+        } else {
+          NitroWebgpuPresent.instance.presentFrame(token);
+        }
+      }
+      // After draining, the ring must recover and hand out slots again.
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      final recovered =
+          await NitroWebgpuPresent.instance.acquireFrame(token);
+      expect(recovered, isNonZero,
+          reason: 'ring must recover after in-flight presents drain '
+              '($drops drops during hammering is fine)');
+      NitroWebgpuPresent.instance.presentFrame(token);
+
+      // Destroy with work potentially still in flight — must drain safely.
+      await NitroWebgpuPresent.instance.destroyPresenter(token);
+      device.dispose();
+      adapter.dispose();
+    });
+
+    testWidgets('pipelined presenter sustains cheap-scene throughput',
+        (tester) async {
+      final binding = tester.binding as LiveTestWidgetsFlutterBinding;
+      binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+
+      // Only assert a throughput floor on the GPU blit path — readback
+      // fallbacks (CI software adapters) are legitimately slower.
+      final probeToken = NitroWebgpuPresent.instance
+          .createPresenter(device.debugAddress, 8, 8);
+      final gpuPath =
+          NitroWebgpuPresent.instance.presenterUsesGpuPath(probeToken);
+      await NitroWebgpuPresent.instance.destroyPresenter(probeToken);
+
+      var frames = 0;
+      Future<void> onFrame(GpuRenderTarget target, Duration elapsed) async {
+        final encoder = device.createCommandEncoder();
+        final pass = encoder.beginRenderPass(colorAttachments: [
+          GpuColorAttachmentInfo(view: target.view),
+        ]);
+        pass.end(); // clear-only: trivially cheap
+        device.queue.submit([encoder.finish()]);
+        frames++;
+      }
+
+      await tester.pumpWidget(MaterialApp(
+        home: Center(
+          child: SizedBox(
+            width: 256,
+            height: 256,
+            child: WebGpuView(device: device, onFrame: onFrame),
+          ),
+        ),
+      ));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(seconds: 2)));
+      await tester.pump();
+
+      if (gpuPath) {
+        expect(frames, greaterThan(60),
+            reason: 'a clear-only scene on the Metal blit path must sustain '
+                'well over 30 fps (pipelined ring)');
+      } else {
+        expect(frames, greaterThan(5),
+            reason: 'readback fallback still pumps frames');
+      }
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 400)));
+      device.dispose();
+      adapter.dispose();
+    });
+  });
+
   group('M2.0 WebGpuView', () {
     testWidgets('pumps live frames through the presenter', (tester) async {
       final binding = tester.binding as LiveTestWidgetsFlutterBinding;

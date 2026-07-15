@@ -113,7 +113,18 @@ class ShaderToyScene implements GpuScene {
     }
     final pipeline = _pipeline;
     final bindGroup = _bindGroup;
-    if (pipeline == null || bindGroup == null) return;
+    if (pipeline == null || bindGroup == null) {
+      // Nothing compiled yet: still clear the target. Presenting an
+      // unrendered ring slot would flash content from several frames ago.
+      final encoder = device.createCommandEncoder(label: '$name-clear');
+      encoder
+          .beginRenderPass(colorAttachments: [
+            GpuColorAttachmentInfo(view: target.view, clearColor: GpuColor.black),
+          ])
+          .end();
+      device.queue.submit([encoder.finish()]);
+      return;
+    }
 
     device.queue.writeBuffer(
       _uniforms!,

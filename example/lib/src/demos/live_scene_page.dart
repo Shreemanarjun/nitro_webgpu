@@ -18,7 +18,10 @@ class LiveScenePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(title)),
-      body: GpuSceneView(scene: sceneBuilder()),
+      body: GpuSceneView(
+        scene: sceneBuilder(),
+        dynamicResolution: true,
+      ),
     );
   }
 }

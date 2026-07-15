@@ -93,9 +93,15 @@ class _WebGpuViewState extends State<WebGpuView>
         height: _heightPx,
         targetFormat: _format,
       );
-      await widget.onFrame(target, elapsed);
-      if (_token != 0) {
-        NitroWebgpuPresent.instance.presentFrame(_token);
+      try {
+        await widget.onFrame(target, elapsed);
+      } finally {
+        // Always recycle the acquired slot — leaking it would shrink the
+        // ring permanently (a stale present on an error path is the lesser
+        // evil, and onFrame contracts to always draw).
+        if (_token != 0) {
+          NitroWebgpuPresent.instance.presentFrame(_token);
+        }
       }
     } finally {
       _frameInFlight = false;
