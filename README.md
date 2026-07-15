@@ -18,11 +18,12 @@ Early development.
   modules with checked creates, compute pipelines + dispatch, offscreen
   render passes + texture readback. 14 integration tests green; Linux/Windows
   CI jobs authored, pending first run.
-- **M2.0 (done on macOS)**: presentation — the `WebGpuView` widget composites
-  WebGPU-rendered frames into the widget tree via Flutter's texture registry
-  (portable CPU-readback presenter). Next: the zero-copy Metal blit path
-  (M2.1), iOS (M2.2), Android SurfaceProducer (M2.3), Windows/Linux
-  (M2.4/M2.5).
+- **M2.0 + M2.1 (done on macOS)**: presentation — the `WebGpuView` widget
+  composites WebGPU-rendered frames into the widget tree via Flutter's
+  texture registry. On Metal the frame is a single GPU→GPU blit into an
+  IOSurface-backed pixel buffer (no CPU readback); a portable CPU-readback
+  presenter is the automatic fallback. Next: iOS (M2.2), Android
+  SurfaceProducer (M2.3), Windows/Linux (M2.4/M2.5).
 - Flutter Web (`navigator.gpu` via JS interop) is designed-for but deferred.
 
 Known upstream gaps (wgpu-native v29.0.1.1): the device-lost callback never

@@ -57,6 +57,10 @@ public:
         throw std::runtime_error(kNotSupported);
     }
 
+    bool presenterUsesGpuPath(int64_t) override {
+        throw std::runtime_error(kNotSupported);
+    }
+
     void resizePresenter(int64_t, int64_t, int64_t) override {
         throw std::runtime_error(kNotSupported);
     }

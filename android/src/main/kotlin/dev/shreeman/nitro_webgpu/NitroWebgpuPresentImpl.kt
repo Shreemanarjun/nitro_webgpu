@@ -26,6 +26,9 @@ class NitroWebgpuPresentImpl : HybridNitroWebgpuPresentSpec {
     override fun presenterFormat(token: Long): Long =
         throw UnsupportedOperationException(notSupported)
 
+    override fun presenterUsesGpuPath(token: Long): Boolean =
+        throw UnsupportedOperationException(notSupported)
+
     override fun resizePresenter(token: Long, widthPx: Long, heightPx: Long): Unit =
         throw UnsupportedOperationException(notSupported)
 

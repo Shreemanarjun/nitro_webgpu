@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:nitro_webgpu/nitro_webgpu.dart';
+import 'package:nitro_webgpu/src/nitro_webgpu_present.native.dart';
+import 'package:nitro_webgpu_example/src/gpu/shader_presets.dart';
 
 // CI runners have no real GPU; --dart-define=WGPU_FORCE_FALLBACK=true selects
 // a software adapter (lavapipe / WARP).
@@ -301,6 +303,23 @@ fn fs_main() -> @location(0) vec4<f32> {
     });
   });
 
+  group('M2.1 presentation path', () {
+    test('macOS presenter uses the Metal blit path (not CPU readback)',
+        () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+      final token = NitroWebgpuPresent.instance
+          .createPresenter(device.debugAddress, 64, 64);
+      expect(token, isNonZero);
+      expect(NitroWebgpuPresent.instance.presenterUsesGpuPath(token), isTrue,
+          reason: 'macOS runs on Metal — the GPU blit path must be active');
+      await NitroWebgpuPresent.instance.destroyPresenter(token);
+      device.dispose();
+      adapter.dispose();
+    });
+  });
+
   group('M2.0 WebGpuView', () {
     testWidgets('pumps live frames through the presenter', (tester) async {
       final binding = tester.binding as LiveTestWidgetsFlutterBinding;
@@ -364,6 +383,27 @@ fn fs_main() -> @location(0) vec4<f32> {
 
       pipeline?.dispose();
       module.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+  });
+
+  group('example shader presets', () {
+    test('every preset compiles and builds a render pipeline', () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+      for (final preset in shaderPresets) {
+        final module = await device.createShaderModule(preset.source,
+            label: preset.name);
+        final pipeline = await device.createRenderPipeline(
+          module: module,
+          targetFormat: GpuTextureFormat.bgra8Unorm,
+          label: preset.name,
+        );
+        pipeline.dispose();
+        module.dispose();
+      }
       device.dispose();
       adapter.dispose();
     });
