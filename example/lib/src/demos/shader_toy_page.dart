@@ -20,6 +20,7 @@ class _ShaderToyPageState extends State<ShaderToyPage> {
   int _presetIndex = 0;
   double _speed = 1.0;
   double _param = 0.5;
+  double _renderScale = 1.0;
   bool _paused = false;
 
   @override
@@ -100,6 +101,22 @@ class _ShaderToyPageState extends State<ShaderToyPage> {
         ),
         Row(
           children: [
+            const SizedBox(width: 52, child: Text('res')),
+            Expanded(
+              child: Slider(
+                value: _renderScale,
+                min: 0.25,
+                max: 1.0,
+                divisions: 6,
+                onChanged: (v) => setState(() => _renderScale = v),
+              ),
+            ),
+            SizedBox(
+                width: 36, child: Text('${_renderScale.toStringAsFixed(2)}×')),
+          ],
+        ),
+        Row(
+          children: [
             IconButton.filledTonal(
               icon: Icon(_paused ? Icons.play_arrow : Icons.pause),
               tooltip: _paused ? 'Resume' : 'Pause',
@@ -168,7 +185,11 @@ class _ShaderToyPageState extends State<ShaderToyPage> {
   Widget build(BuildContext context) {
     final render = ClipRRect(
       borderRadius: BorderRadius.circular(8),
-      child: GpuSceneView(scene: _scene, ownsScene: false),
+      child: GpuSceneView(
+        scene: _scene,
+        ownsScene: false,
+        renderScale: _renderScale,
+      ),
     );
     final panel = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -24,7 +24,11 @@ class GpuSceneView extends StatefulWidget {
     this.detailedPerf = true,
     this.logLabel,
     this.onStats,
+    this.renderScale = 1.0,
   });
+
+  /// Render-resolution multiplier (see [WebGpuView.renderScale]).
+  final double renderScale;
 
   final GpuScene scene;
   final bool ownsScene;
@@ -131,7 +135,11 @@ class _GpuSceneViewState extends State<GpuSceneView> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        WebGpuView(device: ctx.device, onFrame: _onFrame),
+        WebGpuView(
+          device: ctx.device,
+          onFrame: _onFrame,
+          renderScale: widget.renderScale,
+        ),
         if (widget.showPerf)
           Positioned(
             top: 8,

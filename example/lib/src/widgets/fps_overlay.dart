@@ -63,7 +63,11 @@ class PerfTracker {
     }
 
     final nowMs = nowUs ~/ 1000;
-    if (_frameTimesUs.length >= 2 && nowMs - _lastPublishMs >= 250) {
+    // Require a meaningful window before publishing — a 2-sample burst right
+    // after startup would otherwise report absurd instantaneous FPS.
+    final spanOk = _frameTimesUs.length >= 8 &&
+        nowUs - _frameTimesUs.first >= 500000;
+    if (spanOk && nowMs - _lastPublishMs >= 250) {
       _lastPublishMs = nowMs;
       final spanUs = _frameTimesUs.last - _frameTimesUs.first;
       final frames = _frameTimesUs.length - 1;

@@ -1,18 +1,32 @@
-// Shared presentation core — CPU-readback presenter (M2.0).
+// Shared presentation core — pipelined presenter with a 3-slot target ring.
 //
 // This file is #include'd at the end of HybridNitroWebgpu.cpp so it compiles
 // into the core library's single TU: it shares the process WGPUInstance and
 // the WgpuContext callback pump, and adds zero build-system wiring.
 //
-// Flow per frame:
-//   acquire  → hand out the render-target view (state: idle → acquired)
+// Ring flow (per slot: 0 = free, 1 = acquired/rendering, 2 = in flight):
+//   acquire  → hand out a free slot's render-target view (round-robin)
 //   (Dart renders + submits via the core module)
-//   present  → encode copyTextureToBuffer, submit, mapAsync (state → inflight)
-//   map done → sink(pixels) on the pump thread, unmap (state → idle)
+//   present  → GPU path: onSubmittedWorkDone → gpu sink(texture, slot);
+//              the shim blits and calls frame_done(slot) → slot free.
+//              Readback path: copyTextureToBuffer + mapAsync per slot →
+//              pixel sink → unmap → slot free.
+// With 3 slots, frame N+1 renders while frame N presents — throughput is
+// bounded by the GPU pass time, not the full present round trip.
 
 #include "present_core.h"
 
 namespace {
+
+constexpr int kNwpSlots = 3;
+
+struct NwpSlot {
+    WGPUTexture target = nullptr;
+    WGPUTextureView view = nullptr;
+    WGPUBuffer readback = nullptr;
+    // 0 = free, 1 = acquired (Dart rendering), 2 = present in flight
+    std::atomic<int> state{0};
+};
 
 struct NwpPresenter {
     WGPUDevice device = nullptr;  // borrowed — the app owns the device
@@ -21,13 +35,10 @@ struct NwpPresenter {
     int32_t height = 0;
     int32_t pendingWidth = 0;
     int32_t pendingHeight = 0;
-    WGPUTexture target = nullptr;
-    WGPUTextureView view = nullptr;
-    WGPUBuffer readback = nullptr;
     int32_t alignedBytesPerRow = 0;
-    // 0 = idle, 1 = acquired (Dart rendering), 2 = present in flight
-    // (readback mapping, or GPU blit until nwp_presenter_frame_done)
-    std::atomic<int> state{0};
+    NwpSlot slots[kNwpSlots];
+    int nextSlot = 0;         // round-robin cursor (Dart thread only)
+    int acquiredSlot = -1;    // slot handed out by acquire (Dart thread only)
     bool destroyPending = false;  // guarded by gPresentersMutex
     NwpFrameSink sink = nullptr;
     void* sinkUser = nullptr;
@@ -46,24 +57,23 @@ NwpPresenter* nwpFind(int64_t token) {
 }
 
 void nwpReleaseTargets(NwpPresenter* p) {
-    if (p->view) wgpuTextureViewRelease(p->view);
-    if (p->target) {
-        wgpuTextureDestroy(p->target);
-        wgpuTextureRelease(p->target);
+    for (auto& s : p->slots) {
+        if (s.view) wgpuTextureViewRelease(s.view);
+        if (s.target) {
+            wgpuTextureDestroy(s.target);
+            wgpuTextureRelease(s.target);
+        }
+        if (s.readback) {
+            wgpuBufferDestroy(s.readback);
+            wgpuBufferRelease(s.readback);
+        }
+        s.view = nullptr;
+        s.target = nullptr;
+        s.readback = nullptr;
     }
-    if (p->readback) {
-        wgpuBufferDestroy(p->readback);
-        wgpuBufferRelease(p->readback);
-    }
-    p->view = nullptr;
-    p->target = nullptr;
-    p->readback = nullptr;
 }
 
-void nwpReleaseTargets(NwpPresenter* p);
-
-// Frees the presenter. Callers must have removed it from gPresenters (or be
-// the destroy path) and know no callback still references it.
+// Frees the presenter. Callers must know no callback still references it.
 void nwpFinalize(int64_t token, NwpPresenter* p) {
     {
         std::lock_guard<std::mutex> lock(gPresentersMutex);
@@ -75,21 +85,24 @@ void nwpFinalize(int64_t token, NwpPresenter* p) {
     delete p;
 }
 
-// Called at the end of an in-flight present (readback map callback, failed
-// GPU-path workdone, or nwp_presenter_frame_done): returns the presenter to
-// idle, or finalizes it when a destroy was requested mid-flight. The check
-// and the state store happen under gPresentersMutex so a concurrent destroy
-// cannot fall through the gap.
-void nwpCompleteInflight(int64_t token, NwpPresenter* p) {
+bool nwpAnyInflight(NwpPresenter* p) {
+    for (auto& s : p->slots) {
+        if (s.state.load() == 2) return true;
+    }
+    return false;
+}
+
+// Completes an in-flight present on [slot]: frees the slot, or finalizes the
+// presenter when a destroy was requested and this was the last in-flight
+// present. Check + transition run under gPresentersMutex so a concurrent
+// destroy cannot fall through the gap.
+void nwpCompleteInflight(int64_t token, NwpPresenter* p, int slot) {
     bool finalize = false;
     {
         std::lock_guard<std::mutex> lock(gPresentersMutex);
-        if (p->destroyPending) {
-            finalize = true;
-        } else {
-            int expected = 2;
-            p->state.compare_exchange_strong(expected, 0);
-        }
+        int expected = 2;
+        p->slots[slot].state.compare_exchange_strong(expected, 0);
+        if (p->destroyPending && !nwpAnyInflight(p)) finalize = true;
     }
     if (finalize) nwpFinalize(token, p);
 }
@@ -100,28 +113,31 @@ bool nwpCreateTargets(NwpPresenter* p, int32_t width, int32_t height) {
     p->height = height;
     p->alignedBytesPerRow = ((width * 4 + 255) / 256) * 256;
 
-    WGPUTextureDescriptor td = WGPU_TEXTURE_DESCRIPTOR_INIT;
-    td.label = {"nwp_target", WGPU_STRLEN};
-    td.usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc;
-    td.dimension = WGPUTextureDimension_2D;
-    td.size = {(uint32_t)width, (uint32_t)height, 1};
-    td.format = WGPUTextureFormat_BGRA8Unorm;
-    td.mipLevelCount = 1;
-    td.sampleCount = 1;
-    p->target = wgpuDeviceCreateTexture(p->device, &td);
-    if (!p->target) return false;
+    for (auto& s : p->slots) {
+        WGPUTextureDescriptor td = WGPU_TEXTURE_DESCRIPTOR_INIT;
+        td.label = {"nwp_target", WGPU_STRLEN};
+        td.usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc;
+        td.dimension = WGPUTextureDimension_2D;
+        td.size = {(uint32_t)width, (uint32_t)height, 1};
+        td.format = WGPUTextureFormat_BGRA8Unorm;
+        td.mipLevelCount = 1;
+        td.sampleCount = 1;
+        s.target = wgpuDeviceCreateTexture(p->device, &td);
+        if (!s.target) return false;
 
-    WGPUTextureViewDescriptor vd = WGPU_TEXTURE_VIEW_DESCRIPTOR_INIT;
-    vd.label = {"nwp_target_view", WGPU_STRLEN};
-    p->view = wgpuTextureCreateView(p->target, &vd);
-    if (!p->view) return false;
+        WGPUTextureViewDescriptor vd = WGPU_TEXTURE_VIEW_DESCRIPTOR_INIT;
+        vd.label = {"nwp_target_view", WGPU_STRLEN};
+        s.view = wgpuTextureCreateView(s.target, &vd);
+        if (!s.view) return false;
 
-    WGPUBufferDescriptor bd = WGPU_BUFFER_DESCRIPTOR_INIT;
-    bd.label = {"nwp_readback", WGPU_STRLEN};
-    bd.usage = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst;
-    bd.size = (uint64_t)p->alignedBytesPerRow * (uint64_t)height;
-    p->readback = wgpuDeviceCreateBuffer(p->device, &bd);
-    return p->readback != nullptr;
+        WGPUBufferDescriptor bd = WGPU_BUFFER_DESCRIPTOR_INIT;
+        bd.label = {"nwp_readback", WGPU_STRLEN};
+        bd.usage = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst;
+        bd.size = (uint64_t)p->alignedBytesPerRow * (uint64_t)height;
+        s.readback = wgpuDeviceCreateBuffer(p->device, &bd);
+        if (!s.readback) return false;
+    }
+    return true;
 }
 
 }  // namespace
@@ -141,7 +157,7 @@ int64_t nwp_presenter_create(int64_t deviceAddress, int32_t width,
         return 0;
     }
     // Presenter registration keeps the pump polling this device even after
-    // the app releases its own device handle (readbacks must still complete).
+    // the app releases its own device handle (presents must still complete).
     WgpuContext::get().registerDevice(p->device);
     std::lock_guard<std::mutex> lock(gPresentersMutex);
     const int64_t token = gNextPresenterToken++;
@@ -156,23 +172,6 @@ void nwp_presenter_set_sink(int64_t token, NwpFrameSink sink, void* user) {
     p->sinkUser = user;
 }
 
-int64_t nwp_presenter_acquire(int64_t token) {
-    NwpPresenter* p = nwpFind(token);
-    if (!p || p->destroyPending) return 0;
-    int expected = 0;
-    if (!p->state.compare_exchange_strong(expected, 1)) return 0;
-    if (p->pendingWidth > 0 &&
-        (p->pendingWidth != p->width || p->pendingHeight != p->height)) {
-        if (!nwpCreateTargets(p, p->pendingWidth, p->pendingHeight)) {
-            p->state.store(0);
-            return 0;
-        }
-    }
-    p->pendingWidth = 0;
-    p->pendingHeight = 0;
-    return (int64_t)(intptr_t)p->view;
-}
-
 void nwp_presenter_set_gpu_sink(int64_t token, NwpGpuFrameSink sink,
                                 void* user) {
     NwpPresenter* p = nwpFind(token);
@@ -181,16 +180,10 @@ void nwp_presenter_set_gpu_sink(int64_t token, NwpGpuFrameSink sink,
     p->gpuSinkUser = user;
 }
 
-void nwp_presenter_frame_done(int64_t token) {
+void nwp_presenter_frame_done(int64_t token, int32_t slot) {
     NwpPresenter* p = nwpFind(token);
-    if (!p) return;
-    nwpCompleteInflight(token, p);
-}
-
-void* nwp_presenter_target_metal_texture(int64_t token) {
-    NwpPresenter* p = nwpFind(token);
-    if (!p || !p->target) return nullptr;
-    return wgpuTextureGetNativeMetalTexture(p->target);
+    if (!p || slot < 0 || slot >= kNwpSlots) return;
+    nwpCompleteInflight(token, p, slot);
 }
 
 void* nwp_presenter_metal_device(int64_t token) {
@@ -199,44 +192,96 @@ void* nwp_presenter_metal_device(int64_t token) {
     return wgpuDeviceGetNativeMetalDevice(p->device);
 }
 
+int64_t nwp_presenter_acquire(int64_t token) {
+    NwpPresenter* p = nwpFind(token);
+    if (!p || p->destroyPending) return 0;
+
+    // Backpressure: allow overlap (render N+1 while N presents) but never
+    // queue more than 2 unfinished presents — without this cap, several
+    // saturating views flood the GPU queue and pass latency explodes.
+    int inflight = 0;
+    for (auto& s : p->slots) {
+        if (s.state.load() == 2) inflight++;
+    }
+    if (inflight >= 2) return 0;
+
+    // Apply a pending resize only with a fully idle ring (recreating targets
+    // that an in-flight present still reads would race the GPU).
+    if (p->pendingWidth > 0 &&
+        (p->pendingWidth != p->width || p->pendingHeight != p->height)) {
+        for (auto& s : p->slots) {
+            if (s.state.load() != 0) return 0;  // drain first
+        }
+        if (!nwpCreateTargets(p, p->pendingWidth, p->pendingHeight)) return 0;
+        p->pendingWidth = 0;
+        p->pendingHeight = 0;
+    }
+
+    for (int i = 0; i < kNwpSlots; i++) {
+        const int slot = (p->nextSlot + i) % kNwpSlots;
+        int expected = 0;
+        if (p->slots[slot].state.compare_exchange_strong(expected, 1)) {
+            p->acquiredSlot = slot;
+            p->nextSlot = (slot + 1) % kNwpSlots;
+            return (int64_t)(intptr_t)p->slots[slot].view;
+        }
+    }
+    return 0;  // every slot busy — drop this frame
+}
+
 void nwp_presenter_present(int64_t token) {
     NwpPresenter* p = nwpFind(token);
     if (!p) return;
+    const int slot = p->acquiredSlot;
+    if (slot < 0 || slot >= kNwpSlots) return;
     int expected = 1;
-    if (!p->state.compare_exchange_strong(expected, 2)) return;
+    if (!p->slots[slot].state.compare_exchange_strong(expected, 2)) return;
+    p->acquiredSlot = -1;
 
     if (p->gpuSink) {
-        // GPU path: once the app's submitted work completes, hand the frame
-        // to the shim, which blits the target's native texture and calls
-        // nwp_presenter_frame_done.
+        // GPU path: once the app's submitted work completes, hand the slot's
+        // native texture to the shim, which blits it and calls
+        // nwp_presenter_frame_done(slot).
+        struct GpuPresentOp {
+            NwpPresenter* p;
+            int64_t token;
+            int slot;
+        };
+        auto* op = new GpuPresentOp{p, token, slot};
         WGPUQueueWorkDoneCallbackInfo wcb = WGPU_QUEUE_WORK_DONE_CALLBACK_INFO_INIT;
         wcb.mode = WGPUCallbackMode_AllowProcessEvents;
-        wcb.userdata1 = p;
-        wcb.userdata2 = (void*)(intptr_t)token;
+        wcb.userdata1 = op;
         wcb.callback = [](WGPUQueueWorkDoneStatus status, WGPUStringView,
-                          void* ud1, void* ud2) {
-            auto* p = static_cast<NwpPresenter*>(ud1);
-            const int64_t token = (int64_t)(intptr_t)ud2;
+                          void* ud1, void*) {
+            auto* op = static_cast<GpuPresentOp*>(ud1);
+            NwpPresenter* p = op->p;
+            void* mtl = nullptr;
             if (status == WGPUQueueWorkDoneStatus_Success && p->gpuSink) {
-                // The shim's blit completion calls nwp_presenter_frame_done.
-                p->gpuSink(token, p->width, p->height, p->gpuSinkUser);
+                mtl = wgpuTextureGetNativeMetalTexture(p->slots[op->slot].target);
+            }
+            if (mtl) {
+                p->gpuSink(op->token, p->width, p->height, mtl, op->slot,
+                           p->gpuSinkUser);
             } else {
-                // Failed frame: release the target for the next acquire.
-                nwpCompleteInflight(token, p);
+                // Failed frame: release the slot for the next acquire.
+                nwpCompleteInflight(op->token, p, op->slot);
             }
             WgpuContext::get().opFinished();
+            delete op;
         };
         wgpuQueueOnSubmittedWorkDone(p->queue, wcb);
         WgpuContext::get().opStarted();
         return;
     }
 
+    // Readback path.
+    NwpSlot& s = p->slots[slot];
     WGPUCommandEncoderDescriptor ed = WGPU_COMMAND_ENCODER_DESCRIPTOR_INIT;
     WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(p->device, &ed);
     WGPUTexelCopyTextureInfo src = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
-    src.texture = p->target;
+    src.texture = s.target;
     WGPUTexelCopyBufferInfo dst = WGPU_TEXEL_COPY_BUFFER_INFO_INIT;
-    dst.buffer = p->readback;
+    dst.buffer = s.readback;
     dst.layout.offset = 0;
     dst.layout.bytesPerRow = (uint32_t)p->alignedBytesPerRow;
     dst.layout.rowsPerImage = (uint32_t)p->height;
@@ -247,28 +292,35 @@ void nwp_presenter_present(int64_t token) {
     wgpuCommandBufferRelease(cmd);
     wgpuCommandEncoderRelease(encoder);
 
+    struct MapPresentOp {
+        NwpPresenter* p;
+        int64_t token;
+        int slot;
+    };
+    auto* op = new MapPresentOp{p, token, slot};
     const size_t mapSize = (size_t)p->alignedBytesPerRow * (size_t)p->height;
     WGPUBufferMapCallbackInfo cb = WGPU_BUFFER_MAP_CALLBACK_INFO_INIT;
     cb.mode = WGPUCallbackMode_AllowProcessEvents;
-    cb.userdata1 = p;
-    cb.userdata2 = (void*)(intptr_t)token;
+    cb.userdata1 = op;
     cb.callback = [](WGPUMapAsyncStatus status, WGPUStringView, void* ud1,
-                     void* ud2) {
-        auto* p = static_cast<NwpPresenter*>(ud1);
-        const int64_t token = (int64_t)(intptr_t)ud2;
+                     void*) {
+        auto* op = static_cast<MapPresentOp*>(ud1);
+        NwpPresenter* p = op->p;
+        NwpSlot& s = p->slots[op->slot];
         if (status == WGPUMapAsyncStatus_Success) {
             const size_t n = (size_t)p->alignedBytesPerRow * (size_t)p->height;
-            const void* mapped = wgpuBufferGetConstMappedRange(p->readback, 0, n);
+            const void* mapped = wgpuBufferGetConstMappedRange(s.readback, 0, n);
             if (mapped && p->sink) {
-                p->sink(token, (const uint8_t*)mapped, p->width, p->height,
+                p->sink(op->token, (const uint8_t*)mapped, p->width, p->height,
                         p->alignedBytesPerRow, p->sinkUser);
             }
-            wgpuBufferUnmap(p->readback);
+            wgpuBufferUnmap(s.readback);
         }
-        nwpCompleteInflight(token, p);
+        nwpCompleteInflight(op->token, p, op->slot);
         WgpuContext::get().opFinished();
+        delete op;
     };
-    wgpuBufferMapAsync(p->readback, WGPUMapMode_Read, 0, mapSize, cb);
+    wgpuBufferMapAsync(s.readback, WGPUMapMode_Read, 0, mapSize, cb);
     WgpuContext::get().opStarted();
 }
 
@@ -286,7 +338,7 @@ void nwp_presenter_resize(int64_t token, int32_t width, int32_t height) {
 
 int32_t nwp_presenter_is_busy(int64_t token) {
     NwpPresenter* p = nwpFind(token);
-    return (p && p->state.load() == 2) ? 1 : 0;
+    return (p && nwpAnyInflight(p)) ? 1 : 0;
 }
 
 void nwp_presenter_destroy(int64_t token) {
@@ -299,9 +351,9 @@ void nwp_presenter_destroy(int64_t token) {
         p = it->second;
         if (p->destroyPending) return;  // already tearing down
         p->destroyPending = true;
-        busy = p->state.load() == 2;
+        busy = nwpAnyInflight(p);
     }
-    // A present is still in flight: its completion (map callback, workdone
+    // Presents still in flight: the last completion (map callback, workdone
     // failure path, or frame_done) finalizes the presenter — never freeing
     // memory a pending callback might still touch.
     if (!busy) nwpFinalize(token, p);

@@ -95,15 +95,16 @@ final class WebGpuPresenterEntry: NSObject, FlutterTexture {
     }
 
     /// GPU sink body — runs on a wgpu callback thread after the frame's
-    /// submitted work completed. Blits the wgpu target into a pool buffer;
-    /// the blit's completion handler releases the frame back to the core.
-    func gpuFrame(width: Int32, height: Int32) {
+    /// submitted work completed. Blits the slot's wgpu target into a pool
+    /// buffer; the blit's completion handler releases the slot back to the
+    /// ring (other slots keep the pipeline full meanwhile).
+    func gpuFrame(width: Int32, height: Int32,
+                  metalTexture: UnsafeMutableRawPointer, slot: Int32) {
         let token = self.token
-        let done = { nwp_presenter_frame_done(token) }
+        let done = { nwp_presenter_frame_done(token, slot) }
         guard let blitQueue, let textureCache,
               let pool = ensurePool(width: width, height: height),
-              let srcRaw = nwp_presenter_target_metal_texture(token),
-              let src = Unmanaged<AnyObject>.fromOpaque(srcRaw)
+              let src = Unmanaged<AnyObject>.fromOpaque(metalTexture)
                   .takeUnretainedValue() as? MTLTexture
         else { return done() }
 
@@ -219,11 +220,16 @@ public class NitroWebgpuPresentModuleImpl: NSObject,
         NSLog("nitro_webgpu: presenter %lld using %@ path", token,
               usingMetal ? "Metal blit" : "CPU readback")
         if usingMetal {
-            nwp_presenter_set_gpu_sink(token, { _, width, height, user in
+            nwp_presenter_set_gpu_sink(token, { token, width, height, mtl, slot, user in
                 guard let user else { return }
+                guard let mtl else {
+                    nwp_presenter_frame_done(token, slot)
+                    return
+                }
                 let entry = Unmanaged<WebGpuPresenterEntry>.fromOpaque(user)
                     .takeUnretainedValue()
-                entry.gpuFrame(width: width, height: height)
+                entry.gpuFrame(width: width, height: height,
+                               metalTexture: mtl, slot: slot)
             }, user)
         } else {
             nwp_presenter_set_sink(token, { _, pixels, width, height, bpr, user in

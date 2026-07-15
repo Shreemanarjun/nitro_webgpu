@@ -18,6 +18,7 @@ class WebGpuView extends StatefulWidget {
     required this.device,
     required this.onFrame,
     this.filterQuality = FilterQuality.low,
+    this.renderScale = 1.0,
   });
 
   /// The device to render with (owned by the caller; not disposed here).
@@ -30,6 +31,11 @@ class WebGpuView extends StatefulWidget {
       onFrame;
 
   final FilterQuality filterQuality;
+
+  /// Render-resolution multiplier relative to the widget's physical pixel
+  /// size (clamped to 0.1–2.0). Fragment-bound content scales roughly
+  /// linearly with pixel count — 0.5 renders a quarter of the pixels.
+  final double renderScale;
 
   @override
   State<WebGpuView> createState() => _WebGpuViewState();
@@ -111,9 +117,10 @@ class _WebGpuViewState extends State<WebGpuView>
   @override
   Widget build(BuildContext context) {
     final dpr = MediaQuery.devicePixelRatioOf(context);
+    final scale = widget.renderScale.clamp(0.1, 2.0);
     return LayoutBuilder(builder: (context, constraints) {
-      final w = (constraints.maxWidth * dpr).round();
-      final h = (constraints.maxHeight * dpr).round();
+      final w = (constraints.maxWidth * dpr * scale).round();
+      final h = (constraints.maxHeight * dpr * scale).round();
       if (w > 0 && h > 0) _ensurePresenter(w, h);
       if (_textureId == 0) return const SizedBox.expand();
       return Texture(
