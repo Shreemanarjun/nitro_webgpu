@@ -1,92 +1,48 @@
 # nitro_webgpu
 
-A new Flutter FFI plugin project.
+WebGPU for Flutter, powered by [wgpu-native](https://github.com/gfx-rs/wgpu-native)
+and bound through [Nitro](https://pub.dev/packages/nitro) FFI.
 
-## Getting Started
+One shared C++ implementation (`src/HybridNitroWebgpu.cpp`) wraps the standard
+`webgpu.h` C ABI on all five native platforms (iOS, Android, macOS, Windows,
+Linux). The public Dart API is a curated, Dart-idiomatic layer — not a 1:1
+binding of the ~400-function WebGPU C API.
 
-This project is a starting point for a Flutter
-[FFI plugin](https://flutter.dev/to/ffi-package),
-a specialized package that includes native code directly invoked with Dart FFI.
+## Status
 
-## Project structure
+Early development.
 
-This template uses the following structure:
+- **M0 (done)**: wgpu-native linked on macOS — instance creation + version query.
+- **M1 (in progress)**: adapter/device, buffers, compute pipelines, offscreen
+  render + readback, verified headless in CI on all platforms.
+- **M2 (planned)**: presentation — rendering into Flutter via external
+  textures (`WebGpuView` widget), Metal first.
+- Flutter Web (`navigator.gpu` via JS interop) is designed-for but deferred.
 
-* `src`: Contains the native source code, and a CmakeFile.txt file for building
-  that source code into a dynamic library.
+## Setup (contributors)
 
-* `lib`: Contains the Dart code that defines the API of the plugin, and which
-  calls into the native code using `dart:ffi`.
+The wgpu-native static libraries are vendored, not committed. After cloning:
 
-* platform folders (`android`, `ios`, `windows`, etc.): Contains the build files
-  for building and bundling the native code library with the platform application.
-
-## Building and bundling native code
-
-The `pubspec.yaml` specifies FFI plugins as follows:
-
-```yaml
-  plugin:
-    platforms:
-      some_platform:
-        ffiPlugin: true
+```sh
+scripts/fetch_wgpu_native.sh          # fetches targets for your host OS
 ```
 
-This configuration invokes the native build for the various target platforms
-and bundles the binaries in Flutter applications using these FFI plugins.
+This downloads the pinned wgpu-native release (see `scripts/wgpu_native.sha256`),
+verifies checksums, unpacks into `src/third_party/wgpu_native/`, and on macOS
+also produces the Apple `wgpu_native.xcframework` bundles.
 
-This can be combined with dartPluginClass, such as when FFI is used for the
-implementation of one platform in a federated plugin:
+Regenerate bindings after editing `lib/src/nitro_webgpu.native.dart`:
 
-```yaml
-  plugin:
-    implements: some_other_plugin
-    platforms:
-      some_platform:
-        dartPluginClass: SomeClass
-        ffiPlugin: true
+```sh
+dart run build_runner build
+nitrogen link
+nitrogen doctor
 ```
 
-A plugin can have both FFI and method channels:
+## Example
 
-```yaml
-  plugin:
-    platforms:
-      some_platform:
-        pluginClass: SomeName
-        ffiPlugin: true
+```sh
+cd example
+flutter test integration_test -d macos
+flutter run -d macos
 ```
-
-The native build systems that are invoked by FFI (and method channel) plugins are:
-
-* For Android: Gradle, which invokes the Android NDK for native builds.
-  * See the documentation in android/build.gradle.
-* For iOS and MacOS: Xcode, via CocoaPods.
-  * See the documentation in ios/nitro_webgpu.podspec.
-  * See the documentation in macos/nitro_webgpu.podspec.
-* For Linux and Windows: CMake.
-  * See the documentation in linux/CMakeLists.txt.
-  * See the documentation in windows/CMakeLists.txt.
-
-## Binding to native code
-
-To use the native code, bindings in Dart are needed.
-To avoid writing these by hand, they are generated from the header file
-(`src/nitro_webgpu.h`) by `package:ffigen`.
-Regenerate the bindings by running `dart run ffigen --config ffigen.yaml`.
-
-## Invoking native code
-
-Very short-running native functions can be directly invoked from any isolate.
-For example, see `sum` in `lib/nitro_webgpu.dart`.
-
-Longer-running functions should be invoked on a helper isolate to avoid
-dropping frames in Flutter applications.
-For example, see `sumAsync` in `lib/nitro_webgpu.dart`.
-
-## Flutter help
-
-For help getting started with Flutter, view our
-[online documentation](https://docs.flutter.dev), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
-

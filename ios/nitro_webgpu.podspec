@@ -22,6 +22,10 @@ A new Flutter FFI plugin project.
   s.dependency 'Flutter'
   s.platform = :ios, '13.0'
 
+  # wgpu-native static lib (vendored by scripts/fetch_wgpu_native.sh).
+  s.vendored_frameworks = 'nitro_webgpu/Frameworks/wgpu_native.xcframework'
+  s.frameworks = 'Metal', 'QuartzCore'
+
   # Flutter.framework does not contain a i386 slice.
   s.dependency 'nitro'
   s.pod_target_xcconfig = {

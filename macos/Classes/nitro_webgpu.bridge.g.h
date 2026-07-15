@@ -52,8 +52,8 @@ NITRO_EXPORT void* nitro_webgpu_nitro_alloc(size_t size);
 
 
 // Methods
-NITRO_EXPORT double nitro_webgpu_add(int64_t instanceId, double a, double b, NitroError* _nitro_err);
-NITRO_EXPORT const char* nitro_webgpu_get_greeting(int64_t instanceId, const char* name);
+NITRO_EXPORT void nitro_webgpu_init_instance(int64_t instanceId, void* options, NitroError* _nitro_err);
+NITRO_EXPORT const char* nitro_webgpu_wgpu_version(int64_t instanceId, NitroError* _nitro_err);
 
 #ifdef __cplusplus
 }

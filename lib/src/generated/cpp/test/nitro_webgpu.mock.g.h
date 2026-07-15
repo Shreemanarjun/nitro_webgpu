@@ -11,8 +11,8 @@
 
 class MockNitroWebgpu : public HybridNitroWebgpu {
     public:
-    MOCK_METHOD(double, add, (double a, double b), (override));
-    MOCK_METHOD(std::string, getGreeting, (const std::string& name), (override));
+    MOCK_METHOD(void, initInstance, (NitroCppBuffer options), (override));
+    MOCK_METHOD(std::string, wgpuVersion, (), (override));
 };
 
 #endif // NITRO_WEBGPU_MOCK_G_H

@@ -22,13 +22,11 @@ TEST(NitroWebgpuTest, SmokeTest) {
 // ── Your tests go here ───────────────────────────────────────────────────────
 //
 // Example:
-// TEST(NitroWebgpuTest, Add) {
+// TEST(NitroWebgpuTest, InitInstance) {
 //     MockNitroWebgpu mock;
 //     nitro_webgpu_register_impl(&mock);
-//     EXPECT_CALL(mock, add(::testing::An<double>(), ::testing::An<double>()))
-//         .WillOnce(::testing::Return(0.0));
-//     auto result = nitro_webgpu_add(0.0, 0.0);
-//     // Assert on result ...
+//     EXPECT_CALL(mock, initInstance(::testing::_)).Times(1);
+//     nitro_webgpu_init_instance(nullptr);
 //     nitro_webgpu_register_impl(nullptr);
 // }
 

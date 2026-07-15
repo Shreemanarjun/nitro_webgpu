@@ -3,7 +3,6 @@ package dev.shreeman.nitro_webgpu
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
-import nitro.nitro_webgpu_module.NitroWebgpuJniBridge
 
 class NitroWebgpuPlugin : FlutterPlugin, ActivityAware {
 
@@ -15,7 +14,6 @@ class NitroWebgpuPlugin : FlutterPlugin, ActivityAware {
         // registerFactory: one impl per Dart-side instance (multi-instance
         // registry). The old single-instance register(impl, context) API no
         // longer exists on the generated JniBridge.
-        NitroWebgpuJniBridge.registerFactory({ NitroWebgpuImpl() }, binding.applicationContext)
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {

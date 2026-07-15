@@ -30,6 +30,10 @@ A new Flutter FFI plugin project.
 
   s.platform = :osx, '10.15'
   s.dependency 'nitro'
+
+  # wgpu-native static lib (vendored by scripts/fetch_wgpu_native.sh).
+  s.vendored_frameworks = 'nitro_webgpu/Frameworks/wgpu_native.xcframework'
+  s.frameworks = 'Metal', 'QuartzCore'
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
     'CLANG_CXX_LANGUAGE_STANDARD' => 'c++17',

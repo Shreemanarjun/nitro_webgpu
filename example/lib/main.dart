@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:nitro_webgpu/nitro_webgpu.dart' as plugin;
 
@@ -30,29 +28,15 @@ class _DemoPage extends StatefulWidget {
 
 class _DemoPageState extends State<_DemoPage> {
   String _result = '—';
-  bool _loading = false;
 
-  Future<void> _runAdd() async {
-    setState(() { _loading = true; _result = '—'; });
+  void _initWgpu() {
+    setState(() => _result = '—');
     try {
-      final v = plugin.NitroWebgpu.instance.add(3, 4);
-      setState(() => _result = 'add(3, 4) = $v');
+      plugin.NitroWebgpu.instance.initInstance(const plugin.GpuInstanceOptions());
+      final version = plugin.NitroWebgpu.instance.wgpuVersion();
+      setState(() => _result = 'wgpu-native $version — instance created');
     } catch (e) {
       setState(() => _result = 'Error: $e');
-    } finally {
-      setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _runGreeting() async {
-    setState(() { _loading = true; _result = '—'; });
-    try {
-      final s = await plugin.NitroWebgpu.instance.getGreeting('World');
-      setState(() => _result = s);
-    } catch (e) {
-      setState(() => _result = 'Error: $e');
-    } finally {
-      setState(() => _loading = false);
     }
   }
 
@@ -66,12 +50,10 @@ class _DemoPageState extends State<_DemoPage> {
           children: [
             Text(_result, style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 24),
-            if (_loading) const CircularProgressIndicator(),
-            if (!_loading) ...[
-              ElevatedButton(onPressed: _runAdd, child: const Text('add(3, 4)')),
-              const SizedBox(height: 12),
-              ElevatedButton(onPressed: _runGreeting, child: const Text('getGreeting("World")')),
-            ],
+            ElevatedButton(
+              onPressed: _initWgpu,
+              child: const Text('Init WebGPU instance'),
+            ),
           ],
         ),
       ),

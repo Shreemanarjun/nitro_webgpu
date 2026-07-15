@@ -38,15 +38,14 @@ public:
 
     // ── Methods ──────────────────────────────────────────────────────────────
 
-    double add(double a, double b) override {
-        // TODO: implement add
-        throw std::runtime_error("Not implemented: add");
-        // return 0.0;
+    void initInstance(NitroCppBuffer options) override {
+        // TODO: implement initInstance
+        throw std::runtime_error("Not implemented: initInstance");
     }
 
-    std::string getGreeting(const std::string& name) override {
-        // TODO: implement getGreeting
-        throw std::runtime_error("Not implemented: getGreeting");
+    std::string wgpuVersion() override {
+        // TODO: implement wgpuVersion
+        throw std::runtime_error("Not implemented: wgpuVersion");
         // return "";
     }
 };

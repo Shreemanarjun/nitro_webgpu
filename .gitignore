@@ -31,3 +31,8 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 /build/
 /coverage/
+
+# vendored wgpu-native binaries (scripts/fetch_wgpu_native.sh)
+src/third_party/wgpu_native/
+macos/nitro_webgpu/Frameworks/
+ios/nitro_webgpu/Frameworks/
