@@ -1,7 +1,11 @@
 package dev.shreeman.nitro_webgpu
 
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.PerformanceHintManager
+import android.os.Process
+import android.os.SystemClock
 import io.flutter.view.TextureRegistry
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
@@ -30,6 +34,35 @@ class NitroWebgpuPresentImpl(
     private val native = NwpSurfacePresenter()
     private val entries = ConcurrentHashMap<Long, Entry>()
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    // ADPF: tells the OS governor our frame cadence so clocks stay boosted
+    // instead of decaying mid-session (the classic "starts fast, degrades"
+    // pattern). Created lazily on the render (Dart) thread so the session
+    // covers the thread doing the actual per-frame work.
+    private var hintSession: PerformanceHintManager.Session? = null
+    private var hintTargetNs = 0L
+    private var lastFrameNs = 0L
+
+    private fun reportFrameToAdpf() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        val now = SystemClock.elapsedRealtimeNanos()
+        if (hintSession == null) {
+            val mgr = applicationContext
+                .getSystemService(PerformanceHintManager::class.java) ?: return
+            val display = activity?.display
+            val hz = display?.refreshRate ?: 60f
+            hintTargetNs = (1e9 / hz).toLong()
+            hintSession = mgr.createHintSession(
+                intArrayOf(Process.myTid()), hintTargetNs)
+            lastFrameNs = now
+            return
+        }
+        val dur = now - lastFrameNs
+        lastFrameNs = now
+        if (dur in 1..(hintTargetNs * 4)) {
+            hintSession?.reportActualWorkDuration(dur)
+        }
+    }
 
     /// TextureRegistry methods are @UiThread; Nitro calls arrive on the Dart
     /// isolate thread (sync) or an async pool thread (suspend). Runs [block]
@@ -100,6 +133,7 @@ class NitroWebgpuPresentImpl(
     override fun presentFrame(token: Long) {
         native.nativePresent(token)
         entries[token]?.producer?.scheduleFrame()
+        reportFrameToAdpf()
     }
 
     override fun presenterFormat(token: Long): Long =
@@ -127,6 +161,23 @@ class NitroWebgpuPresentImpl(
             // re-fetch and rebuild the swapchain against it.
             entry.producer.setSize(w, h)
             native.nativeReplaceSurface(token, entry.producer.surface, w, h)
+        }
+    }
+
+    override fun requestMaxRefreshRate(): Double {
+        val act = activity ?: return 0.0
+        return onMain {
+            val display = act.display ?: return@onMain 0.0
+            val best = display.supportedModes
+                .filter {
+                    it.physicalWidth == display.mode.physicalWidth &&
+                        it.physicalHeight == display.mode.physicalHeight
+                }
+                .maxByOrNull { it.refreshRate } ?: return@onMain 0.0
+            val attrs = act.window.attributes
+            attrs.preferredDisplayModeId = best.modeId
+            act.window.attributes = attrs
+            best.refreshRate.toDouble()
         }
     }
 

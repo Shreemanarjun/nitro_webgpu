@@ -23,7 +23,7 @@ NITRO_EXPORT uint32_t nitro_webgpu_present_nitro_abi_version(void) {
     return 1;
 }
 NITRO_EXPORT const char* nitro_webgpu_present_nitro_bridge_checksum(void) {
-    return "49a9ae8d8ab99f53";
+    return "a5e813d4df56b6a7";
 }
 NITRO_EXPORT intptr_t nitro_webgpu_present_init_dart_api_dl(void* data) {
     return Dart_InitializeApiDL(data);
@@ -95,6 +95,7 @@ static jmethodID g_mid_presenterFormat_call = nullptr;
 static jmethodID g_mid_presenterUsesGpuPath_call = nullptr;
 static jmethodID g_mid_resizePresenter_call = nullptr;
 static jmethodID g_mid_presenterSetSurfaceSize_call = nullptr;
+static jmethodID g_mid_requestMaxRefreshRate_call = nullptr;
 static jmethodID g_mid_destroyPresenter_call = nullptr;
 
 
@@ -336,6 +337,25 @@ void nitro_webgpu_present_presenter_set_surface_size(int64_t instanceId, int64_t
     if (env->ExceptionCheck()) { nitro_report_jni_exception(env, env->ExceptionOccurred(), _nitro_err); }
 }
 
+double nitro_webgpu_present_request_max_refresh_rate(int64_t instanceId, NitroError* _nitro_err) {
+    if (_nitro_err) { _nitro_err->hasError = 0; }  // S8: clear slot
+    JNIEnv* env = GetEnv();
+    if (env == nullptr) { return 0.0; }
+    jmethodID methodId = g_mid_requestMaxRefreshRate_call;
+    if (methodId == nullptr) { LOGE("Method not found: requestMaxRefreshRate_call sig=(J)D"); return 0.0; }
+
+    nitro_webgpu_present_clear_error();
+    if (env->PushLocalFrame(16) != 0) { return 0.0; }
+    double res = env->CallStaticDoubleMethod(g_bridgeClass, methodId, (jlong)instanceId);
+    if (env->ExceptionCheck()) {
+        nitro_report_jni_exception(env, env->ExceptionOccurred(), _nitro_err);
+        env->PopLocalFrame(nullptr);
+        return 0.0;
+    }
+    env->PopLocalFrame(nullptr);
+    return res;
+}
+
 void nitro_webgpu_present_destroy_presenter(int64_t instanceId, int64_t token, NitroError* _nitro_err, int64_t dart_port) {
     JNIEnv* env = GetEnv();
     if (env == nullptr) { return; }
@@ -386,6 +406,8 @@ JNIEXPORT void JNICALL Java_nitro_nitro_1webgpu_1present_1module_NitroWebgpuPres
         if (!g_mid_resizePresenter_call && env->ExceptionCheck()) { env->ExceptionClear(); LOGE("Method not found: resizePresenter_call sig=(JJJJ)V"); }
         g_mid_presenterSetSurfaceSize_call = env->GetStaticMethodID(g_bridgeClass, "presenterSetSurfaceSize_call", "(JJJJ)V");
         if (!g_mid_presenterSetSurfaceSize_call && env->ExceptionCheck()) { env->ExceptionClear(); LOGE("Method not found: presenterSetSurfaceSize_call sig=(JJJJ)V"); }
+        g_mid_requestMaxRefreshRate_call = env->GetStaticMethodID(g_bridgeClass, "requestMaxRefreshRate_call", "(J)D");
+        if (!g_mid_requestMaxRefreshRate_call && env->ExceptionCheck()) { env->ExceptionClear(); LOGE("Method not found: requestMaxRefreshRate_call sig=(J)D"); }
         g_mid_destroyPresenter_call = env->GetStaticMethodID(g_bridgeClass, "destroyPresenter_call", "(JJJJ)V");
         if (!g_mid_destroyPresenter_call && env->ExceptionCheck()) { env->ExceptionClear(); LOGE("Method not found: destroyPresenter_call sig=(JJJJ)V"); }
     }
@@ -686,6 +708,31 @@ void nitro_webgpu_present_presenter_set_surface_size(int64_t instanceId, int64_t
 #endif
 }
 
+extern double _nitro_webgpu_present_call_requestMaxRefreshRate(void);
+double nitro_webgpu_present_request_max_refresh_rate(int64_t instanceId, NitroError* _nitro_err) {
+    if (_nitro_err) { _nitro_err->hasError = 0; }
+#ifdef __OBJC__
+    @try {
+        return _nitro_webgpu_present_call_requestMaxRefreshRate();
+    } @catch (NSException* e) {
+        if (_nitro_err) {
+            // sync: write exception to out-param error slot.
+            _nitro_err->hasError = 1;
+            _nitro_err->name    = strdup([e.name UTF8String]);
+            _nitro_err->message = strdup([e.reason UTF8String]);
+            _nitro_err->code = nullptr;
+            _nitro_err->stackTrace = nullptr;
+        } else {
+            // async: _nitro_err is null — route exception to TLS slot.
+            nitro_report_error([e.name UTF8String], [e.reason UTF8String], nullptr, nullptr);
+        }
+        return 0.0;
+    }
+#else
+    return _nitro_webgpu_present_call_requestMaxRefreshRate();
+#endif
+}
+
 extern void _nitro_webgpu_present_call_destroyPresenter(int64_t token, int64_t err_ptr, int64_t dart_port);
 void nitro_webgpu_present_destroy_presenter(int64_t instanceId, int64_t token, NitroError* _nitro_err, int64_t dart_port) {
     nitro_webgpu_present_clear_error();
@@ -841,6 +888,21 @@ void nitro_webgpu_present_presenter_set_surface_size(int64_t instanceId, int64_t
         _nitro_desktop_err(_nitro_err, "CppException", e.what());
     } catch (...) {
         _nitro_desktop_err(_nitro_err, "CppException", "Unknown C++ exception");
+    }
+}
+
+double nitro_webgpu_present_request_max_refresh_rate(int64_t instanceId, NitroError* _nitro_err) {
+    nitro_webgpu_present_clear_error();
+    if (_nitro_err) { _nitro_err->hasError = 0; }  // S8: clear slot
+    if (!g_impl) { _nitro_desktop_err(_nitro_err, "NotInitialized", "No C++ implementation registered. Call nitro_webgpu_present_register_impl() first."); return 0.0; }
+    try {
+        return g_impl->requestMaxRefreshRate();
+    } catch (const std::exception& e) {
+        _nitro_desktop_err(_nitro_err, "CppException", e.what());
+        return 0.0;
+    } catch (...) {
+        _nitro_desktop_err(_nitro_err, "CppException", "Unknown C++ exception");
+        return 0.0;
     }
 }
 

@@ -63,6 +63,8 @@ public:
 
     void presenterSetSurfaceSize(int64_t, int64_t, int64_t) override {}
 
+    double requestMaxRefreshRate() override { return 0.0; }
+
     void resizePresenter(int64_t, int64_t, int64_t) override {
         throw std::runtime_error(kNotSupported);
     }

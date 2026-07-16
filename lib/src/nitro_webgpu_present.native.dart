@@ -56,6 +56,13 @@ abstract class NitroWebgpuPresent extends HybridObject {
   /// (Android swapchain — recreates it); a no-op on the ring presenters.
   void presenterSetSurfaceSize(int token, int widthPx, int heightPx);
 
+  /// Asks the platform for the highest available display refresh rate
+  /// (Android: picks the fastest display mode for the activity window —
+  /// Flutter apps otherwise run at the panel default, often 60 Hz on
+  /// 120 Hz devices). Returns the refresh rate now in effect, or 0 when
+  /// the platform manages this itself (Apple ProMotion, desktop).
+  double requestMaxRefreshRate();
+
   /// Drains in-flight GPU work, then tears down the presenter and
   /// unregisters the Flutter texture.
   @nitroNativeAsync

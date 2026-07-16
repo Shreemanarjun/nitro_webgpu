@@ -441,7 +441,9 @@ public protocol HybridNitroWebgpuPresentProtocol: AnyObject {
     func resizePresenter(token: Int64, widthPx: Int64, heightPx: Int64) -> Void
     // source: nitro_webgpu_present.native.dart:57
     func presenterSetSurfaceSize(token: Int64, widthPx: Int64, heightPx: Int64) -> Void
-    // source: nitro_webgpu_present.native.dart:62
+    // source: nitro_webgpu_present.native.dart:64
+    func requestMaxRefreshRate() -> Double
+    // source: nitro_webgpu_present.native.dart:69
     func destroyPresenter(token: Int64) async throws -> Void
 }
 
@@ -531,7 +533,14 @@ public func _nitro_webgpu_present_call_presenterSetSurfaceSize(_ token: Int64, _
     NitroWebgpuPresentRegistry.impl?.presenterSetSurfaceSize(token: token, widthPx: widthPx, heightPx: heightPx)
 }
 
-// source: nitro_webgpu_present.native.dart:62
+// source: nitro_webgpu_present.native.dart:64
+@_cdecl("_nitro_webgpu_present_call_requestMaxRefreshRate")
+public func _nitro_webgpu_present_call_requestMaxRefreshRate() -> Double {
+    guard let impl = NitroWebgpuPresentRegistry.impl else { return 0.0 }
+    return impl.requestMaxRefreshRate()
+}
+
+// source: nitro_webgpu_present.native.dart:69
 @_cdecl("_nitro_webgpu_present_call_destroyPresenter")
 public func _nitro_webgpu_present_call_destroyPresenter(_ token: Int64, _ errPtr: Int64, _ dartPort: Int64) {
     let _errPtr = UnsafeMutablePointer<NitroError>(bitPattern: UInt(bitPattern: Int(errPtr)))

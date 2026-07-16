@@ -45,7 +45,9 @@ class _WebGpuViewState extends State<WebGpuView>
     with SingleTickerProviderStateMixin {
   Ticker? _ticker;
   int _token = 0;
-  int _textureId = 0;
+  // -1 = not created yet. 0 is a VALID id — Android's texture registry
+  // hands out 0 for the first texture in the process.
+  int _textureId = -1;
   GpuTextureFormat _format = GpuTextureFormat.bgra8Unorm;
   int _widthPx = 0;   // render resolution (scaled)
   int _heightPx = 0;
@@ -147,7 +149,7 @@ class _WebGpuViewState extends State<WebGpuView>
       final w = (constraints.maxWidth * dpr * scale).round();
       final h = (constraints.maxHeight * dpr * scale).round();
       if (w > 0 && h > 0) _ensurePresenter(w, h, surfaceW, surfaceH);
-      if (_textureId == 0) return const SizedBox.expand();
+      if (_textureId < 0) return const SizedBox.expand();
       return Texture(
         textureId: _textureId,
         filterQuality: widget.filterQuality,

@@ -263,6 +263,12 @@ public class NitroWebgpuPresentModuleImpl: NSObject,
         return entry(token)?.usesGpuPath ?? false
     }
 
+    public func requestMaxRefreshRate() -> Double {
+        // Apple platforms drive refresh through the display link (ProMotion
+        // adapts automatically); nothing to request here.
+        return 0
+    }
+
     public func presenterSetSurfaceSize(token: Int64, widthPx: Int64, heightPx: Int64) {
         // Ring presenters render offscreen — there is no window surface to
         // resize; the render size (resizePresenter) is the only dimension.

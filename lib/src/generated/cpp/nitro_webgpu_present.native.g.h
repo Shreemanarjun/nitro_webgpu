@@ -235,7 +235,9 @@ public:
     virtual void resizePresenter(int64_t token, int64_t widthPx, int64_t heightPx) = 0;
     // source: nitro_webgpu_present.native.dart:57
     virtual void presenterSetSurfaceSize(int64_t token, int64_t widthPx, int64_t heightPx) = 0;
-    // source: nitro_webgpu_present.native.dart:62
+    // source: nitro_webgpu_present.native.dart:64
+    virtual double requestMaxRefreshRate() = 0;
+    // source: nitro_webgpu_present.native.dart:69
     virtual void destroyPresenter(int64_t token, NitroError* _nitro_err, int64_t dartPort) = 0;
 
 protected:

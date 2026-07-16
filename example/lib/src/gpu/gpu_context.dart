@@ -1,4 +1,9 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:nitro_webgpu/nitro_webgpu.dart';
+// ignore: implementation_imports
+import 'package:nitro_webgpu/src/nitro_webgpu_present.native.dart';
 
 /// App-wide GPU bootstrap: one adapter + device shared by every demo.
 ///
@@ -18,6 +23,19 @@ class GpuContext {
   static Future<GpuContext> obtain() => _instance ??= _create();
 
   static Future<GpuContext> _create() async {
+    // Ask the platform for its fastest display mode (Android otherwise runs
+    // Flutter at the panel default — 60 Hz on many 120 Hz devices). Retries
+    // briefly: the activity attaches slightly after startup.
+    unawaited(() async {
+      for (var i = 0; i < 10; i++) {
+        final hz = NitroWebgpuPresent.instance.requestMaxRefreshRate();
+        if (hz > 0) {
+          debugPrint('[gpu] display refresh boosted to ${hz.round()} Hz');
+          return;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      }
+    }());
     final adapter = await Gpu.requestAdapter(
       powerPreference: GpuPowerPreference.highPerformance,
     );

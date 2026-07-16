@@ -84,7 +84,7 @@ class _NitroWebgpuPresentImpl extends NitroWebgpuPresent {
     }
     NitroRuntime.checkLinkChecksum(
       'nitro_webgpu_present',
-      '49a9ae8d8ab99f53',
+      'a5e813d4df56b6a7',
       () => _dylib
           .lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
             'nitro_webgpu_present_nitro_bridge_checksum',
@@ -183,6 +183,12 @@ class _NitroWebgpuPresentImpl extends NitroWebgpuPresent {
       .asFunction<void Function(int, int, int, int, Pointer<NitroErrorFfi>)>(
         isLeaf: true,
       );
+  late final double Function(int, Pointer<NitroErrorFfi>)
+  _requestMaxRefreshRatePtr = _dylib
+      .lookup<NativeFunction<Double Function(Int64, Pointer<NitroErrorFfi>)>>(
+        'nitro_webgpu_present_request_max_refresh_rate',
+      )
+      .asFunction<double Function(int, Pointer<NitroErrorFfi>)>(isLeaf: true);
   late final void Function(int, int, Pointer<NitroErrorFfi>, int)
   _destroyPresenterPtr = _dylib
       .lookupFunction<
@@ -314,6 +320,16 @@ class _NitroWebgpuPresentImpl extends NitroWebgpuPresent {
       );
       NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
     }, methodName: 'presenterSetSurfaceSize');
+  }
+
+  @override
+  double requestMaxRefreshRate() {
+    checkDisposed();
+    return NitroRuntime.callSync(() {
+      final res = _requestMaxRefreshRatePtr(_instanceId, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+      return res;
+    }, methodName: 'requestMaxRefreshRate');
   }
 
   @override

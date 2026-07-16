@@ -83,6 +83,12 @@ public:
         throw std::runtime_error("Not implemented: presenterSetSurfaceSize");
     }
 
+    double requestMaxRefreshRate() override {
+        // TODO: implement requestMaxRefreshRate
+        throw std::runtime_error("Not implemented: requestMaxRefreshRate");
+        // return 0.0;
+    }
+
     void destroyPresenter(int64_t token, NitroError* _nitro_err, int64_t dartPort) override {
         // TODO: on error, populate _nitro_err (hasError/name/message via strdup) before posting.
         // TODO: post result via Dart_PostCObject_DL(dartPort, ...)

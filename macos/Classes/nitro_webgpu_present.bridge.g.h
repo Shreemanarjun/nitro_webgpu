@@ -60,6 +60,7 @@ NITRO_EXPORT int64_t nitro_webgpu_present_presenter_format(int64_t instanceId, i
 NITRO_EXPORT int8_t nitro_webgpu_present_presenter_uses_gpu_path(int64_t instanceId, int64_t token, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_present_resize_presenter(int64_t instanceId, int64_t token, int64_t widthPx, int64_t heightPx, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_present_presenter_set_surface_size(int64_t instanceId, int64_t token, int64_t widthPx, int64_t heightPx, NitroError* _nitro_err);
+NITRO_EXPORT double nitro_webgpu_present_request_max_refresh_rate(int64_t instanceId, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_present_destroy_presenter(int64_t instanceId, int64_t token, NitroError* _nitro_err, int64_t dart_port);
 
 #ifdef __cplusplus
