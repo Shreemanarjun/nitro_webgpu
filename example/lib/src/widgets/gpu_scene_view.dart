@@ -74,7 +74,11 @@ class _GpuSceneViewState extends State<GpuSceneView> {
   double _dynScale = 1.0;
   double _displayFps = 60;
 
-  double get _targetFps => widget.targetFps?.toDouble() ?? _displayFps;
+  double get _targetFps =>
+      widget.targetFps?.toDouble() ??
+      (GpuContext.displayRefreshRate > _displayFps
+          ? GpuContext.displayRefreshRate
+          : _displayFps);
 
   @override
   void didChangeDependencies() {

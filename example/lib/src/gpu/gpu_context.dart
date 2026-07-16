@@ -18,6 +18,11 @@ class GpuContext {
 
   GpuQueue get queue => device.queue;
 
+  /// The refresh rate the platform granted via `requestMaxRefreshRate` —
+  /// more trustworthy than `View.display.refreshRate`, which can keep
+  /// reporting the pre-boost default mode.
+  static double displayRefreshRate = 0;
+
   static Future<GpuContext>? _instance;
 
   static Future<GpuContext> obtain() => _instance ??= _create();
@@ -30,6 +35,7 @@ class GpuContext {
       for (var i = 0; i < 10; i++) {
         final hz = NitroWebgpuPresent.instance.requestMaxRefreshRate();
         if (hz > 0) {
+          displayRefreshRate = hz;
           debugPrint('[gpu] display refresh boosted to ${hz.round()} Hz');
           return;
         }

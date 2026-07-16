@@ -63,6 +63,12 @@ struct NwpPresenter {
     bool surfaceMode = false;
     int32_t surfaceWidth = 0;
     int32_t surfaceHeight = 0;
+    // Surface-mode state is touched from the Dart thread (acquire/present)
+    // AND nitro's async pool (destroy/replace) — serialize those ops.
+    std::mutex surfaceMutex;
+    // Live public-API calls holding this presenter; destroy defers while > 0
+    // so a concurrent call can never touch a freed presenter.
+    std::atomic<int> opRefs{0};
     // Scaled offscreen render target (surface mode, render != surface size).
     WGPUTexture offTex = nullptr;
     WGPUTextureView offView = nullptr;
@@ -85,6 +91,40 @@ NwpPresenter* nwpFind(int64_t token) {
     auto it = gPresenters.find(token);
     return it == gPresenters.end() ? nullptr : it->second;
 }
+
+void nwpFinalize(int64_t token, NwpPresenter* p);
+bool nwpAnyInflight(NwpPresenter* p);
+
+// Public-API entry: resolves the token AND takes an operation reference so
+// a concurrent destroy cannot free the presenter mid-call. Pair with the
+// guard below on every exit path.
+NwpPresenter* nwpFindAndRef(int64_t token) {
+    std::lock_guard<std::mutex> lock(gPresentersMutex);
+    auto it = gPresenters.find(token);
+    if (it == gPresenters.end() || it->second->destroyPending) return nullptr;
+    it->second->opRefs.fetch_add(1, std::memory_order_acq_rel);
+    return it->second;
+}
+
+void nwpUnrefOp(int64_t token, NwpPresenter* p) {
+    bool finalize = false;
+    {
+        std::lock_guard<std::mutex> lock(gPresentersMutex);
+        const int prev = p->opRefs.fetch_sub(1, std::memory_order_acq_rel);
+        if (prev == 1 && p->destroyPending && !nwpAnyInflight(p)) {
+            finalize = true;
+        }
+    }
+    if (finalize) nwpFinalize(token, p);
+}
+
+struct NwpOpGuard {
+    int64_t token;
+    NwpPresenter* p;
+    ~NwpOpGuard() {
+        if (p) nwpUnrefOp(token, p);
+    }
+};
 
 void nwpReleaseTargets(NwpPresenter* p) {
     for (auto& s : p->slots) {
@@ -110,7 +150,10 @@ void nwpFinalize(int64_t token, NwpPresenter* p) {
         gPresenters.erase(token);
     }
     WgpuContext::get().unregisterDevice(p->device);
-    if (p->surfaceMode) nwpDestroySurface(p);
+    if (p->surfaceMode) {
+        std::lock_guard<std::mutex> surfLock(p->surfaceMutex);
+        nwpDestroySurface(p);
+    }
     nwpReleaseTargets(p);
     wgpuQueueRelease(p->queue);
     delete p;
@@ -133,7 +176,10 @@ void nwpCompleteInflight(int64_t token, NwpPresenter* p, int slot) {
         std::lock_guard<std::mutex> lock(gPresentersMutex);
         int expected = 2;
         p->slots[slot].state.compare_exchange_strong(expected, 0);
-        if (p->destroyPending && !nwpAnyInflight(p)) finalize = true;
+        if (p->destroyPending && !nwpAnyInflight(p) &&
+            p->opRefs.load(std::memory_order_acquire) == 0) {
+            finalize = true;
+        }
     }
     if (finalize) nwpFinalize(token, p);
 }
@@ -317,6 +363,13 @@ void nwpConfigureSurface(NwpPresenter* p, int32_t width, int32_t height) {
 }
 
 void nwpDestroySurface(NwpPresenter* p) {
+    // A view that unmounts mid-frame leaves the swapchain texture acquired
+    // but never presented — wgpu panics if the surface drops while that
+    // texture is outstanding. Present it (the view is disappearing; one
+    // stale frame is invisible) before tearing the surface down.
+    if (p->surface && p->surfaceView) {
+        wgpuSurfacePresent(p->surface);
+    }
     nwpReleaseSurfaceFrame(p);
     nwpReleaseBlit(p);
     if (p->surface) {
@@ -399,8 +452,11 @@ int64_t nwp_presenter_create_surface(int64_t deviceAddress,
 
 void nwp_presenter_replace_surface(int64_t token, void* nativeWindow,
                                    int32_t width, int32_t height) {
-    NwpPresenter* p = nwpFind(token);
-    if (!p || !p->surfaceMode) return;
+    NwpPresenter* p = nwpFindAndRef(token);
+    if (!p) return;
+    NwpOpGuard guard{token, p};
+    if (!p->surfaceMode) return;
+    std::lock_guard<std::mutex> surfLock(p->surfaceMutex);
     nwpDestroySurface(p);
     if (width > 0 && height > 0) {
         p->surfaceWidth = width;
@@ -437,10 +493,12 @@ void* nwp_presenter_metal_device(int64_t token) {
 }
 
 int64_t nwp_presenter_acquire(int64_t token) {
-    NwpPresenter* p = nwpFind(token);
-    if (!p || p->destroyPending) return 0;
+    NwpPresenter* p = nwpFindAndRef(token);
+    if (!p) return 0;
+    NwpOpGuard guard{token, p};
 
     if (p->surfaceMode) {
+        std::lock_guard<std::mutex> surfLock(p->surfaceMutex);
         if (!p->surface) return 0;  // parked (window lost)
         // Pending RENDER resize: only the internal target changes.
         if (p->pendingWidth > 0 &&
@@ -522,10 +580,12 @@ int64_t nwp_presenter_acquire(int64_t token) {
 }
 
 void nwp_presenter_present(int64_t token) {
-    NwpPresenter* p = nwpFind(token);
+    NwpPresenter* p = nwpFindAndRef(token);
     if (!p) return;
+    NwpOpGuard guard{token, p};
 
     if (p->surfaceMode) {
+        std::lock_guard<std::mutex> surfLock(p->surfaceMutex);
         if (!p->surface) return;
         if (p->offscreenAcquired) {
             // Scaled path: fetch the swapchain image now, upscale-blit the
@@ -675,8 +735,10 @@ int32_t nwp_presenter_format(int64_t token) {
 }
 
 void nwp_presenter_resize(int64_t token, int32_t width, int32_t height) {
-    NwpPresenter* p = nwpFind(token);
-    if (!p || width <= 0 || height <= 0) return;
+    NwpPresenter* p = nwpFindAndRef(token);
+    if (!p) return;
+    NwpOpGuard guard{token, p};
+    if (width <= 0 || height <= 0) return;
     p->pendingWidth = width;
     p->pendingHeight = height;
 }
@@ -696,7 +758,8 @@ void nwp_presenter_destroy(int64_t token) {
         p = it->second;
         if (p->destroyPending) return;  // already tearing down
         p->destroyPending = true;
-        busy = nwpAnyInflight(p);
+        busy = nwpAnyInflight(p) ||
+               p->opRefs.load(std::memory_order_acquire) > 0;
     }
     // Presents still in flight: the last completion (map callback, workdone
     // failure path, or frame_done) finalizes the presenter — never freeing
