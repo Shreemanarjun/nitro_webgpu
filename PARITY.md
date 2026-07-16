@@ -52,8 +52,15 @@ behavior: 69 green integration tests (`example/integration_test/`).
 ## Also covered (the former "remaining" tail)
 
 - **Compressed texture formats**: BC1–BC7, ETC2/EAC, ASTC 4×4/8×8 enum
-  entries (feature-gated; pass a block-aligned `bytesPerRow` to
-  `writeTexture`). BC1 upload + sampling verified on Apple silicon.
+  entries (feature-gated). BC1 upload + sampling verified on Apple silicon.
+- **Compressed-format upload helpers**: `GpuTextureFormatInfo` exposes
+  `blockWidth`/`blockHeight`/`bytesPerBlock` + `bytesPerRowFor`/
+  `rowsForHeight`/`byteLengthFor` for every format, and `writeTexture`
+  now derives its default `bytesPerRow` from the format (tight
+  block-aligned stride — fixes the old rgba-assuming `width × 4`),
+  defaults `width`/`height` to the target mip's size, and validates data
+  length + block-aligned origins with crisp `ArgumentError`s before any
+  native call. Compressed uploads need zero hand-rolled math.
 - **Introspection getters**: `buffer.usage`, all texture properties
   (`mipLevelCount`/`sampleCount`/`depthOrArrayLayers`/`dimension`/`usage`),
   `querySet.type` — native-backed; `buffer.mapState` is wrapper-tracked
@@ -68,15 +75,23 @@ behavior: 69 green integration tests (`example/integration_test/`).
 
 - `Surface*` functions — deliberately replaced by the presenter seam
   (Android M2.3 will consume them); `ExternalTexture` is web-only.
-- Compressed-format upload *helpers* (block-size math is the caller's until
-  a real asset pipeline lands).
 
 ## Upstream gaps in wgpu-native v29.0.1.1 (probe-verified)
 
-- `wgpuBufferWriteMappedRange` and mutable `wgpuBufferGetMappedRange` are
-  `todo!()` panics — `writeMapped` goes through
-  `wgpuBufferGetConstMappedRange` instead (same host-visible mapping;
-  round-trip probe-verified for both mapping paths).
+- `wgpuBufferWriteMappedRange` / `wgpuBufferReadMappedRange` are
+  `unimplemented!()` panics (`lib.rs:707/717`) — `writeMapped` writes
+  through `wgpuBufferGetMappedRange` (which IS implemented; round-trip
+  probe-verified for both mapping paths).
+- Complete stub inventory for v29.0.1.1 (source-audited): 35 functions in
+  `unimplemented.rs` (20 `SetLabel` variants, `BufferGetMapState`,
+  `Create{Compute,Render}PipelineAsync`, `DeviceGetAdapterInfo`,
+  `DeviceGetLostFuture`, `ExternalTexture*`, `GetProcAddress`, WGSL
+  language-feature queries, `InstanceWaitAny`,
+  `ShaderModuleGetCompilationInfo`, `TextureGetTextureBindingViewDimension`)
+  plus 5 inline in `lib.rs` (`GetInstanceFeatures`, `HasInstanceFeature`,
+  `SupportedInstanceFeaturesFreeMembers`, `Buffer{Read,Write}MappedRange`).
+  The plugin calls **none of them** (verified: stub list ∩ called-function
+  list = ∅), and v29.0.1.1 is the newest upstream release.
 - `wgpuDeviceCreateComputePipelineAsync` / `CreateRenderPipelineAsync` are
   unimplemented (`unimplemented.rs` panic) — async pipeline creation cannot
   ship on this pin; checked creates stay synchronous + error-scoped.

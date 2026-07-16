@@ -956,18 +956,18 @@ public:
                            size_t data_length) override {
         // Zero-copy upload: the Dart buffer is written straight into the
         // mapped GPU allocation. wgpu-native v29.0.1.1 ships
-        // wgpuBufferWriteMappedRange / wgpuBufferGetMappedRange as todo!()
-        // panics (probe-verified), so this goes through the const getter —
-        // it returns the same host-visible mapping, and the write+unmap
-        // round-trip is probe-verified against the static lib.
-        const void* p = wgpuBufferGetConstMappedRange(
-            (WGPUBuffer)(intptr_t)buffer, (size_t)offset, data_length);
+        // wgpuBufferWriteMappedRange/ReadMappedRange as unimplemented!()
+        // panics (source-verified: lib.rs:707/717), so this writes through
+        // wgpuBufferGetMappedRange — implemented, round-trip probe-verified
+        // for both mappedAtCreation and mapAsync(Write) buffers.
+        void* p = wgpuBufferGetMappedRange((WGPUBuffer)(intptr_t)buffer,
+                                           (size_t)offset, data_length);
         if (!p) {
             throw std::runtime_error(
                 "bufferWriteMapped failed — is the buffer mapped and the "
                 "range in bounds?");
         }
-        std::memcpy(const_cast<void*>(p), data, data_length);
+        std::memcpy(p, data, data_length);
     }
 
     void bufferUnmap(int64_t buffer) override {

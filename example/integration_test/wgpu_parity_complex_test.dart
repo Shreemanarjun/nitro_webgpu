@@ -1868,6 +1868,199 @@ fn fs_main() -> @location(0) vec4f {
       adapter.dispose();
     });
 
+    test('format info exposes correct block-size math', () {
+      // Uncompressed: 1×1 blocks, byte size per texel.
+      expect(GpuTextureFormat.rgba8Unorm.isCompressed, isFalse);
+      expect(GpuTextureFormat.rgba8Unorm.bytesPerRowFor(3), 12);
+      expect(GpuTextureFormat.r8Unorm.bytesPerBlock, 1);
+      expect(GpuTextureFormat.rgba16Float.bytesPerRowFor(4), 32);
+      expect(GpuTextureFormat.rgba32Float.byteLengthFor(2, 2), 64);
+      expect(GpuTextureFormat.depth32Float.bytesPerBlock, 4);
+      // BC1: 4×4 blocks, 8 bytes each; width rounds up to whole blocks.
+      expect(GpuTextureFormat.bc1RgbaUnorm.isCompressed, isTrue);
+      expect(GpuTextureFormat.bc1RgbaUnorm.blockWidth, 4);
+      expect(GpuTextureFormat.bc1RgbaUnorm.bytesPerRowFor(8), 16);
+      expect(GpuTextureFormat.bc1RgbaUnorm.bytesPerRowFor(5), 16);
+      expect(GpuTextureFormat.bc1RgbaUnorm.byteLengthFor(8, 8), 32);
+      // 16-byte 4×4 blocks.
+      expect(GpuTextureFormat.bc7RgbaUnorm.byteLengthFor(4, 4), 16);
+      expect(GpuTextureFormat.etc2Rgba8Unorm.bytesPerBlock, 16);
+      expect(GpuTextureFormat.etc2Rgb8Unorm.bytesPerBlock, 8);
+      expect(GpuTextureFormat.eacR11Unorm.bytesPerBlock, 8);
+      expect(GpuTextureFormat.astc4x4Unorm.byteLengthFor(8, 8), 64);
+      // ASTC 8×8: 16-byte blocks covering 8×8 texels.
+      expect(GpuTextureFormat.astc8x8Unorm.blockWidth, 8);
+      expect(GpuTextureFormat.astc8x8Unorm.bytesPerRowFor(16), 32);
+      expect(GpuTextureFormat.astc8x8Unorm.byteLengthFor(16, 16), 64);
+      // depth24Plus has no fixed copy footprint.
+      expect(() => GpuTextureFormat.depth24Plus.bytesPerRowFor(4),
+          throwsStateError);
+    });
+
+    test('compressed upload computes stride automatically (BC1 quadrants)',
+        () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      if (!adapter.features.contains(GpuFeature.textureCompressionBc)) {
+        adapter.dispose();
+        markTestSkipped('adapter lacks texture-compression-bc');
+        return;
+      }
+      final device = await adapter.requestDevice(
+          requiredFeatures: {GpuFeature.textureCompressionBc});
+
+      // 8×8 BC1 = 2×2 blocks. Each block is solid: color0 = color1 = the
+      // RGB565 color, all indices 0. Row stride (16 bytes) is NOT passed —
+      // writeTexture must derive it from the format info.
+      List<int> solidBlock(int c565) =>
+          [c565 & 0xFF, c565 >> 8, c565 & 0xFF, c565 >> 8, 0, 0, 0, 0];
+      final data = Uint8List.fromList([
+        ...solidBlock(0xF800), ...solidBlock(0x07E0), // red | green
+        ...solidBlock(0x001F), ...solidBlock(0xFFFF), // blue | white
+      ]);
+      final bc1 = device.createTexture(
+        width: 8,
+        height: 8,
+        format: GpuTextureFormat.bc1RgbaUnorm,
+        usage: GpuTextureUsage.textureBinding | GpuTextureUsage.copyDst,
+      );
+
+      // Layout validation fires before any native call.
+      expect(() => device.queue.writeTexture(bc1, Uint8List(16)),
+          throwsArgumentError, reason: '16 bytes < the 32 the copy needs');
+      expect(() => device.queue.writeTexture(bc1, data, originX: 2),
+          throwsArgumentError, reason: 'origin not block-aligned');
+
+      device.queue.writeTexture(bc1, data);
+
+      final module = await device.createShaderModule('''
+@group(0) @binding(0) var samp: sampler;
+@group(0) @binding(1) var tex: texture_2d<f32>;
+$fsTriVs
+@fragment
+fn fs_main(@builtin(position) pos: vec4f) -> @location(0) vec4f {
+  return textureSample(tex, samp, pos.xy / 2.0);
+}
+''');
+      final pipeline = await device.createRenderPipeline(
+          module: module, targetFormat: GpuTextureFormat.rgba8Unorm);
+      final sampler = device.createSampler(
+          magFilter: GpuFilterMode.nearest, minFilter: GpuFilterMode.nearest);
+      final view = bc1.createView();
+      final bgl = pipeline.getBindGroupLayout(0);
+      final bind = device.createBindGroup(layout: bgl, entries: [
+        GpuSamplerBinding(binding: 0, sampler: sampler),
+        GpuTextureBinding(binding: 1, view: view),
+      ]);
+
+      // A 2×2 target samples one texel from the middle of each block.
+      final target = device.createTexture(
+        width: 2,
+        height: 2,
+        format: GpuTextureFormat.rgba8Unorm,
+        usage: GpuTextureUsage.renderAttachment | GpuTextureUsage.copySrc,
+      );
+      final targetView = target.createView();
+      final encoder = device.createCommandEncoder();
+      encoder.beginRenderPass(
+          colorAttachments: [GpuColorAttachmentInfo(view: targetView)])
+        ..setPipeline(pipeline)
+        ..setBindGroup(0, bind)
+        ..draw(3)
+        ..end();
+      device.queue.submit([encoder.finish()]);
+
+      final bytes = await readbackRgba(device, target);
+      expect(pixel(bytes, 0, 0), [255, 0, 0, 255], reason: 'top-left red');
+      expect(pixel(bytes, 1, 0), [0, 255, 0, 255], reason: 'top-right green');
+      expect(pixel(bytes, 0, 1), [0, 0, 255, 255], reason: 'bottom-left blue');
+      expect(pixel(bytes, 1, 1), [255, 255, 255, 255],
+          reason: 'bottom-right white');
+
+      targetView.dispose();
+      target.dispose();
+      bind.dispose();
+      bgl.dispose();
+      view.dispose();
+      sampler.dispose();
+      pipeline.dispose();
+      module.dispose();
+      bc1.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+
+    test('non-4-byte format gets a tight default stride (r8Unorm)', () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+
+      // 4×2 r8 texture, tightly packed 8 bytes — the default stride must be
+      // 4 (w × 1 byte), not the old rgba-assuming w × 4.
+      final tex = device.createTexture(
+        width: 4,
+        height: 2,
+        format: GpuTextureFormat.r8Unorm,
+        usage: GpuTextureUsage.textureBinding | GpuTextureUsage.copyDst,
+      );
+      device.queue.writeTexture(
+          tex, Uint8List.fromList([10, 20, 30, 40, 50, 60, 70, 80]));
+
+      final module = await device.createShaderModule('''
+@group(0) @binding(0) var samp: sampler;
+@group(0) @binding(1) var tex: texture_2d<f32>;
+$fsTriVs
+@fragment
+fn fs_main(@builtin(position) pos: vec4f) -> @location(0) vec4f {
+  return textureSample(tex, samp, pos.xy / vec2f(4.0, 2.0));
+}
+''');
+      final pipeline = await device.createRenderPipeline(
+          module: module, targetFormat: GpuTextureFormat.rgba8Unorm);
+      final sampler = device.createSampler(
+          magFilter: GpuFilterMode.nearest, minFilter: GpuFilterMode.nearest);
+      final view = tex.createView();
+      final bgl = pipeline.getBindGroupLayout(0);
+      final bind = device.createBindGroup(layout: bgl, entries: [
+        GpuSamplerBinding(binding: 0, sampler: sampler),
+        GpuTextureBinding(binding: 1, view: view),
+      ]);
+
+      final target = device.createTexture(
+        width: 4,
+        height: 2,
+        format: GpuTextureFormat.rgba8Unorm,
+        usage: GpuTextureUsage.renderAttachment | GpuTextureUsage.copySrc,
+      );
+      final targetView = target.createView();
+      final encoder = device.createCommandEncoder();
+      encoder.beginRenderPass(
+          colorAttachments: [GpuColorAttachmentInfo(view: targetView)])
+        ..setPipeline(pipeline)
+        ..setBindGroup(0, bind)
+        ..draw(3)
+        ..end();
+      device.queue.submit([encoder.finish()]);
+
+      // Row 1 texels only decode correctly if the upload stride was tight.
+      final bytes = await readbackRgba(device, target);
+      expect(pixel(bytes, 3, 0)[0], 40, reason: 'row 0 end');
+      expect(pixel(bytes, 1, 1)[0], 60, reason: 'row 1 reads bytes 4..7');
+      expect(pixel(bytes, 3, 1)[0], 80, reason: 'row 1 end');
+
+      targetView.dispose();
+      target.dispose();
+      bind.dispose();
+      bgl.dispose();
+      view.dispose();
+      sampler.dispose();
+      pipeline.dispose();
+      module.dispose();
+      tex.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+
     test('five color targets render in one pass', () async {
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);

@@ -37,7 +37,9 @@ and the Android emulator:
   per-axis address modes + LOD clamps + anisotropy, storage textures, all
   four copy directions with origins/mips/layers, `clearBuffer`, 39 standard
   formats from `r8unorm` to `rgba32float` + `depth16unorm`/`stencil8`, and
-  feature-gated compressed formats (BC1–7, ETC2/EAC, ASTC).
+  feature-gated compressed formats (BC1–7, ETC2/EAC, ASTC) with automatic
+  block-size math — `writeTexture` derives the block-aligned stride from
+  the format, and `GpuTextureFormatInfo` exposes the layout helpers.
 - **Buffers**: zero-copy `writeBuffer`/`writeTexture` uploads, `mapRead`,
   and the mapped-write path (`mappedAtCreation` / `mapWrite` +
   `writeMapped` straight into mapped GPU memory).

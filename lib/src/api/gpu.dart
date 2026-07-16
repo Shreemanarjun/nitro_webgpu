@@ -67,8 +67,8 @@ enum GpuTextureFormat {
   depth32Float(0x30),
 
   // Block-compressed formats. Gated on the matching GpuFeature
-  // (textureCompressionBc / Etc2 / Astc); pass an explicit block-aligned
-  // `bytesPerRow` to `writeTexture` (e.g. BC1 = 8 bytes per 4×4 block row).
+  // (textureCompressionBc / Etc2 / Astc). [GpuQueue.writeTexture] computes
+  // the block-aligned stride automatically (see [GpuTextureFormatInfo]).
   bc1RgbaUnorm(0x32),
   bc1RgbaUnormSrgb(0x33),
   bc2RgbaUnorm(0x34),
@@ -100,6 +100,133 @@ enum GpuTextureFormat {
 
   final int raw;
   const GpuTextureFormat(this.raw);
+}
+
+/// Per-format texel-block metadata and copy-layout math.
+///
+/// WebGPU copies are laid out in *texel blocks*: 1×1 for uncompressed
+/// formats, 4×4 or 8×8 for compressed ones. These helpers compute the
+/// strides [GpuQueue.writeTexture] and buffer↔texture copies need, so
+/// callers never hand-roll block-size math.
+extension GpuTextureFormatInfo on GpuTextureFormat {
+  /// Whether this is a block-compressed format (BC / ETC2-EAC / ASTC).
+  bool get isCompressed => raw >= GpuTextureFormat.bc1RgbaUnorm.raw;
+
+  /// Texel width of one block. 1 for uncompressed formats.
+  int get blockWidth => switch (this) {
+        GpuTextureFormat.astc8x8Unorm ||
+        GpuTextureFormat.astc8x8UnormSrgb =>
+          8,
+        _ when isCompressed => 4,
+        _ => 1,
+      };
+
+  /// Texel height of one block. 1 for uncompressed formats.
+  int get blockHeight => blockWidth; // All supported blocks are square.
+
+  /// Bytes in one texel block, or `null` for the `depth24Plus` family whose
+  /// copy footprint depends on the aspect being copied.
+  int? get bytesPerBlock => switch (this) {
+        GpuTextureFormat.r8Unorm ||
+        GpuTextureFormat.r8Snorm ||
+        GpuTextureFormat.r8Uint ||
+        GpuTextureFormat.r8Sint ||
+        GpuTextureFormat.stencil8 =>
+          1,
+        GpuTextureFormat.r16Uint ||
+        GpuTextureFormat.r16Sint ||
+        GpuTextureFormat.r16Float ||
+        GpuTextureFormat.rg8Unorm ||
+        GpuTextureFormat.rg8Snorm ||
+        GpuTextureFormat.rg8Uint ||
+        GpuTextureFormat.rg8Sint ||
+        GpuTextureFormat.depth16Unorm =>
+          2,
+        GpuTextureFormat.rg16Uint ||
+        GpuTextureFormat.rg16Sint ||
+        GpuTextureFormat.rg16Float ||
+        GpuTextureFormat.r32Float ||
+        GpuTextureFormat.r32Uint ||
+        GpuTextureFormat.r32Sint ||
+        GpuTextureFormat.rgba8Unorm ||
+        GpuTextureFormat.rgba8UnormSrgb ||
+        GpuTextureFormat.rgba8Snorm ||
+        GpuTextureFormat.rgba8Uint ||
+        GpuTextureFormat.rgba8Sint ||
+        GpuTextureFormat.bgra8Unorm ||
+        GpuTextureFormat.bgra8UnormSrgb ||
+        GpuTextureFormat.rgb10a2Unorm ||
+        GpuTextureFormat.rg11b10Ufloat ||
+        GpuTextureFormat.depth32Float =>
+          4,
+        GpuTextureFormat.rg32Float ||
+        GpuTextureFormat.rg32Uint ||
+        GpuTextureFormat.rg32Sint ||
+        GpuTextureFormat.rgba16Uint ||
+        GpuTextureFormat.rgba16Sint ||
+        GpuTextureFormat.rgba16Float =>
+          8,
+        GpuTextureFormat.rgba32Float ||
+        GpuTextureFormat.rgba32Uint ||
+        GpuTextureFormat.rgba32Sint =>
+          16,
+        GpuTextureFormat.depth24Plus ||
+        GpuTextureFormat.depth24PlusStencil8 =>
+          null,
+        // 8-byte compressed blocks.
+        GpuTextureFormat.bc1RgbaUnorm ||
+        GpuTextureFormat.bc1RgbaUnormSrgb ||
+        GpuTextureFormat.bc4RUnorm ||
+        GpuTextureFormat.bc4RSnorm ||
+        GpuTextureFormat.etc2Rgb8Unorm ||
+        GpuTextureFormat.etc2Rgb8UnormSrgb ||
+        GpuTextureFormat.etc2Rgb8A1Unorm ||
+        GpuTextureFormat.etc2Rgb8A1UnormSrgb ||
+        GpuTextureFormat.eacR11Unorm ||
+        GpuTextureFormat.eacR11Snorm =>
+          8,
+        // 16-byte compressed blocks.
+        GpuTextureFormat.bc2RgbaUnorm ||
+        GpuTextureFormat.bc2RgbaUnormSrgb ||
+        GpuTextureFormat.bc3RgbaUnorm ||
+        GpuTextureFormat.bc3RgbaUnormSrgb ||
+        GpuTextureFormat.bc5RgUnorm ||
+        GpuTextureFormat.bc5RgSnorm ||
+        GpuTextureFormat.bc6hRgbUfloat ||
+        GpuTextureFormat.bc6hRgbFloat ||
+        GpuTextureFormat.bc7RgbaUnorm ||
+        GpuTextureFormat.bc7RgbaUnormSrgb ||
+        GpuTextureFormat.etc2Rgba8Unorm ||
+        GpuTextureFormat.etc2Rgba8UnormSrgb ||
+        GpuTextureFormat.eacRg11Unorm ||
+        GpuTextureFormat.eacRg11Snorm ||
+        GpuTextureFormat.astc4x4Unorm ||
+        GpuTextureFormat.astc4x4UnormSrgb ||
+        GpuTextureFormat.astc8x8Unorm ||
+        GpuTextureFormat.astc8x8UnormSrgb =>
+          16,
+      };
+
+  /// Tight row stride in bytes for a copy [widthTexels] wide — one row of
+  /// texel blocks. Throws [StateError] for the `depth24Plus` family.
+  int bytesPerRowFor(int widthTexels) {
+    final bpb = bytesPerBlock;
+    if (bpb == null) {
+      throw StateError(
+          '$name has an aspect-dependent copy footprint — pass an explicit '
+          'bytesPerRow');
+    }
+    return ((widthTexels + blockWidth - 1) ~/ blockWidth) * bpb;
+  }
+
+  /// Number of block rows a copy [heightTexels] tall occupies.
+  int rowsForHeight(int heightTexels) =>
+      (heightTexels + blockHeight - 1) ~/ blockHeight;
+
+  /// Total byte length of a tightly-packed [widthTexels]×[heightTexels]
+  /// image in this format.
+  int byteLengthFor(int widthTexels, int heightTexels) =>
+      bytesPerRowFor(widthTexels) * rowsForHeight(heightTexels);
 }
 
 /// Texture dimensionality (raw `WGPUTextureDimension`).
@@ -1249,11 +1376,16 @@ class GpuQueue {
         .queueWriteBuffer(_address, buffer._address, bufferOffset, data);
   }
 
-  /// Copies [data] into mip 0 of a 2D [texture] (usage must include
-  /// [GpuTextureUsage.copyDst]). [bytesPerRow] defaults to the tight stride
-  /// for 4-byte formats; wgpu copies synchronously.
-  /// [width]/[height] default to the texture's mip-0 size; pass explicit
-  /// dimensions when writing to a higher [mipLevel].
+  /// Copies [data] into a 2D [texture] (usage must include
+  /// [GpuTextureUsage.copyDst]); wgpu copies synchronously and [data] may
+  /// be reused immediately.
+  ///
+  /// Copy layout is automatic: [width]/[height] default to the size of
+  /// [mipLevel], and [bytesPerRow] defaults to the tight block-aligned
+  /// stride for the texture's format ([GpuTextureFormatInfo]) — compressed
+  /// formats (BC / ETC2 / ASTC) upload with no hand-rolled stride math.
+  /// Throws [ArgumentError] when [data] is shorter than the copy needs or
+  /// a compressed-format origin is not block-aligned.
   void writeTexture(GpuTexture texture, Uint8List data,
       {int? bytesPerRow,
       int mipLevel = 0,
@@ -1263,13 +1395,42 @@ class GpuQueue {
       int? width,
       int? height}) {
     _checkAlive();
-    final w = width ?? texture.width;
-    final h = height ?? texture.height;
+    final format = texture.format;
+    var mipW = texture.width >> mipLevel;
+    var mipH = texture.height >> mipLevel;
+    if (mipW == 0) mipW = 1;
+    if (mipH == 0) mipH = 1;
+    final w = width ?? mipW;
+    final h = height ?? mipH;
+    if (format.isCompressed &&
+        (originX % format.blockWidth != 0 ||
+            originY % format.blockHeight != 0)) {
+      throw ArgumentError(
+          'origin ($originX, $originY) must be aligned to the '
+          '${format.blockWidth}×${format.blockHeight} block size of '
+          '${format.name}');
+    }
+    final int bpr;
+    if (bytesPerRow != null) {
+      bpr = bytesPerRow;
+    } else {
+      bpr = format.bytesPerRowFor(w); // Throws for depth24Plus family.
+    }
+    if (format.bytesPerBlock != null) {
+      final rows = format.rowsForHeight(h);
+      final required =
+          rows == 0 ? 0 : bpr * (rows - 1) + format.bytesPerRowFor(w);
+      if (data.length < required) {
+        throw ArgumentError(
+            'data holds ${data.length} bytes but a $w×$h ${format.name} '
+            'copy needs $required');
+      }
+    }
     NitroWebgpu.instance.queueWriteTexture(
       _address,
       texture._address,
       data,
-      bytesPerRow ?? w * 4,
+      bpr,
       w,
       h,
       mipLevel,
