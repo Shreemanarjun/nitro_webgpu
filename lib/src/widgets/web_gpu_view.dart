@@ -55,6 +55,10 @@ class _WebGpuViewState extends State<WebGpuView>
   int _surfaceH = 0;
   bool _frameInFlight = false;
   bool _disposed = false;
+  // The Texture is only attached after the first frame was presented —
+  // compositing an empty swapchain flashes black for a few frames on
+  // Android (one visible "pop" per view on multi-view/benchmark pages).
+  bool _firstFramePresented = false;
   // Surface changes requested while a frame is in flight — applied at the
   // frame boundary. Swapping the platform surface mid-frame destroys the
   // texture view the frame is rendering into (native crash on Android).
@@ -142,6 +146,10 @@ class _WebGpuViewState extends State<WebGpuView>
         // evil, and onFrame contracts to always draw).
         if (_token != 0) {
           NitroWebgpuPresent.instance.presentFrame(_token);
+          if (!_firstFramePresented) {
+            _firstFramePresented = true;
+            if (mounted) setState(() {});
+          }
         }
       }
     } finally {
@@ -168,6 +176,7 @@ class _WebGpuViewState extends State<WebGpuView>
     if (_token == 0) return;
     final token = _token;
     _token = 0;
+    _firstFramePresented = false;
     // Drains in-flight GPU work, then unregisters the Flutter texture.
     unawaited(NitroWebgpuPresent.instance.destroyPresenter(token));
   }
@@ -214,7 +223,9 @@ class _WebGpuViewState extends State<WebGpuView>
       final w = (constraints.maxWidth * dpr * scale).round();
       final h = (constraints.maxHeight * dpr * scale).round();
       if (w > 0 && h > 0) _ensurePresenter(w, h, surfaceW, surfaceH);
-      if (_textureId < 0) return const SizedBox.expand();
+      if (_textureId < 0 || !_firstFramePresented) {
+        return const SizedBox.expand();
+      }
       // 1:1 pixels need no texture filtering; scaled content does. The
       // RepaintBoundary keeps parent repaints (overlays, animations) from
       // re-recording this layer.

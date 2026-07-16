@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:nitro_webgpu/nitro_webgpu.dart';
 
 /// Measures real on-GPU pass duration with timestamp queries.
@@ -53,19 +54,33 @@ class GpuPassTimer {
       encoder.resolveQuerySet(_querySet, destination: _resolve);
       encoder.copyBufferToBuffer(_resolve, _staging);
       _device.queue.submit([encoder.finish()]);
-      final bytes = await _staging.mapRead();
+      final Uint8List bytes;
+      try {
+        bytes = await _staging.mapRead();
+      } on Exception {
+        // "Buffer map aborted": the timer was disposed (scene switch/page
+        // close) while the readback was in flight — drop the sample.
+        return null;
+      }
       final stamps = bytes.buffer.asUint64List(bytes.offsetInBytes, 2);
       if (_disposed) return null;
       final deltaTicks = stamps[1] - stamps[0];
       return deltaTicks * _device.queue.timestampPeriod / 1e6;
     } finally {
       _busy = false;
+      if (_disposed) _release();
     }
   }
 
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    // A readback may still be in flight — destroying its buffer now aborts
+    // the map (throws in finish); the finally block releases instead.
+    if (!_busy) _release();
+  }
+
+  void _release() {
     _staging.dispose();
     _resolve.dispose();
     _querySet.dispose();

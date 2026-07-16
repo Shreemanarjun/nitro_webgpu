@@ -1,6 +1,7 @@
 package dev.shreeman.nitro_webgpu
 
 import android.os.Build
+import android.util.Log
 import android.view.Surface
 import android.os.Handler
 import android.os.Looper
@@ -107,6 +108,7 @@ class NitroWebgpuPresentImpl(
                 // SurfaceProducer contract.
                 prod.setCallback(object : TextureRegistry.SurfaceProducer.Callback {
                     override fun onSurfaceAvailable() {
+                        Log.i("nwp", "onSurfaceAvailable token=$t")
                         // 0×0 keeps the current surface size.
                         val s = prod.surface
                         requestSurfaceFrameRate(s)
@@ -114,6 +116,7 @@ class NitroWebgpuPresentImpl(
                     }
 
                     override fun onSurfaceCleanup() {
+                        Log.i("nwp", "onSurfaceCleanup token=$t")
                         native.nativeReplaceSurface(t, null, 0, 0)
                     }
                 })
@@ -126,6 +129,7 @@ class NitroWebgpuPresentImpl(
                     "(WGPUSurface creation/configure failed)")
         }
         entries[token] = Entry(producer, widthPx.toInt(), heightPx.toInt())
+        Log.i("nwp", "createPresenter token=$token ${widthPx}x$heightPx texId=${producer.id()}")
         return token
     }
 
@@ -162,6 +166,7 @@ class NitroWebgpuPresentImpl(
         val w = widthPx.toInt()
         val h = heightPx.toInt()
         if (entry.surfaceW == w && entry.surfaceH == h) return
+        Log.i("nwp", "setSurfaceSize token=$token ${entry.surfaceW}x${entry.surfaceH} -> ${w}x$h")
         entry.surfaceW = w
         entry.surfaceH = h
         onMain {
@@ -213,6 +218,7 @@ class NitroWebgpuPresentImpl(
 
     override suspend fun destroyPresenter(token: Long) {
         val entry = entries.remove(token) ?: return
+        Log.i("nwp", "destroyPresenter token=$token")
         // Drain any in-flight work (surface mode presents synchronously, so
         // this returns immediately in practice; kept for parity with the
         // ring presenter's contract).
