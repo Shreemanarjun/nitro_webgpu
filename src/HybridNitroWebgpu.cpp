@@ -69,6 +69,103 @@ WGPUStringView toView(const std::string& s) {
     return WGPUStringView{s.data(), s.length()};
 }
 
+void fillLimits(const WGPULimits& limits, GpuLimits& out) {
+    out.maxTextureDimension1D = limits.maxTextureDimension1D;
+    out.maxTextureDimension2D = limits.maxTextureDimension2D;
+    out.maxTextureDimension3D = limits.maxTextureDimension3D;
+    out.maxTextureArrayLayers = limits.maxTextureArrayLayers;
+    out.maxBindGroups = limits.maxBindGroups;
+    out.maxBindGroupsPlusVertexBuffers = limits.maxBindGroupsPlusVertexBuffers;
+    out.maxBindingsPerBindGroup = limits.maxBindingsPerBindGroup;
+    out.maxDynamicUniformBuffersPerPipelineLayout =
+        limits.maxDynamicUniformBuffersPerPipelineLayout;
+    out.maxDynamicStorageBuffersPerPipelineLayout =
+        limits.maxDynamicStorageBuffersPerPipelineLayout;
+    out.maxSampledTexturesPerShaderStage =
+        limits.maxSampledTexturesPerShaderStage;
+    out.maxSamplersPerShaderStage = limits.maxSamplersPerShaderStage;
+    out.maxStorageBuffersPerShaderStage =
+        limits.maxStorageBuffersPerShaderStage;
+    out.maxStorageTexturesPerShaderStage =
+        limits.maxStorageTexturesPerShaderStage;
+    out.maxUniformBuffersPerShaderStage =
+        limits.maxUniformBuffersPerShaderStage;
+    out.maxUniformBufferBindingSize =
+        (int64_t)limits.maxUniformBufferBindingSize;
+    out.maxStorageBufferBindingSize =
+        (int64_t)limits.maxStorageBufferBindingSize;
+    out.minUniformBufferOffsetAlignment =
+        limits.minUniformBufferOffsetAlignment;
+    out.minStorageBufferOffsetAlignment =
+        limits.minStorageBufferOffsetAlignment;
+    out.maxVertexBuffers = limits.maxVertexBuffers;
+    out.maxBufferSize = (int64_t)limits.maxBufferSize;
+    out.maxVertexAttributes = limits.maxVertexAttributes;
+    out.maxVertexBufferArrayStride = limits.maxVertexBufferArrayStride;
+    out.maxInterStageShaderVariables = limits.maxInterStageShaderVariables;
+    out.maxColorAttachments = limits.maxColorAttachments;
+    out.maxColorAttachmentBytesPerSample =
+        limits.maxColorAttachmentBytesPerSample;
+    out.maxComputeWorkgroupStorageSize =
+        limits.maxComputeWorkgroupStorageSize;
+    out.maxComputeInvocationsPerWorkgroup =
+        limits.maxComputeInvocationsPerWorkgroup;
+    out.maxComputeWorkgroupSizeX = limits.maxComputeWorkgroupSizeX;
+    out.maxComputeWorkgroupSizeY = limits.maxComputeWorkgroupSizeY;
+    out.maxComputeWorkgroupSizeZ = limits.maxComputeWorkgroupSizeZ;
+    out.maxComputeWorkgroupsPerDimension =
+        limits.maxComputeWorkgroupsPerDimension;
+}
+
+// Requested overrides (-1 = keep default) applied onto a WGPU_LIMITS_INIT.
+void applyRequiredLimits(const GpuRequiredLimits& rl, WGPULimits& limits) {
+#define NWG_L32(name)     if (rl.name >= 0) limits.name = (uint32_t)rl.name
+#define NWG_L64(name)     if (rl.name >= 0) limits.name = (uint64_t)rl.name
+    NWG_L32(maxTextureDimension1D);
+    NWG_L32(maxTextureDimension2D);
+    NWG_L32(maxTextureDimension3D);
+    NWG_L32(maxTextureArrayLayers);
+    NWG_L32(maxBindGroups);
+    NWG_L32(maxBindGroupsPlusVertexBuffers);
+    NWG_L32(maxBindingsPerBindGroup);
+    NWG_L32(maxDynamicUniformBuffersPerPipelineLayout);
+    NWG_L32(maxDynamicStorageBuffersPerPipelineLayout);
+    NWG_L32(maxSampledTexturesPerShaderStage);
+    NWG_L32(maxSamplersPerShaderStage);
+    NWG_L32(maxStorageBuffersPerShaderStage);
+    NWG_L32(maxStorageTexturesPerShaderStage);
+    NWG_L32(maxUniformBuffersPerShaderStage);
+    NWG_L64(maxUniformBufferBindingSize);
+    NWG_L64(maxStorageBufferBindingSize);
+    NWG_L32(minUniformBufferOffsetAlignment);
+    NWG_L32(minStorageBufferOffsetAlignment);
+    NWG_L32(maxVertexBuffers);
+    NWG_L64(maxBufferSize);
+    NWG_L32(maxVertexAttributes);
+    NWG_L32(maxVertexBufferArrayStride);
+    NWG_L32(maxInterStageShaderVariables);
+    NWG_L32(maxColorAttachments);
+    NWG_L32(maxColorAttachmentBytesPerSample);
+    NWG_L32(maxComputeWorkgroupStorageSize);
+    NWG_L32(maxComputeInvocationsPerWorkgroup);
+    NWG_L32(maxComputeWorkgroupSizeX);
+    NWG_L32(maxComputeWorkgroupSizeY);
+    NWG_L32(maxComputeWorkgroupSizeZ);
+    NWG_L32(maxComputeWorkgroupsPerDimension);
+#undef NWG_L32
+#undef NWG_L64
+}
+
+// Standard features (value < 63) packed as a bitmask: bit i = feature i.
+int64_t packFeatureBits(const WGPUSupportedFeatures& f) {
+    int64_t bits = 0;
+    for (size_t i = 0; i < f.featureCount; i++) {
+        const uint32_t v = (uint32_t)f.features[i];
+        if (v < 63) bits |= (int64_t)1 << v;
+    }
+    return bits;
+}
+
 // ── Curated GpuBackend bits → WGPUInstanceBackend ────────────────────────────
 // (see GpuBackend in nitro_webgpu.native.dart — the Dart API never carries raw
 // wgpu ABI values)
@@ -305,23 +402,16 @@ public:
             throw std::runtime_error("wgpuAdapterGetLimits failed");
         }
         GpuLimits out;
-        out.maxTextureDimension1D = limits.maxTextureDimension1D;
-        out.maxTextureDimension2D = limits.maxTextureDimension2D;
-        out.maxTextureDimension3D = limits.maxTextureDimension3D;
-        out.maxTextureArrayLayers = limits.maxTextureArrayLayers;
-        out.maxBindGroups = limits.maxBindGroups;
-        out.maxBindingsPerBindGroup = limits.maxBindingsPerBindGroup;
-        out.maxUniformBufferBindingSize = (int64_t)limits.maxUniformBufferBindingSize;
-        out.maxStorageBufferBindingSize = (int64_t)limits.maxStorageBufferBindingSize;
-        out.minUniformBufferOffsetAlignment = limits.minUniformBufferOffsetAlignment;
-        out.minStorageBufferOffsetAlignment = limits.minStorageBufferOffsetAlignment;
-        out.maxBufferSize = (int64_t)limits.maxBufferSize;
-        out.maxComputeWorkgroupStorageSize = limits.maxComputeWorkgroupStorageSize;
-        out.maxComputeInvocationsPerWorkgroup = limits.maxComputeInvocationsPerWorkgroup;
-        out.maxComputeWorkgroupSizeX = limits.maxComputeWorkgroupSizeX;
-        out.maxComputeWorkgroupSizeY = limits.maxComputeWorkgroupSizeY;
-        out.maxComputeWorkgroupSizeZ = limits.maxComputeWorkgroupSizeZ;
+        fillLimits(limits, out);
         return out.toNativeBuffer();
+    }
+
+    int64_t adapterGetFeatures(int64_t adapter) override {
+        WGPUSupportedFeatures f = {};
+        wgpuAdapterGetFeatures((WGPUAdapter)(intptr_t)adapter, &f);
+        const int64_t bits = packFeatureBits(f);
+        wgpuSupportedFeaturesFreeMembers(f);
+        return bits;
     }
 
     bool adapterHasTimestampQuery(int64_t adapter) override {
@@ -345,33 +435,39 @@ public:
         WGPUDeviceDescriptor wgpuDesc = WGPU_DEVICE_DESCRIPTOR_INIT;
         wgpuDesc.label = toView(*label);
 
-        static const WGPUFeatureName kTimestampFeature[] = {
-            WGPUFeatureName_TimestampQuery};
+        // Kept alive until the request callback runs (like the label).
+        auto* features = new std::vector<WGPUFeatureName>();
+        const bool wantsTimestamps =
+            desc.requireTimestampQueries ||
+            ((desc.requiredFeatures >> WGPUFeatureName_TimestampQuery) & 1);
         if (desc.requireTimestampQueries) {
-            wgpuDesc.requiredFeatureCount = 1;
-            wgpuDesc.requiredFeatures = kTimestampFeature;
+            features->push_back(WGPUFeatureName_TimestampQuery);
+        }
+        // wgpu-native gates encoder-level writeTimestamp behind an extras
+        // feature; enable it with timestamps whenever the adapter has it.
+        const auto kTsInsideEncoders =
+            (WGPUFeatureName)WGPUNativeFeature_TimestampQueryInsideEncoders;
+        if (wantsTimestamps &&
+            wgpuAdapterHasFeature((WGPUAdapter)(intptr_t)adapter,
+                                  kTsInsideEncoders)) {
+            features->push_back(kTsInsideEncoders);
+        }
+        for (int i = 1; i < 63; i++) {
+            if (((desc.requiredFeatures >> i) & 1) == 0) continue;
+            if (i == (int)WGPUFeatureName_TimestampQuery &&
+                desc.requireTimestampQueries) {
+                continue;
+            }
+            features->push_back((WGPUFeatureName)i);
+        }
+        if (!features->empty()) {
+            wgpuDesc.requiredFeatureCount = features->size();
+            wgpuDesc.requiredFeatures = features->data();
         }
 
         WGPULimits limits = WGPU_LIMITS_INIT;
         if (desc.requiredLimits.has_value()) {
-            const auto& rl = *desc.requiredLimits;
-            if (rl.maxTextureDimension2D >= 0)
-                limits.maxTextureDimension2D = (uint32_t)rl.maxTextureDimension2D;
-            if (rl.maxTextureArrayLayers >= 0)
-                limits.maxTextureArrayLayers = (uint32_t)rl.maxTextureArrayLayers;
-            if (rl.maxBindGroups >= 0)
-                limits.maxBindGroups = (uint32_t)rl.maxBindGroups;
-            if (rl.maxUniformBufferBindingSize >= 0)
-                limits.maxUniformBufferBindingSize =
-                    (uint64_t)rl.maxUniformBufferBindingSize;
-            if (rl.maxStorageBufferBindingSize >= 0)
-                limits.maxStorageBufferBindingSize =
-                    (uint64_t)rl.maxStorageBufferBindingSize;
-            if (rl.maxBufferSize >= 0)
-                limits.maxBufferSize = (uint64_t)rl.maxBufferSize;
-            if (rl.maxComputeInvocationsPerWorkgroup >= 0)
-                limits.maxComputeInvocationsPerWorkgroup =
-                    (uint32_t)rl.maxComputeInvocationsPerWorkgroup;
+            applyRequiredLimits(*desc.requiredLimits, limits);
             wgpuDesc.requiredLimits = &limits;
         }
 
@@ -401,8 +497,9 @@ public:
         struct DeviceOp {
             PendingOp op;
             std::string* label;
+            std::vector<WGPUFeatureName>* features;
         };
-        auto* dop = new DeviceOp{{_nitro_err, dartPort}, label};
+        auto* dop = new DeviceOp{{_nitro_err, dartPort}, label, features};
 
         WGPURequestDeviceCallbackInfo cb = WGPU_REQUEST_DEVICE_CALLBACK_INFO_INIT;
         cb.mode = WGPUCallbackMode_AllowProcessEvents;
@@ -420,6 +517,7 @@ public:
             }
             WgpuContext::get().opFinished();
             delete dop->label;
+            delete dop->features;
             delete dop;
         };
         wgpuAdapterRequestDevice((WGPUAdapter)(intptr_t)adapter, &wgpuDesc, cb);
@@ -449,6 +547,14 @@ public:
 
     void queueRelease(int64_t queue) override {
         wgpuQueueRelease((WGPUQueue)(intptr_t)queue);
+    }
+
+    int64_t deviceGetFeatures(int64_t device) override {
+        WGPUSupportedFeatures f = {};
+        wgpuDeviceGetFeatures((WGPUDevice)(intptr_t)device, &f);
+        const int64_t bits = packFeatureBits(f);
+        wgpuSupportedFeaturesFreeMembers(f);
+        return bits;
     }
 
     // ── Error handling ───────────────────────────────────────────────────
@@ -583,6 +689,55 @@ public:
         WgpuContext::get().opStarted();
     }
 
+    void bufferMapWrite(int64_t buffer, int64_t offset, int64_t size,
+                        NitroError* _nitro_err, int64_t dartPort) override {
+        auto* op = new PendingOp{_nitro_err, dartPort};
+        WGPUBufferMapCallbackInfo cb = WGPU_BUFFER_MAP_CALLBACK_INFO_INIT;
+        cb.mode = WGPUCallbackMode_AllowProcessEvents;
+        cb.userdata1 = op;
+        cb.callback = [](WGPUMapAsyncStatus status, WGPUStringView message,
+                         void* ud1, void*) {
+            auto* op = static_cast<PendingOp*>(ud1);
+            if (status != WGPUMapAsyncStatus_Success) {
+                fillError(op->err, "GpuMapError",
+                          message.data ? toStd(message)
+                                       : "mapAsync(write) failed");
+            }
+            postNull(op->port);
+            WgpuContext::get().opFinished();
+            delete op;
+        };
+        wgpuBufferMapAsync((WGPUBuffer)(intptr_t)buffer, WGPUMapMode_Write,
+                           (size_t)offset, (size_t)size, cb);
+        WgpuContext::get().opStarted();
+    }
+
+    void bufferWriteMapped(int64_t buffer, int64_t offset, const uint8_t* data,
+                           size_t data_length) override {
+        // Zero-copy upload: the Dart buffer is written straight into the
+        // mapped GPU allocation. wgpu-native v29.0.1.1 ships
+        // wgpuBufferWriteMappedRange / wgpuBufferGetMappedRange as todo!()
+        // panics (probe-verified), so this goes through the const getter —
+        // it returns the same host-visible mapping, and the write+unmap
+        // round-trip is probe-verified against the static lib.
+        const void* p = wgpuBufferGetConstMappedRange(
+            (WGPUBuffer)(intptr_t)buffer, (size_t)offset, data_length);
+        if (!p) {
+            throw std::runtime_error(
+                "bufferWriteMapped failed — is the buffer mapped and the "
+                "range in bounds?");
+        }
+        std::memcpy(const_cast<void*>(p), data, data_length);
+    }
+
+    void bufferUnmap(int64_t buffer) override {
+        wgpuBufferUnmap((WGPUBuffer)(intptr_t)buffer);
+    }
+
+    int64_t bufferGetUsage(int64_t buffer) override {
+        return (int64_t)wgpuBufferGetUsage((WGPUBuffer)(intptr_t)buffer);
+    }
+
     // ── Shaders / pipelines / bind groups ────────────────────────────────
 
     int64_t deviceCreateShaderModuleWgsl(int64_t device, const std::string& label,
@@ -601,6 +756,19 @@ public:
 
     void shaderModuleRelease(int64_t module) override {
         wgpuShaderModuleRelease((WGPUShaderModule)(intptr_t)module);
+    }
+
+    void shaderModuleGetCompilationInfo(int64_t module, NitroError* _nitro_err,
+                                        int64_t dartPort) override {
+        // wgpu-native v29.0.1.1 ships wgpuShaderModuleGetCompilationInfo as a
+        // todo!() Rust panic (probe-verified — it aborts the process), so it
+        // must not be called. Compile errors already surface with naga's full
+        // message through the checked-create error scope; resolve with an
+        // empty diagnostics list until upstream implements the query.
+        (void)module;
+        (void)_nitro_err;
+        GpuCompilationInfo out;
+        postRecord(dartPort, out.toNativeBuffer());
     }
 
     int64_t deviceCreateComputePipeline(int64_t device,
@@ -743,6 +911,70 @@ public:
             (uint64_t)size);
     }
 
+    void encoderClearBuffer(int64_t encoder, int64_t buffer, int64_t offset,
+                            int64_t size) override {
+        wgpuCommandEncoderClearBuffer(
+            (WGPUCommandEncoder)(intptr_t)encoder, (WGPUBuffer)(intptr_t)buffer,
+            (uint64_t)offset, size < 0 ? WGPU_WHOLE_SIZE : (uint64_t)size);
+    }
+
+    void encoderWriteTimestamp(int64_t encoder, int64_t querySet,
+                               int64_t queryIndex) override {
+        wgpuCommandEncoderWriteTimestamp(
+            (WGPUCommandEncoder)(intptr_t)encoder,
+            (WGPUQuerySet)(intptr_t)querySet, (uint32_t)queryIndex);
+    }
+
+    void encoderPushDebugGroup(int64_t encoder,
+                               const std::string& label) override {
+        wgpuCommandEncoderPushDebugGroup((WGPUCommandEncoder)(intptr_t)encoder,
+                                         toView(label));
+    }
+
+    void encoderPopDebugGroup(int64_t encoder) override {
+        wgpuCommandEncoderPopDebugGroup((WGPUCommandEncoder)(intptr_t)encoder);
+    }
+
+    void encoderInsertDebugMarker(int64_t encoder,
+                                  const std::string& label) override {
+        wgpuCommandEncoderInsertDebugMarker(
+            (WGPUCommandEncoder)(intptr_t)encoder, toView(label));
+    }
+
+    void renderPassPushDebugGroup(int64_t pass,
+                                  const std::string& label) override {
+        wgpuRenderPassEncoderPushDebugGroup(
+            (WGPURenderPassEncoder)(intptr_t)pass, toView(label));
+    }
+
+    void renderPassPopDebugGroup(int64_t pass) override {
+        wgpuRenderPassEncoderPopDebugGroup(
+            (WGPURenderPassEncoder)(intptr_t)pass);
+    }
+
+    void renderPassInsertDebugMarker(int64_t pass,
+                                     const std::string& label) override {
+        wgpuRenderPassEncoderInsertDebugMarker(
+            (WGPURenderPassEncoder)(intptr_t)pass, toView(label));
+    }
+
+    void computePassPushDebugGroup(int64_t pass,
+                                   const std::string& label) override {
+        wgpuComputePassEncoderPushDebugGroup(
+            (WGPUComputePassEncoder)(intptr_t)pass, toView(label));
+    }
+
+    void computePassPopDebugGroup(int64_t pass) override {
+        wgpuComputePassEncoderPopDebugGroup(
+            (WGPUComputePassEncoder)(intptr_t)pass);
+    }
+
+    void computePassInsertDebugMarker(int64_t pass,
+                                      const std::string& label) override {
+        wgpuComputePassEncoderInsertDebugMarker(
+            (WGPUComputePassEncoder)(intptr_t)pass, toView(label));
+    }
+
     int64_t encoderFinish(int64_t encoder, const std::string& label) override {
         WGPUCommandBufferDescriptor wd = WGPU_COMMAND_BUFFER_DESCRIPTOR_INIT;
         wd.label = toView(label);
@@ -796,6 +1028,12 @@ public:
         wd.format = (WGPUTextureFormat)d.format;
         wd.mipLevelCount = (uint32_t)d.mipLevelCount;
         wd.sampleCount = (uint32_t)d.sampleCount;
+        WGPUTextureFormat viewFormat;
+        if (d.viewFormat) {
+            viewFormat = (WGPUTextureFormat)d.viewFormat;
+            wd.viewFormatCount = 1;
+            wd.viewFormats = &viewFormat;
+        }
         WGPUTexture tex = wgpuDeviceCreateTexture((WGPUDevice)(intptr_t)device, &wd);
         if (!tex) throw std::runtime_error("wgpuDeviceCreateTexture failed");
         return (int64_t)(intptr_t)tex;
@@ -823,6 +1061,7 @@ public:
         if (d.arrayLayerCount > 0) {
             wd.arrayLayerCount = (uint32_t)d.arrayLayerCount;
         }
+        if (d.format) wd.format = (WGPUTextureFormat)d.format;
         WGPUTextureView view =
             wgpuTextureCreateView((WGPUTexture)(intptr_t)texture, &wd);
         if (!view) throw std::runtime_error("wgpuTextureCreateView failed");
@@ -833,14 +1072,41 @@ public:
         wgpuTextureViewRelease((WGPUTextureView)(intptr_t)view);
     }
 
+    int64_t textureGetWidth(int64_t texture) override {
+        return wgpuTextureGetWidth((WGPUTexture)(intptr_t)texture);
+    }
+    int64_t textureGetHeight(int64_t texture) override {
+        return wgpuTextureGetHeight((WGPUTexture)(intptr_t)texture);
+    }
+    int64_t textureGetDepthOrArrayLayers(int64_t texture) override {
+        return wgpuTextureGetDepthOrArrayLayers((WGPUTexture)(intptr_t)texture);
+    }
+    int64_t textureGetFormat(int64_t texture) override {
+        return (int64_t)wgpuTextureGetFormat((WGPUTexture)(intptr_t)texture);
+    }
+    int64_t textureGetDimension(int64_t texture) override {
+        return (int64_t)wgpuTextureGetDimension((WGPUTexture)(intptr_t)texture);
+    }
+    int64_t textureGetMipLevelCount(int64_t texture) override {
+        return wgpuTextureGetMipLevelCount((WGPUTexture)(intptr_t)texture);
+    }
+    int64_t textureGetSampleCount(int64_t texture) override {
+        return wgpuTextureGetSampleCount((WGPUTexture)(intptr_t)texture);
+    }
+    int64_t textureGetUsage(int64_t texture) override {
+        return (int64_t)wgpuTextureGetUsage((WGPUTexture)(intptr_t)texture);
+    }
+
     void queueWriteTexture(int64_t queue, int64_t texture, const uint8_t* data,
                            size_t data_length, int64_t bytesPerRow,
                            int64_t width, int64_t height, int64_t mipLevel,
-                           int64_t arrayLayer) override {
+                           int64_t arrayLayer, int64_t originX,
+                           int64_t originY) override {
         WGPUTexelCopyTextureInfo dst = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
         dst.texture = (WGPUTexture)(intptr_t)texture;
         dst.mipLevel = (uint32_t)mipLevel;
-        dst.origin = {0, 0, (uint32_t)arrayLayer};
+        dst.origin = {(uint32_t)originX, (uint32_t)originY,
+                      (uint32_t)arrayLayer};
         WGPUTexelCopyBufferLayout layout = {};
         layout.offset = 0;
         layout.bytesPerRow = (uint32_t)bytesPerRow;
@@ -861,6 +1127,10 @@ public:
         wd.addressModeU = (WGPUAddressMode)d.addressModeU;
         wd.addressModeV = (WGPUAddressMode)d.addressModeV;
         wd.addressModeW = (WGPUAddressMode)d.addressModeW;
+        if (d.compare) wd.compare = (WGPUCompareFunction)d.compare;
+        wd.lodMinClamp = (float)d.lodMinClamp;
+        wd.lodMaxClamp = (float)d.lodMaxClamp;
+        wd.maxAnisotropy = (uint16_t)d.maxAnisotropy;
         WGPUSampler sampler =
             wgpuDeviceCreateSampler((WGPUDevice)(intptr_t)device, &wd);
         if (!sampler) throw std::runtime_error("wgpuDeviceCreateSampler failed");
@@ -878,36 +1148,55 @@ public:
         WGPUColorTargetState target = WGPU_COLOR_TARGET_STATE_INIT;
         target.format = (WGPUTextureFormat)d.targetFormat;
 
-        // Blend presets: 1 = classic alpha, 2 = additive, 3 = premultiplied.
+        // Blend: a custom state (colorBlendOp != 0) wins over the presets
+        // (1 = classic alpha, 2 = additive, 3 = premultiplied). The blend
+        // state and write mask apply to every color target.
         WGPUBlendState blend = WGPU_BLEND_STATE_INIT;
-        if (d.blendMode == 1) {
+        bool hasBlend = true;
+        if (d.colorBlendOp != 0) {
+            blend.color = {(WGPUBlendOperation)d.colorBlendOp,
+                           (WGPUBlendFactor)d.colorBlendSrc,
+                           (WGPUBlendFactor)d.colorBlendDst};
+            blend.alpha = {(WGPUBlendOperation)d.alphaBlendOp,
+                           (WGPUBlendFactor)d.alphaBlendSrc,
+                           (WGPUBlendFactor)d.alphaBlendDst};
+        } else if (d.blendMode == 1) {
             blend.color = {WGPUBlendOperation_Add, WGPUBlendFactor_SrcAlpha,
                            WGPUBlendFactor_OneMinusSrcAlpha};
             blend.alpha = {WGPUBlendOperation_Add, WGPUBlendFactor_One,
                            WGPUBlendFactor_OneMinusSrcAlpha};
-            target.blend = &blend;
         } else if (d.blendMode == 2) {
             blend.color = {WGPUBlendOperation_Add, WGPUBlendFactor_One,
                            WGPUBlendFactor_One};
             blend.alpha = {WGPUBlendOperation_Add, WGPUBlendFactor_One,
                            WGPUBlendFactor_One};
-            target.blend = &blend;
         } else if (d.blendMode == 3) {
             blend.color = {WGPUBlendOperation_Add, WGPUBlendFactor_One,
                            WGPUBlendFactor_OneMinusSrcAlpha};
             blend.alpha = {WGPUBlendOperation_Add, WGPUBlendFactor_One,
                            WGPUBlendFactor_OneMinusSrcAlpha};
-            target.blend = &blend;
+        } else {
+            hasBlend = false;
+        }
+        if (hasBlend) target.blend = &blend;
+        if (d.writeMask >= 0) {
+            target.writeMask = (WGPUColorWriteMask)d.writeMask;
         }
 
-        WGPUColorTargetState targets[4];
+        WGPUColorTargetState targets[8];
         targets[0] = target;
         size_t targetCount = 1;
-        const int64_t extraFormats[3] = {d.targetFormat1, d.targetFormat2,
-                                         d.targetFormat3};
-        for (int i = 0; i < 3 && extraFormats[i]; i++) {
+        const int64_t extraFormats[7] = {
+            d.targetFormat1, d.targetFormat2, d.targetFormat3,
+            d.targetFormat4, d.targetFormat5, d.targetFormat6,
+            d.targetFormat7};
+        for (int i = 0; i < 7 && extraFormats[i]; i++) {
             WGPUColorTargetState extra = WGPU_COLOR_TARGET_STATE_INIT;
             extra.format = (WGPUTextureFormat)extraFormats[i];
+            if (hasBlend) extra.blend = &blend;
+            if (d.writeMask >= 0) {
+                extra.writeMask = (WGPUColorWriteMask)d.writeMask;
+            }
             targets[targetCount++] = extra;
         }
 
@@ -951,7 +1240,15 @@ public:
         wd.vertex.bufferCount = layouts.size();
         wd.vertex.buffers = layouts.empty() ? nullptr : layouts.data();
         wd.primitive.topology = (WGPUPrimitiveTopology)d.topology;
+        wd.primitive.cullMode = (WGPUCullMode)d.cullMode;
+        wd.primitive.frontFace = (WGPUFrontFace)d.frontFace;
+        wd.primitive.stripIndexFormat = (WGPUIndexFormat)d.stripIndexFormat;
         wd.multisample.count = (uint32_t)d.sampleCount;
+        wd.multisample.mask = d.multisampleMask < 0
+                                  ? 0xFFFFFFFFu
+                                  : (uint32_t)d.multisampleMask;
+        wd.multisample.alphaToCoverageEnabled =
+            d.alphaToCoverageEnabled ? 1 : 0;
         wd.fragment = &fragment;
 
         WGPUDepthStencilState depth = WGPU_DEPTH_STENCIL_STATE_INIT;
@@ -961,13 +1258,32 @@ public:
                                           ? WGPUOptionalBool_True
                                           : WGPUOptionalBool_False;
             depth.depthCompare = (WGPUCompareFunction)d.depthCompare;
+            depth.depthBias = (int32_t)d.depthBias;
+            depth.depthBiasSlopeScale = (float)d.depthBiasSlopeScale;
+            depth.depthBiasClamp = (float)d.depthBiasClamp;
+            depth.stencilReadMask = d.stencilReadMask < 0
+                                        ? 0xFFFFFFFFu
+                                        : (uint32_t)d.stencilReadMask;
+            depth.stencilWriteMask = d.stencilWriteMask < 0
+                                         ? 0xFFFFFFFFu
+                                         : (uint32_t)d.stencilWriteMask;
             WGPUStencilFaceState face = {};
             face.compare = (WGPUCompareFunction)d.stencilCompare;
             face.failOp = (WGPUStencilOperation)d.stencilFailOp;
             face.depthFailOp = (WGPUStencilOperation)d.stencilDepthFailOp;
             face.passOp = (WGPUStencilOperation)d.stencilPassOp;
             depth.stencilFront = face;
-            depth.stencilBack = face;
+            WGPUStencilFaceState back = face;
+            if (d.stencilBackCompare != 0) {
+                back.compare = (WGPUCompareFunction)d.stencilBackCompare;
+                back.failOp = (WGPUStencilOperation)(
+                    d.stencilBackFailOp ? d.stencilBackFailOp : 1);
+                back.depthFailOp = (WGPUStencilOperation)(
+                    d.stencilBackDepthFailOp ? d.stencilBackDepthFailOp : 1);
+                back.passOp = (WGPUStencilOperation)(
+                    d.stencilBackPassOp ? d.stencilBackPassOp : 1);
+            }
+            depth.stencilBack = back;
             wd.depthStencil = &depth;
         }
 
@@ -1016,10 +1332,16 @@ public:
             WGPU_RENDER_PASS_DEPTH_STENCIL_ATTACHMENT_INIT;
         if (d.depthViewAddress) {
             depth.view = (WGPUTextureView)(intptr_t)d.depthViewAddress;
-            depth.depthLoadOp = (WGPULoadOp)d.depthLoadOp;
-            depth.depthStoreOp = (WGPUStoreOp)d.depthStoreOp;
-            depth.depthClearValue = (float)d.depthClearValue;
-            if (d.stencilLoadOp) {
+            if (d.depthReadOnly) {
+                depth.depthReadOnly = 1;  // ops must stay Undefined
+            } else {
+                depth.depthLoadOp = (WGPULoadOp)d.depthLoadOp;
+                depth.depthStoreOp = (WGPUStoreOp)d.depthStoreOp;
+                depth.depthClearValue = (float)d.depthClearValue;
+            }
+            if (d.stencilReadOnly) {
+                depth.stencilReadOnly = 1;
+            } else if (d.stencilLoadOp) {
                 depth.stencilLoadOp = (WGPULoadOp)d.stencilLoadOp;
                 depth.stencilStoreOp = (WGPUStoreOp)d.stencilStoreOp;
                 depth.stencilClearValue = (uint32_t)d.stencilClearValue;
@@ -1106,12 +1428,13 @@ public:
                     we.buffer.hasDynamicOffset = e.hasDynamicOffset ? 1 : 0;
                     break;
                 case 4:
-                    we.sampler.type = WGPUSamplerBindingType_Filtering;
+                    we.sampler.type = (WGPUSamplerBindingType)e.samplerType;
                     break;
                 case 5:
-                    we.texture.sampleType = WGPUTextureSampleType_Float;
+                    we.texture.sampleType = (WGPUTextureSampleType)e.sampleType;
                     we.texture.viewDimension =
                         (WGPUTextureViewDimension)e.viewDimension;
+                    we.texture.multisampled = e.multisampled ? 1 : 0;
                     break;
                 case 6:
                     we.storageTexture.access = WGPUStorageTextureAccess_WriteOnly;
@@ -1139,10 +1462,11 @@ public:
     int64_t deviceCreatePipelineLayout(int64_t device,
                                        NitroCppBuffer descriptor) override {
         const auto d = GpuPipelineLayoutDescriptor::fromNative(descriptor);
-        WGPUBindGroupLayout layouts[4];
+        WGPUBindGroupLayout layouts[8];
         size_t count = 0;
-        const int64_t addrs[4] = {d.layout0, d.layout1, d.layout2, d.layout3};
-        for (int i = 0; i < 4 && addrs[i]; i++) {
+        const int64_t addrs[8] = {d.layout0, d.layout1, d.layout2, d.layout3,
+                                  d.layout4, d.layout5, d.layout6, d.layout7};
+        for (int i = 0; i < 8 && addrs[i]; i++) {
             layouts[count++] = (WGPUBindGroupLayout)(intptr_t)addrs[i];
         }
         WGPUPipelineLayoutDescriptor wd = WGPU_PIPELINE_LAYOUT_DESCRIPTOR_INIT;
@@ -1179,15 +1503,18 @@ public:
     void encoderCopyBufferToTexture(int64_t encoder, int64_t buffer,
                                     int64_t bytesPerRow, int64_t texture,
                                     int64_t mipLevel, int64_t width,
-                                    int64_t height) override {
+                                    int64_t height, int64_t bufferOffset,
+                                    int64_t originX, int64_t originY,
+                                    int64_t originZ) override {
         WGPUTexelCopyBufferInfo src = WGPU_TEXEL_COPY_BUFFER_INFO_INIT;
         src.buffer = (WGPUBuffer)(intptr_t)buffer;
-        src.layout.offset = 0;
+        src.layout.offset = (uint64_t)bufferOffset;
         src.layout.bytesPerRow = (uint32_t)bytesPerRow;
         src.layout.rowsPerImage = (uint32_t)height;
         WGPUTexelCopyTextureInfo dst = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
         dst.texture = (WGPUTexture)(intptr_t)texture;
         dst.mipLevel = (uint32_t)mipLevel;
+        dst.origin = {(uint32_t)originX, (uint32_t)originY, (uint32_t)originZ};
         WGPUExtent3D extent = {(uint32_t)width, (uint32_t)height, 1};
         wgpuCommandEncoderCopyBufferToTexture(
             (WGPUCommandEncoder)(intptr_t)encoder, &src, &dst, &extent);
@@ -1195,12 +1522,21 @@ public:
 
     void encoderCopyTextureToTexture(int64_t encoder, int64_t srcTexture,
                                      int64_t dstTexture, int64_t width,
-                                     int64_t height) override {
+                                     int64_t height, int64_t depth,
+                                     int64_t srcMip, int64_t srcX,
+                                     int64_t srcY, int64_t srcZ,
+                                     int64_t dstMip, int64_t dstX,
+                                     int64_t dstY, int64_t dstZ) override {
         WGPUTexelCopyTextureInfo src = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
         src.texture = (WGPUTexture)(intptr_t)srcTexture;
+        src.mipLevel = (uint32_t)srcMip;
+        src.origin = {(uint32_t)srcX, (uint32_t)srcY, (uint32_t)srcZ};
         WGPUTexelCopyTextureInfo dst = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
         dst.texture = (WGPUTexture)(intptr_t)dstTexture;
-        WGPUExtent3D extent = {(uint32_t)width, (uint32_t)height, 1};
+        dst.mipLevel = (uint32_t)dstMip;
+        dst.origin = {(uint32_t)dstX, (uint32_t)dstY, (uint32_t)dstZ};
+        WGPUExtent3D extent = {(uint32_t)width, (uint32_t)height,
+                               (uint32_t)depth};
         wgpuCommandEncoderCopyTextureToTexture(
             (WGPUCommandEncoder)(intptr_t)encoder, &src, &dst, &extent);
     }
@@ -1273,28 +1609,7 @@ public:
             throw std::runtime_error("wgpuDeviceGetLimits failed");
         }
         GpuLimits out;
-        out.maxTextureDimension1D = limits.maxTextureDimension1D;
-        out.maxTextureDimension2D = limits.maxTextureDimension2D;
-        out.maxTextureDimension3D = limits.maxTextureDimension3D;
-        out.maxTextureArrayLayers = limits.maxTextureArrayLayers;
-        out.maxBindGroups = limits.maxBindGroups;
-        out.maxBindingsPerBindGroup = limits.maxBindingsPerBindGroup;
-        out.maxUniformBufferBindingSize =
-            (int64_t)limits.maxUniformBufferBindingSize;
-        out.maxStorageBufferBindingSize =
-            (int64_t)limits.maxStorageBufferBindingSize;
-        out.minUniformBufferOffsetAlignment =
-            limits.minUniformBufferOffsetAlignment;
-        out.minStorageBufferOffsetAlignment =
-            limits.minStorageBufferOffsetAlignment;
-        out.maxBufferSize = (int64_t)limits.maxBufferSize;
-        out.maxComputeWorkgroupStorageSize =
-            limits.maxComputeWorkgroupStorageSize;
-        out.maxComputeInvocationsPerWorkgroup =
-            limits.maxComputeInvocationsPerWorkgroup;
-        out.maxComputeWorkgroupSizeX = limits.maxComputeWorkgroupSizeX;
-        out.maxComputeWorkgroupSizeY = limits.maxComputeWorkgroupSizeY;
-        out.maxComputeWorkgroupSizeZ = limits.maxComputeWorkgroupSizeZ;
+        fillLimits(limits, out);
         return out.toNativeBuffer();
     }
 
@@ -1318,9 +1633,11 @@ public:
     void renderPassSetBindGroupOffsets(int64_t pass, int64_t index,
                                        int64_t bindGroup, int64_t offsetCount,
                                        int64_t o0, int64_t o1, int64_t o2,
-                                       int64_t o3) override {
-        const uint32_t offsets[4] = {(uint32_t)o0, (uint32_t)o1, (uint32_t)o2,
-                                     (uint32_t)o3};
+                                       int64_t o3, int64_t o4, int64_t o5,
+                                       int64_t o6, int64_t o7) override {
+        const uint32_t offsets[8] = {(uint32_t)o0, (uint32_t)o1, (uint32_t)o2,
+                                     (uint32_t)o3, (uint32_t)o4, (uint32_t)o5,
+                                     (uint32_t)o6, (uint32_t)o7};
         wgpuRenderPassEncoderSetBindGroup(
             (WGPURenderPassEncoder)(intptr_t)pass, (uint32_t)index,
             (WGPUBindGroup)(intptr_t)bindGroup, (size_t)offsetCount, offsets);
@@ -1329,9 +1646,11 @@ public:
     void computePassSetBindGroupOffsets(int64_t pass, int64_t index,
                                         int64_t bindGroup, int64_t offsetCount,
                                         int64_t o0, int64_t o1, int64_t o2,
-                                        int64_t o3) override {
-        const uint32_t offsets[4] = {(uint32_t)o0, (uint32_t)o1, (uint32_t)o2,
-                                     (uint32_t)o3};
+                                        int64_t o3, int64_t o4, int64_t o5,
+                                        int64_t o6, int64_t o7) override {
+        const uint32_t offsets[8] = {(uint32_t)o0, (uint32_t)o1, (uint32_t)o2,
+                                     (uint32_t)o3, (uint32_t)o4, (uint32_t)o5,
+                                     (uint32_t)o6, (uint32_t)o7};
         wgpuComputePassEncoderSetBindGroup(
             (WGPUComputePassEncoder)(intptr_t)pass, (uint32_t)index,
             (WGPUBindGroup)(intptr_t)bindGroup, (size_t)offsetCount, offsets);
@@ -1342,10 +1661,11 @@ public:
     int64_t deviceCreateRenderBundleEncoder(int64_t device,
                                             NitroCppBuffer descriptor) override {
         const auto d = GpuRenderBundleEncoderDescriptor::fromNative(descriptor);
-        WGPUTextureFormat formats[4];
+        WGPUTextureFormat formats[8];
         size_t count = 0;
-        const int64_t f[4] = {d.format0, d.format1, d.format2, d.format3};
-        for (int i = 0; i < 4 && f[i]; i++) {
+        const int64_t f[8] = {d.format0, d.format1, d.format2, d.format3,
+                              d.format4, d.format5, d.format6, d.format7};
+        for (int i = 0; i < 8 && f[i]; i++) {
             formats[count++] = (WGPUTextureFormat)f[i];
         }
         WGPURenderBundleEncoderDescriptor wd = {};
@@ -1355,6 +1675,8 @@ public:
         wd.colorFormats = formats;
         wd.depthStencilFormat = (WGPUTextureFormat)d.depthFormat;
         wd.sampleCount = (uint32_t)d.sampleCount;
+        wd.depthReadOnly = d.depthReadOnly ? 1 : 0;
+        wd.stencilReadOnly = d.stencilReadOnly ? 1 : 0;
         WGPURenderBundleEncoder enc = wgpuDeviceCreateRenderBundleEncoder(
             (WGPUDevice)(intptr_t)device, &wd);
         if (!enc) {
@@ -1410,6 +1732,20 @@ public:
             (uint32_t)firstInstance);
     }
 
+    void bundleDrawIndirect(int64_t bundleEncoder, int64_t buffer,
+                            int64_t offset) override {
+        wgpuRenderBundleEncoderDrawIndirect(
+            (WGPURenderBundleEncoder)(intptr_t)bundleEncoder,
+            (WGPUBuffer)(intptr_t)buffer, (uint64_t)offset);
+    }
+
+    void bundleDrawIndexedIndirect(int64_t bundleEncoder, int64_t buffer,
+                                   int64_t offset) override {
+        wgpuRenderBundleEncoderDrawIndexedIndirect(
+            (WGPURenderBundleEncoder)(intptr_t)bundleEncoder,
+            (WGPUBuffer)(intptr_t)buffer, (uint64_t)offset);
+    }
+
     int64_t bundleFinish(int64_t bundleEncoder,
                          const std::string& label) override {
         WGPURenderBundleDescriptor wd = {};
@@ -1452,6 +1788,13 @@ public:
         wgpuQuerySetRelease((WGPUQuerySet)(intptr_t)querySet);
     }
 
+    int64_t querySetGetCount(int64_t querySet) override {
+        return wgpuQuerySetGetCount((WGPUQuerySet)(intptr_t)querySet);
+    }
+    int64_t querySetGetType(int64_t querySet) override {
+        return (int64_t)wgpuQuerySetGetType((WGPUQuerySet)(intptr_t)querySet);
+    }
+
     void encoderResolveQuerySet(int64_t encoder, int64_t querySet,
                                 int64_t firstQuery, int64_t queryCount,
                                 int64_t destination,
@@ -1469,12 +1812,17 @@ public:
 
     void encoderCopyTextureToBuffer(int64_t encoder, int64_t texture,
                                     int64_t buffer, int64_t bytesPerRow,
-                                    int64_t width, int64_t height) override {
+                                    int64_t width, int64_t height,
+                                    int64_t mipLevel, int64_t originX,
+                                    int64_t originY, int64_t originZ,
+                                    int64_t bufferOffset) override {
         WGPUTexelCopyTextureInfo src = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
         src.texture = (WGPUTexture)(intptr_t)texture;
+        src.mipLevel = (uint32_t)mipLevel;
+        src.origin = {(uint32_t)originX, (uint32_t)originY, (uint32_t)originZ};
         WGPUTexelCopyBufferInfo dst = WGPU_TEXEL_COPY_BUFFER_INFO_INIT;
         dst.buffer = (WGPUBuffer)(intptr_t)buffer;
-        dst.layout.offset = 0;
+        dst.layout.offset = (uint64_t)bufferOffset;
         dst.layout.bytesPerRow = (uint32_t)bytesPerRow;
         dst.layout.rowsPerImage = (uint32_t)height;
         WGPUExtent3D extent = {(uint32_t)width, (uint32_t)height, 1};

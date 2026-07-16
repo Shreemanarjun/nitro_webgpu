@@ -1,105 +1,98 @@
 # WebGPU parity audit
 
-Audited against the vendored wgpu-native **v29.0.1.1** `webgpu.h` (2026-07-16).
-Method: diffed all 202 exported header functions against the 102 the plugin
-calls, then field-by-field on every descriptor struct, then enum coverage.
-Verified behavior: 50 green integration tests (`example/integration_test/`).
+Audited against the vendored wgpu-native **v29.0.1.1** `webgpu.h` (2026-07-16),
+then the P0/P1/P2 backlog was implemented the same day. Method: diffed all 202
+exported header functions against the ones the plugin calls, then
+field-by-field on every descriptor struct, then enum coverage. Verified
+behavior: 69 green integration tests (`example/integration_test/`).
 
 ## Covered (tested)
 
-Instance/adapter/device (+ error scopes, uncaptured-error stream,
-requiredLimits, deviceGetLimits), buffers (write/mapRead/copy), WGSL modules
-(checked creates), compute (pipelines, dispatch, indirect, dynamic offsets),
-render (vertex/index buffers, instancing, all draw variants incl. indirect,
-viewport/scissor/blendConstant, occlusion queries, stencil ops + reference,
-depth testing, blend presets, MSAA + resolve, MRT ×4, render bundles),
-textures (1D/2D/3D/array/cube dims, per-mip/per-layer uploads and views,
-storage textures, samplers, all copy directions), timestamp queries,
-presentation (Metal blit presenter + DRS).
+- **Core**: adapter/device (+ error scopes, uncaptured-error stream), full
+  31-field `requiredLimits`/`limits`, **feature enumeration** —
+  `adapter.features` / `device.features` / `requestDevice(requiredFeatures:)`
+  over all 22 standard features.
+- **Compute**: pipelines (auto/explicit layout), direct + indirect dispatch,
+  storage buffers/textures, dynamic offsets, debug groups/markers.
+- **Render pipelines**: full primitive state (**topology, cullMode,
+  frontFace, stripIndexFormat**), vertex fetch (40 of 41 vertex formats),
+  depth state incl. **depth bias/slope/clamp**, full stencil (independent
+  front/back faces, read/write masks), blend presets **plus arbitrary
+  `GpuBlendState`** (any op/factor pair) and per-pipeline `colorWriteMask`,
+  MSAA count/**mask/alphaToCoverage**, MRT ×8.
+- **Render passes**: all draw variants (indexed/indirect/indexed-indirect),
+  viewport/scissor/blend-constant, occlusion queries, stencil references,
+  dynamic offsets, **read-only depth/stencil attachments**, debug
+  groups/markers, bundles (full state + **indirect draws**, read-only
+  depth/stencil flags).
+- **Samplers**: filters, per-axis address modes, **comparison samplers**
+  (`sampler_comparison` — shadow mapping verified end-to-end), **LOD
+  clamps, anisotropy**.
+- **Bind group layouts**: buffer/sampler/texture/storage-texture types,
+  dynamic offsets, view dimensions, **texture `sampleType`
+  (float/unfilterable/depth/sint/uint), `multisampled`, sampler
+  filtering/non-filtering/comparison**.
+- **Textures**: 1D/2D/3D/array/cube, per-mip/per-layer/**origin-targeted**
+  uploads, **format-reinterpreting views (`viewFormats`, e.g. srgb)**,
+  39 standard formats (norm/int/float families, `rgb10a2`, `rg11b10`,
+  `depth16unorm`, `stencil8`, …).
+- **Copies**: all four directions with **origins, mip levels, array
+  layers/3D slices, buffer offsets, and multi-slice extents**;
+  `clearBuffer`.
+- **Buffers**: `queue.writeBuffer` (zero-copy in), `mapRead`,
+  **`mappedAtCreation` + `mapWrite` + `writeMapped` (zero-copy upload
+  straight into mapped GPU memory) + `unmap`**.
+- **Timing**: timestamp queries on both pass types **and encoder-level
+  `writeTimestamp`** (auto-enables the wgpu-native
+  `TimestampQueryInsideEncoders` extra when available).
+- **Diagnostics**: `getCompilationInfo` API (see upstream note),
+  debug groups/markers on encoders and both pass types.
+- **Presentation**: `WebGpuView` (Metal blit presenter, DRS).
 
-Of the 100 unwrapped header functions, ~70 are non-gaps: `AddRef`/`SetLabel`
-bookkeeping (~44), `Surface*` (replaced by the presenter seam; Android M2.3
-will use them), `ExternalTexture*` (web-only), `FreeMembers`/proc-address
-plumbing. The rest are the real tail, below.
+## Also covered (the former "remaining" tail)
 
-## Gaps that block common rendering techniques (P0)
+- **Compressed texture formats**: BC1–BC7, ETC2/EAC, ASTC 4×4/8×8 enum
+  entries (feature-gated; pass a block-aligned `bytesPerRow` to
+  `writeTexture`). BC1 upload + sampling verified on Apple silicon.
+- **Introspection getters**: `buffer.usage`, all texture properties
+  (`mipLevelCount`/`sampleCount`/`depthOrArrayLayers`/`dimension`/`usage`),
+  `querySet.type` — native-backed; `buffer.mapState` is wrapper-tracked
+  (see upstream note below).
+- **8-slot caps**: color targets, bundle formats, bind group layouts, and
+  dynamic offsets all take up to **8** now (5-target MRT, 5-offset
+  setBindGroup, and 5-bind-group pipelines are tested — the 5×rgba8 MRT
+  needs `requiredLimits(maxColorAttachmentBytesPerSample: 40)` since
+  rgba8unorm costs 8 bytes/sample as a render target).
 
-| Gap | Where | Impact |
-|---|---|---|
-| `cullMode` / `frontFace` not plumbed | `WGPUPrimitiveState` (INIT: cull none, CCW) | No back-face culling — every closed mesh pays ~2× fragment cost |
-| `topology` in spec + C++ but **not surfaced in the Dart wrapper** | `createRenderPipeline` | No line/point/strip rendering (also needs `stripIndexFormat`) |
-| Depth bias (`depthBias`/`SlopeScale`/`Clamp`) not plumbed | `WGPUDepthStencilState` | Shadow mapping produces acne; decals z-fight |
-| Comparison samplers (`compare`), LOD clamps, `maxAnisotropy` | `WGPUSamplerDescriptor` | `sampler_comparison`/PCF shadows impossible; no aniso filtering |
-| BGL texture `sampleType` hardcoded `Float`, no `multisampled` flag, no depth sample type | explicit `GpuLayoutEntry` | Explicit layouts can't bind depth textures, sint/uint textures, or `texture_multisampled_2d` (auto-layout works — explicit is the gap) |
+## Remaining
 
-## Feature-surface gaps (P1)
+- `Surface*` functions — deliberately replaced by the presenter seam
+  (Android M2.3 will consume them); `ExternalTexture` is web-only.
+- Compressed-format upload *helpers* (block-size math is the caller's until
+  a real asset pipeline lands).
 
-- **Features**: header exposes 22 (`Float32Filterable`, `DepthClipControl`,
-  `ShaderF16`, `Subgroups`, BC/ETC2/ASTC compression, …); only
-  `TimestampQuery` is surfaced. Need `adapter.features`,
-  `requestDevice(requiredFeatures:)`, `device.features`
-  (`wgpuAdapterGetFeatures`/`wgpuDeviceGetFeatures`/`HasFeature` unwrapped).
-- **Texture formats**: enum covers 15 of 103 (missing `depth16unorm`,
-  `stencil8`, `rgb10a2unorm`, `rg11b10ufloat`, r16/rg16 families, all
-  sint/uint color formats, compressed families).
-- **Vertex formats**: 8 of 41 (missing 8/16-bit norm/int pairs,
-  `unorm10-10-10-2`, …).
-- **Custom blend state**: 3 presets only — no arbitrary factor/op pairs, no
-  `min`/`max` ops, no per-target blend, no `colorWriteMask`
-  (`setBlendConstant` is exposed but inert: no preset uses the
-  constant-factor blend it feeds).
-- **Copy origins**: all copies are origin-(0,0,0); `copyTextureToTexture` is
-  mip-0-only, single-layer, depth-1; `writeTexture` lacks x/y origin. Cube
-  face→face copies and atlas-region blits impossible.
-- **Limits**: `GpuRequiredLimits` exposes 7 of 32 header fields; `GpuLimits`
-  getter 16 of 32 (missing `maxColorAttachments`, `maxVertexAttributes`,
-  per-stage counts, workgroups-per-dimension, …).
+## Upstream gaps in wgpu-native v29.0.1.1 (probe-verified)
 
-## Polish tail (P2)
+- `wgpuBufferWriteMappedRange` and mutable `wgpuBufferGetMappedRange` are
+  `todo!()` panics — `writeMapped` goes through
+  `wgpuBufferGetConstMappedRange` instead (same host-visible mapping;
+  round-trip probe-verified for both mapping paths).
+- `wgpuDeviceCreateComputePipelineAsync` / `CreateRenderPipelineAsync` are
+  unimplemented (`unimplemented.rs` panic) — async pipeline creation cannot
+  ship on this pin; checked creates stay synchronous + error-scoped.
+- `wgpuBufferGetMapState` is unimplemented — `buffer.mapState` is tracked in
+  the Dart wrapper instead.
+- `wgpuShaderModuleGetCompilationInfo` is a `todo!()` panic —
+  `getCompilationInfo` resolves empty without calling it; compile errors
+  still carry naga's full text via checked `createShaderModule`.
+- A command buffer that failed validation at `finish` **panics the process
+  at `wgpuQueueSubmit`** (not catchable, even with the uncaptured-error
+  handler installed). Validate-sensitive encodes should be developed with
+  error scopes around creates; this sharp edge is upstream.
+- The device-lost callback never fires (`onLost` is plumbed, waiting).
+- `SetImmediates` (push constants) and pipeline-statistics queries are
+  nonstandard wgpu extras; not exposed.
 
-- `mapWrite`/`mappedAtCreation` write path (`wgpuBufferWriteMappedRange`) —
-  uploads currently always go through `queue.writeBuffer`'s extra copy.
-- `wgpuDeviceCreate{Render,Compute}PipelineAsync` — checked creates are
-  synchronous on the Dart thread; big PSOs could stutter a running frame.
-- `wgpuShaderModuleGetCompilationInfo` — structured line/col diagnostics
-  (currently: raw error-scope message string).
-- `wgpuCommandEncoderClearBuffer`, encoder-level `WriteTimestamp`.
-- Debug markers/groups (encoder + passes) — labels in Xcode GPU captures.
-- Render bundles: `drawIndirect`/`drawIndexedIndirect` inside bundles;
-  `depthReadOnly`/`stencilReadOnly` flags.
-- Stencil: independent front/back face states; `stencilReadMask`/`WriteMask`
-  (INIT `0xFFFFFFFF`); read-only depth/stencil pass attachments.
-- Multisample `mask` / `alphaToCoverageEnabled` (INIT defaults today).
-- Texture `viewFormats` (e.g. srgb reinterpret views).
-- Introspection getters (`bufferGetMapState`, texture property getters,
-  `querySetGetCount`) — Dart already tracks these; native would be canonical.
-
-## Curated bounds (documented, deliberate)
-
-- Flattened records cap: **4** color targets (WebGPU default limit is 8),
-  **4** dynamic offsets, **4** bind group layouts (= spec default
-  `maxBindGroups`). Raising any of these is mechanical (add fields).
-- Presentation via the plugin's presenter, not `WGPUSurface` (until M2.3).
-- No 1:1 `webgpu.h` exposure — `WGPUChainedStruct` never crosses the FFI.
-
-## Upstream / out of scope
-
-- Device-lost callback never fires in wgpu-native v29 (plumbed, waiting).
-- `SetImmediates` (push constants), pipeline statistics: wgpu-native
-  extensions, not standard WebGPU.
-- `ExternalTexture`, canvas context: web-only; deferred with the web backend.
-
-## Suggested order of attack
-
-1. `createRenderPipeline(topology:, cullMode:, frontFace:)` — topology is
-   already in the spec record; cull/frontFace are two record fields + two
-   C++ lines each. Biggest win per line of code.
-2. Sampler `compare`/LOD/anisotropy + depth-bias fields → unlocks shadow
-   mapping end-to-end (add a shadow-map complex test).
-3. Feature enumeration + `requiredFeatures` (records already have the
-   pattern from requiredLimits).
-4. Format + vertex-format enum extension (pure Dart, values pass through).
-5. Custom blend + `colorWriteMask` (replace presets with an optional
-   `GpuBlendState` record; keep presets as constructors).
-6. Copy origins/mips/layers (extend existing copy records).
-7. Explicit-BGL `sampleType`/`multisampled`; then the P2 tail.
+All of the above re-tests automatically on a version bump: the probes live in
+the session scratchpad pattern (`mapwrite_probe2.cpp`, `misc_probe.cpp`,
+`tail_probe.cpp`) and the 69-test suite exercises every wrapped path.

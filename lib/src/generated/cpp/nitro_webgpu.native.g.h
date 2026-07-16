@@ -143,6 +143,8 @@ struct GpuBindGroupLayoutEntry;
 struct GpuBindGroupLayoutDescriptor;
 struct GpuPipelineLayoutDescriptor;
 struct GpuRenderPipelineDescriptor;
+struct GpuCompilationMessage;
+struct GpuCompilationInfo;
 struct NitroNullableInt;
 struct NitroNullableDouble;
 struct NitroNullableBool;
@@ -252,17 +254,32 @@ struct GpuLimits {
     int64_t maxTextureDimension3D;
     int64_t maxTextureArrayLayers;
     int64_t maxBindGroups;
+    int64_t maxBindGroupsPlusVertexBuffers;
     int64_t maxBindingsPerBindGroup;
+    int64_t maxDynamicUniformBuffersPerPipelineLayout;
+    int64_t maxDynamicStorageBuffersPerPipelineLayout;
+    int64_t maxSampledTexturesPerShaderStage;
+    int64_t maxSamplersPerShaderStage;
+    int64_t maxStorageBuffersPerShaderStage;
+    int64_t maxStorageTexturesPerShaderStage;
+    int64_t maxUniformBuffersPerShaderStage;
     int64_t maxUniformBufferBindingSize;
     int64_t maxStorageBufferBindingSize;
     int64_t minUniformBufferOffsetAlignment;
     int64_t minStorageBufferOffsetAlignment;
+    int64_t maxVertexBuffers;
     int64_t maxBufferSize;
+    int64_t maxVertexAttributes;
+    int64_t maxVertexBufferArrayStride;
+    int64_t maxInterStageShaderVariables;
+    int64_t maxColorAttachments;
+    int64_t maxColorAttachmentBytesPerSample;
     int64_t maxComputeWorkgroupStorageSize;
     int64_t maxComputeInvocationsPerWorkgroup;
     int64_t maxComputeWorkgroupSizeX;
     int64_t maxComputeWorkgroupSizeY;
     int64_t maxComputeWorkgroupSizeZ;
+    int64_t maxComputeWorkgroupsPerDimension;
 
     static GpuLimits fromNative(NitroCppBuffer buf) {
         NitroRecordReader _r(buf);
@@ -276,17 +293,32 @@ struct GpuLimits {
         _obj.maxTextureDimension3D = _r.readInt();
         _obj.maxTextureArrayLayers = _r.readInt();
         _obj.maxBindGroups = _r.readInt();
+        _obj.maxBindGroupsPlusVertexBuffers = _r.readInt();
         _obj.maxBindingsPerBindGroup = _r.readInt();
+        _obj.maxDynamicUniformBuffersPerPipelineLayout = _r.readInt();
+        _obj.maxDynamicStorageBuffersPerPipelineLayout = _r.readInt();
+        _obj.maxSampledTexturesPerShaderStage = _r.readInt();
+        _obj.maxSamplersPerShaderStage = _r.readInt();
+        _obj.maxStorageBuffersPerShaderStage = _r.readInt();
+        _obj.maxStorageTexturesPerShaderStage = _r.readInt();
+        _obj.maxUniformBuffersPerShaderStage = _r.readInt();
         _obj.maxUniformBufferBindingSize = _r.readInt();
         _obj.maxStorageBufferBindingSize = _r.readInt();
         _obj.minUniformBufferOffsetAlignment = _r.readInt();
         _obj.minStorageBufferOffsetAlignment = _r.readInt();
+        _obj.maxVertexBuffers = _r.readInt();
         _obj.maxBufferSize = _r.readInt();
+        _obj.maxVertexAttributes = _r.readInt();
+        _obj.maxVertexBufferArrayStride = _r.readInt();
+        _obj.maxInterStageShaderVariables = _r.readInt();
+        _obj.maxColorAttachments = _r.readInt();
+        _obj.maxColorAttachmentBytesPerSample = _r.readInt();
         _obj.maxComputeWorkgroupStorageSize = _r.readInt();
         _obj.maxComputeInvocationsPerWorkgroup = _r.readInt();
         _obj.maxComputeWorkgroupSizeX = _r.readInt();
         _obj.maxComputeWorkgroupSizeY = _r.readInt();
         _obj.maxComputeWorkgroupSizeZ = _r.readInt();
+        _obj.maxComputeWorkgroupsPerDimension = _r.readInt();
         return _obj;
     }
 
@@ -297,17 +329,32 @@ struct GpuLimits {
         w.writeInt(maxTextureDimension3D);
         w.writeInt(maxTextureArrayLayers);
         w.writeInt(maxBindGroups);
+        w.writeInt(maxBindGroupsPlusVertexBuffers);
         w.writeInt(maxBindingsPerBindGroup);
+        w.writeInt(maxDynamicUniformBuffersPerPipelineLayout);
+        w.writeInt(maxDynamicStorageBuffersPerPipelineLayout);
+        w.writeInt(maxSampledTexturesPerShaderStage);
+        w.writeInt(maxSamplersPerShaderStage);
+        w.writeInt(maxStorageBuffersPerShaderStage);
+        w.writeInt(maxStorageTexturesPerShaderStage);
+        w.writeInt(maxUniformBuffersPerShaderStage);
         w.writeInt(maxUniformBufferBindingSize);
         w.writeInt(maxStorageBufferBindingSize);
         w.writeInt(minUniformBufferOffsetAlignment);
         w.writeInt(minStorageBufferOffsetAlignment);
+        w.writeInt(maxVertexBuffers);
         w.writeInt(maxBufferSize);
+        w.writeInt(maxVertexAttributes);
+        w.writeInt(maxVertexBufferArrayStride);
+        w.writeInt(maxInterStageShaderVariables);
+        w.writeInt(maxColorAttachments);
+        w.writeInt(maxColorAttachmentBytesPerSample);
         w.writeInt(maxComputeWorkgroupStorageSize);
         w.writeInt(maxComputeInvocationsPerWorkgroup);
         w.writeInt(maxComputeWorkgroupSizeX);
         w.writeInt(maxComputeWorkgroupSizeY);
         w.writeInt(maxComputeWorkgroupSizeZ);
+        w.writeInt(maxComputeWorkgroupsPerDimension);
     }
 
     /// Heap-allocated [4B length][payload] for returning to Dart.
@@ -319,13 +366,37 @@ struct GpuLimits {
 };
 
 struct GpuRequiredLimits {
+    int64_t maxTextureDimension1D;
     int64_t maxTextureDimension2D;
+    int64_t maxTextureDimension3D;
     int64_t maxTextureArrayLayers;
     int64_t maxBindGroups;
+    int64_t maxBindGroupsPlusVertexBuffers;
+    int64_t maxBindingsPerBindGroup;
+    int64_t maxDynamicUniformBuffersPerPipelineLayout;
+    int64_t maxDynamicStorageBuffersPerPipelineLayout;
+    int64_t maxSampledTexturesPerShaderStage;
+    int64_t maxSamplersPerShaderStage;
+    int64_t maxStorageBuffersPerShaderStage;
+    int64_t maxStorageTexturesPerShaderStage;
+    int64_t maxUniformBuffersPerShaderStage;
     int64_t maxUniformBufferBindingSize;
     int64_t maxStorageBufferBindingSize;
+    int64_t minUniformBufferOffsetAlignment;
+    int64_t minStorageBufferOffsetAlignment;
+    int64_t maxVertexBuffers;
     int64_t maxBufferSize;
+    int64_t maxVertexAttributes;
+    int64_t maxVertexBufferArrayStride;
+    int64_t maxInterStageShaderVariables;
+    int64_t maxColorAttachments;
+    int64_t maxColorAttachmentBytesPerSample;
+    int64_t maxComputeWorkgroupStorageSize;
     int64_t maxComputeInvocationsPerWorkgroup;
+    int64_t maxComputeWorkgroupSizeX;
+    int64_t maxComputeWorkgroupSizeY;
+    int64_t maxComputeWorkgroupSizeZ;
+    int64_t maxComputeWorkgroupsPerDimension;
 
     static GpuRequiredLimits fromNative(NitroCppBuffer buf) {
         NitroRecordReader _r(buf);
@@ -334,25 +405,73 @@ struct GpuRequiredLimits {
 
     static GpuRequiredLimits fromReader(NitroRecordReader& _r) {
         GpuRequiredLimits _obj;
+        _obj.maxTextureDimension1D = _r.readInt();
         _obj.maxTextureDimension2D = _r.readInt();
+        _obj.maxTextureDimension3D = _r.readInt();
         _obj.maxTextureArrayLayers = _r.readInt();
         _obj.maxBindGroups = _r.readInt();
+        _obj.maxBindGroupsPlusVertexBuffers = _r.readInt();
+        _obj.maxBindingsPerBindGroup = _r.readInt();
+        _obj.maxDynamicUniformBuffersPerPipelineLayout = _r.readInt();
+        _obj.maxDynamicStorageBuffersPerPipelineLayout = _r.readInt();
+        _obj.maxSampledTexturesPerShaderStage = _r.readInt();
+        _obj.maxSamplersPerShaderStage = _r.readInt();
+        _obj.maxStorageBuffersPerShaderStage = _r.readInt();
+        _obj.maxStorageTexturesPerShaderStage = _r.readInt();
+        _obj.maxUniformBuffersPerShaderStage = _r.readInt();
         _obj.maxUniformBufferBindingSize = _r.readInt();
         _obj.maxStorageBufferBindingSize = _r.readInt();
+        _obj.minUniformBufferOffsetAlignment = _r.readInt();
+        _obj.minStorageBufferOffsetAlignment = _r.readInt();
+        _obj.maxVertexBuffers = _r.readInt();
         _obj.maxBufferSize = _r.readInt();
+        _obj.maxVertexAttributes = _r.readInt();
+        _obj.maxVertexBufferArrayStride = _r.readInt();
+        _obj.maxInterStageShaderVariables = _r.readInt();
+        _obj.maxColorAttachments = _r.readInt();
+        _obj.maxColorAttachmentBytesPerSample = _r.readInt();
+        _obj.maxComputeWorkgroupStorageSize = _r.readInt();
         _obj.maxComputeInvocationsPerWorkgroup = _r.readInt();
+        _obj.maxComputeWorkgroupSizeX = _r.readInt();
+        _obj.maxComputeWorkgroupSizeY = _r.readInt();
+        _obj.maxComputeWorkgroupSizeZ = _r.readInt();
+        _obj.maxComputeWorkgroupsPerDimension = _r.readInt();
         return _obj;
     }
 
     // Mirrors fromReader — appends this record's fields to [w].
     void encodeInto(NitroRecordWriter& w) const {
+        w.writeInt(maxTextureDimension1D);
         w.writeInt(maxTextureDimension2D);
+        w.writeInt(maxTextureDimension3D);
         w.writeInt(maxTextureArrayLayers);
         w.writeInt(maxBindGroups);
+        w.writeInt(maxBindGroupsPlusVertexBuffers);
+        w.writeInt(maxBindingsPerBindGroup);
+        w.writeInt(maxDynamicUniformBuffersPerPipelineLayout);
+        w.writeInt(maxDynamicStorageBuffersPerPipelineLayout);
+        w.writeInt(maxSampledTexturesPerShaderStage);
+        w.writeInt(maxSamplersPerShaderStage);
+        w.writeInt(maxStorageBuffersPerShaderStage);
+        w.writeInt(maxStorageTexturesPerShaderStage);
+        w.writeInt(maxUniformBuffersPerShaderStage);
         w.writeInt(maxUniformBufferBindingSize);
         w.writeInt(maxStorageBufferBindingSize);
+        w.writeInt(minUniformBufferOffsetAlignment);
+        w.writeInt(minStorageBufferOffsetAlignment);
+        w.writeInt(maxVertexBuffers);
         w.writeInt(maxBufferSize);
+        w.writeInt(maxVertexAttributes);
+        w.writeInt(maxVertexBufferArrayStride);
+        w.writeInt(maxInterStageShaderVariables);
+        w.writeInt(maxColorAttachments);
+        w.writeInt(maxColorAttachmentBytesPerSample);
+        w.writeInt(maxComputeWorkgroupStorageSize);
         w.writeInt(maxComputeInvocationsPerWorkgroup);
+        w.writeInt(maxComputeWorkgroupSizeX);
+        w.writeInt(maxComputeWorkgroupSizeY);
+        w.writeInt(maxComputeWorkgroupSizeZ);
+        w.writeInt(maxComputeWorkgroupsPerDimension);
     }
 
     /// Heap-allocated [4B length][payload] for returning to Dart.
@@ -367,6 +486,7 @@ struct GpuDeviceDescriptor {
     std::string label;
     bool requireTimestampQueries;
     std::optional<GpuRequiredLimits> requiredLimits;
+    int64_t requiredFeatures;
 
     static GpuDeviceDescriptor fromNative(NitroCppBuffer buf) {
         NitroRecordReader _r(buf);
@@ -378,6 +498,7 @@ struct GpuDeviceDescriptor {
         _obj.label = _r.readString();
         _obj.requireTimestampQueries = _r.readBool();
         { bool _null = _r.readNullTag(); _obj.requiredLimits = _null ? std::nullopt : std::optional<GpuRequiredLimits>(GpuRequiredLimits::fromReader(_r)); }
+        _obj.requiredFeatures = _r.readInt();
         return _obj;
     }
 
@@ -387,6 +508,7 @@ struct GpuDeviceDescriptor {
         w.writeBool(requireTimestampQueries);
         w.writeBool(requiredLimits.has_value());
         if (requiredLimits.has_value()) { (*requiredLimits).encodeInto(w); }
+        w.writeInt(requiredFeatures);
     }
 
     /// Heap-allocated [4B length][payload] for returning to Dart.
@@ -615,6 +737,10 @@ struct GpuSamplerDescriptor {
     int64_t addressModeU;
     int64_t addressModeV;
     int64_t addressModeW;
+    int64_t compare;
+    double lodMinClamp;
+    double lodMaxClamp;
+    int64_t maxAnisotropy;
 
     static GpuSamplerDescriptor fromNative(NitroCppBuffer buf) {
         NitroRecordReader _r(buf);
@@ -630,6 +756,10 @@ struct GpuSamplerDescriptor {
         _obj.addressModeU = _r.readInt();
         _obj.addressModeV = _r.readInt();
         _obj.addressModeW = _r.readInt();
+        _obj.compare = _r.readInt();
+        _obj.lodMinClamp = _r.readDouble();
+        _obj.lodMaxClamp = _r.readDouble();
+        _obj.maxAnisotropy = _r.readInt();
         return _obj;
     }
 
@@ -642,6 +772,10 @@ struct GpuSamplerDescriptor {
         w.writeInt(addressModeU);
         w.writeInt(addressModeV);
         w.writeInt(addressModeW);
+        w.writeInt(compare);
+        w.writeDouble(lodMinClamp);
+        w.writeDouble(lodMaxClamp);
+        w.writeInt(maxAnisotropy);
     }
 
     /// Heap-allocated [4B length][payload] for returning to Dart.
@@ -758,6 +892,7 @@ struct GpuTextureDescriptor {
     int64_t sampleCount;
     int64_t dimension;
     int64_t depthOrArrayLayers;
+    int64_t viewFormat;
 
     static GpuTextureDescriptor fromNative(NitroCppBuffer buf) {
         NitroRecordReader _r(buf);
@@ -775,6 +910,7 @@ struct GpuTextureDescriptor {
         _obj.sampleCount = _r.readInt();
         _obj.dimension = _r.readInt();
         _obj.depthOrArrayLayers = _r.readInt();
+        _obj.viewFormat = _r.readInt();
         return _obj;
     }
 
@@ -789,6 +925,7 @@ struct GpuTextureDescriptor {
         w.writeInt(sampleCount);
         w.writeInt(dimension);
         w.writeInt(depthOrArrayLayers);
+        w.writeInt(viewFormat);
     }
 
     /// Heap-allocated [4B length][payload] for returning to Dart.
@@ -806,6 +943,7 @@ struct GpuTextureViewDescriptor {
     int64_t dimension;
     int64_t baseArrayLayer;
     int64_t arrayLayerCount;
+    int64_t format;
 
     static GpuTextureViewDescriptor fromNative(NitroCppBuffer buf) {
         NitroRecordReader _r(buf);
@@ -820,6 +958,7 @@ struct GpuTextureViewDescriptor {
         _obj.dimension = _r.readInt();
         _obj.baseArrayLayer = _r.readInt();
         _obj.arrayLayerCount = _r.readInt();
+        _obj.format = _r.readInt();
         return _obj;
     }
 
@@ -831,6 +970,7 @@ struct GpuTextureViewDescriptor {
         w.writeInt(dimension);
         w.writeInt(baseArrayLayer);
         w.writeInt(arrayLayerCount);
+        w.writeInt(format);
     }
 
     /// Heap-allocated [4B length][payload] for returning to Dart.
@@ -847,8 +987,14 @@ struct GpuRenderBundleEncoderDescriptor {
     int64_t format1;
     int64_t format2;
     int64_t format3;
+    int64_t format4;
+    int64_t format5;
+    int64_t format6;
+    int64_t format7;
     int64_t depthFormat;
     int64_t sampleCount;
+    bool depthReadOnly;
+    bool stencilReadOnly;
 
     static GpuRenderBundleEncoderDescriptor fromNative(NitroCppBuffer buf) {
         NitroRecordReader _r(buf);
@@ -862,8 +1008,14 @@ struct GpuRenderBundleEncoderDescriptor {
         _obj.format1 = _r.readInt();
         _obj.format2 = _r.readInt();
         _obj.format3 = _r.readInt();
+        _obj.format4 = _r.readInt();
+        _obj.format5 = _r.readInt();
+        _obj.format6 = _r.readInt();
+        _obj.format7 = _r.readInt();
         _obj.depthFormat = _r.readInt();
         _obj.sampleCount = _r.readInt();
+        _obj.depthReadOnly = _r.readBool();
+        _obj.stencilReadOnly = _r.readBool();
         return _obj;
     }
 
@@ -874,8 +1026,14 @@ struct GpuRenderBundleEncoderDescriptor {
         w.writeInt(format1);
         w.writeInt(format2);
         w.writeInt(format3);
+        w.writeInt(format4);
+        w.writeInt(format5);
+        w.writeInt(format6);
+        w.writeInt(format7);
         w.writeInt(depthFormat);
         w.writeInt(sampleCount);
+        w.writeBool(depthReadOnly);
+        w.writeBool(stencilReadOnly);
     }
 
     /// Heap-allocated [4B length][payload] for returning to Dart.
@@ -948,6 +1106,8 @@ struct GpuRenderPassDescriptor {
     int64_t stencilStoreOp;
     int64_t stencilClearValue;
     int64_t occlusionQuerySetAddress;
+    bool depthReadOnly;
+    bool stencilReadOnly;
 
     static GpuRenderPassDescriptor fromNative(NitroCppBuffer buf) {
         NitroRecordReader _r(buf);
@@ -969,6 +1129,8 @@ struct GpuRenderPassDescriptor {
         _obj.stencilStoreOp = _r.readInt();
         _obj.stencilClearValue = _r.readInt();
         _obj.occlusionQuerySetAddress = _r.readInt();
+        _obj.depthReadOnly = _r.readBool();
+        _obj.stencilReadOnly = _r.readBool();
         return _obj;
     }
 
@@ -987,6 +1149,8 @@ struct GpuRenderPassDescriptor {
         w.writeInt(stencilStoreOp);
         w.writeInt(stencilClearValue);
         w.writeInt(occlusionQuerySetAddress);
+        w.writeBool(depthReadOnly);
+        w.writeBool(stencilReadOnly);
     }
 
     /// Heap-allocated [4B length][payload] for returning to Dart.
@@ -1069,6 +1233,9 @@ struct GpuBindGroupLayoutEntry {
     int64_t type;
     int64_t viewDimension;
     bool hasDynamicOffset;
+    int64_t sampleType;
+    bool multisampled;
+    int64_t samplerType;
 
     static GpuBindGroupLayoutEntry fromNative(NitroCppBuffer buf) {
         NitroRecordReader _r(buf);
@@ -1082,6 +1249,9 @@ struct GpuBindGroupLayoutEntry {
         _obj.type = _r.readInt();
         _obj.viewDimension = _r.readInt();
         _obj.hasDynamicOffset = _r.readBool();
+        _obj.sampleType = _r.readInt();
+        _obj.multisampled = _r.readBool();
+        _obj.samplerType = _r.readInt();
         return _obj;
     }
 
@@ -1092,6 +1262,9 @@ struct GpuBindGroupLayoutEntry {
         w.writeInt(type);
         w.writeInt(viewDimension);
         w.writeBool(hasDynamicOffset);
+        w.writeInt(sampleType);
+        w.writeBool(multisampled);
+        w.writeInt(samplerType);
     }
 
     /// Heap-allocated [4B length][payload] for returning to Dart.
@@ -1138,6 +1311,10 @@ struct GpuPipelineLayoutDescriptor {
     int64_t layout1;
     int64_t layout2;
     int64_t layout3;
+    int64_t layout4;
+    int64_t layout5;
+    int64_t layout6;
+    int64_t layout7;
 
     static GpuPipelineLayoutDescriptor fromNative(NitroCppBuffer buf) {
         NitroRecordReader _r(buf);
@@ -1151,6 +1328,10 @@ struct GpuPipelineLayoutDescriptor {
         _obj.layout1 = _r.readInt();
         _obj.layout2 = _r.readInt();
         _obj.layout3 = _r.readInt();
+        _obj.layout4 = _r.readInt();
+        _obj.layout5 = _r.readInt();
+        _obj.layout6 = _r.readInt();
+        _obj.layout7 = _r.readInt();
         return _obj;
     }
 
@@ -1161,6 +1342,10 @@ struct GpuPipelineLayoutDescriptor {
         w.writeInt(layout1);
         w.writeInt(layout2);
         w.writeInt(layout3);
+        w.writeInt(layout4);
+        w.writeInt(layout5);
+        w.writeInt(layout6);
+        w.writeInt(layout7);
     }
 
     /// Heap-allocated [4B length][payload] for returning to Dart.
@@ -1188,10 +1373,35 @@ struct GpuRenderPipelineDescriptor {
     int64_t targetFormat1;
     int64_t targetFormat2;
     int64_t targetFormat3;
+    int64_t targetFormat4;
+    int64_t targetFormat5;
+    int64_t targetFormat6;
+    int64_t targetFormat7;
     int64_t stencilCompare;
     int64_t stencilFailOp;
     int64_t stencilDepthFailOp;
     int64_t stencilPassOp;
+    int64_t cullMode;
+    int64_t frontFace;
+    int64_t stripIndexFormat;
+    int64_t depthBias;
+    double depthBiasSlopeScale;
+    double depthBiasClamp;
+    int64_t stencilReadMask;
+    int64_t stencilWriteMask;
+    int64_t stencilBackCompare;
+    int64_t stencilBackFailOp;
+    int64_t stencilBackDepthFailOp;
+    int64_t stencilBackPassOp;
+    int64_t colorBlendOp;
+    int64_t colorBlendSrc;
+    int64_t colorBlendDst;
+    int64_t alphaBlendOp;
+    int64_t alphaBlendSrc;
+    int64_t alphaBlendDst;
+    int64_t writeMask;
+    int64_t multisampleMask;
+    bool alphaToCoverageEnabled;
 
     static GpuRenderPipelineDescriptor fromNative(NitroCppBuffer buf) {
         NitroRecordReader _r(buf);
@@ -1216,10 +1426,35 @@ struct GpuRenderPipelineDescriptor {
         _obj.targetFormat1 = _r.readInt();
         _obj.targetFormat2 = _r.readInt();
         _obj.targetFormat3 = _r.readInt();
+        _obj.targetFormat4 = _r.readInt();
+        _obj.targetFormat5 = _r.readInt();
+        _obj.targetFormat6 = _r.readInt();
+        _obj.targetFormat7 = _r.readInt();
         _obj.stencilCompare = _r.readInt();
         _obj.stencilFailOp = _r.readInt();
         _obj.stencilDepthFailOp = _r.readInt();
         _obj.stencilPassOp = _r.readInt();
+        _obj.cullMode = _r.readInt();
+        _obj.frontFace = _r.readInt();
+        _obj.stripIndexFormat = _r.readInt();
+        _obj.depthBias = _r.readInt();
+        _obj.depthBiasSlopeScale = _r.readDouble();
+        _obj.depthBiasClamp = _r.readDouble();
+        _obj.stencilReadMask = _r.readInt();
+        _obj.stencilWriteMask = _r.readInt();
+        _obj.stencilBackCompare = _r.readInt();
+        _obj.stencilBackFailOp = _r.readInt();
+        _obj.stencilBackDepthFailOp = _r.readInt();
+        _obj.stencilBackPassOp = _r.readInt();
+        _obj.colorBlendOp = _r.readInt();
+        _obj.colorBlendSrc = _r.readInt();
+        _obj.colorBlendDst = _r.readInt();
+        _obj.alphaBlendOp = _r.readInt();
+        _obj.alphaBlendSrc = _r.readInt();
+        _obj.alphaBlendDst = _r.readInt();
+        _obj.writeMask = _r.readInt();
+        _obj.multisampleMask = _r.readInt();
+        _obj.alphaToCoverageEnabled = _r.readBool();
         return _obj;
     }
 
@@ -1241,10 +1476,104 @@ struct GpuRenderPipelineDescriptor {
         w.writeInt(targetFormat1);
         w.writeInt(targetFormat2);
         w.writeInt(targetFormat3);
+        w.writeInt(targetFormat4);
+        w.writeInt(targetFormat5);
+        w.writeInt(targetFormat6);
+        w.writeInt(targetFormat7);
         w.writeInt(stencilCompare);
         w.writeInt(stencilFailOp);
         w.writeInt(stencilDepthFailOp);
         w.writeInt(stencilPassOp);
+        w.writeInt(cullMode);
+        w.writeInt(frontFace);
+        w.writeInt(stripIndexFormat);
+        w.writeInt(depthBias);
+        w.writeDouble(depthBiasSlopeScale);
+        w.writeDouble(depthBiasClamp);
+        w.writeInt(stencilReadMask);
+        w.writeInt(stencilWriteMask);
+        w.writeInt(stencilBackCompare);
+        w.writeInt(stencilBackFailOp);
+        w.writeInt(stencilBackDepthFailOp);
+        w.writeInt(stencilBackPassOp);
+        w.writeInt(colorBlendOp);
+        w.writeInt(colorBlendSrc);
+        w.writeInt(colorBlendDst);
+        w.writeInt(alphaBlendOp);
+        w.writeInt(alphaBlendSrc);
+        w.writeInt(alphaBlendDst);
+        w.writeInt(writeMask);
+        w.writeInt(multisampleMask);
+        w.writeBool(alphaToCoverageEnabled);
+    }
+
+    /// Heap-allocated [4B length][payload] for returning to Dart.
+    NitroCppBuffer toNativeBuffer() const {
+        NitroRecordWriter _w;
+        encodeInto(_w);
+        return _w.toNativeBuffer();
+    }
+};
+
+struct GpuCompilationMessage {
+    std::string message;
+    int64_t type;
+    int64_t lineNum;
+    int64_t linePos;
+    int64_t offset;
+    int64_t length;
+
+    static GpuCompilationMessage fromNative(NitroCppBuffer buf) {
+        NitroRecordReader _r(buf);
+        return fromReader(_r);
+    }
+
+    static GpuCompilationMessage fromReader(NitroRecordReader& _r) {
+        GpuCompilationMessage _obj;
+        _obj.message = _r.readString();
+        _obj.type = _r.readInt();
+        _obj.lineNum = _r.readInt();
+        _obj.linePos = _r.readInt();
+        _obj.offset = _r.readInt();
+        _obj.length = _r.readInt();
+        return _obj;
+    }
+
+    // Mirrors fromReader — appends this record's fields to [w].
+    void encodeInto(NitroRecordWriter& w) const {
+        w.writeString(message);
+        w.writeInt(type);
+        w.writeInt(lineNum);
+        w.writeInt(linePos);
+        w.writeInt(offset);
+        w.writeInt(length);
+    }
+
+    /// Heap-allocated [4B length][payload] for returning to Dart.
+    NitroCppBuffer toNativeBuffer() const {
+        NitroRecordWriter _w;
+        encodeInto(_w);
+        return _w.toNativeBuffer();
+    }
+};
+
+struct GpuCompilationInfo {
+    std::vector<GpuCompilationMessage> messages;
+
+    static GpuCompilationInfo fromNative(NitroCppBuffer buf) {
+        NitroRecordReader _r(buf);
+        return fromReader(_r);
+    }
+
+    static GpuCompilationInfo fromReader(NitroRecordReader& _r) {
+        GpuCompilationInfo _obj;
+        { int32_t _n = _r.readInt32(); _obj.messages.reserve((size_t)_n); for (int32_t _i = 0; _i < _n; _i++) _obj.messages.push_back(GpuCompilationMessage::fromReader(_r)); }
+        return _obj;
+    }
+
+    // Mirrors fromReader — appends this record's fields to [w].
+    void encodeInto(NitroRecordWriter& w) const {
+        { w.writeInt32((int32_t)messages.size()); for (const auto& _e : messages) { _e.encodeInto(w); } }
     }
 
     /// Heap-allocated [4B length][payload] for returning to Dart.
@@ -1354,195 +1683,255 @@ public:
     virtual ~HybridNitroWebgpu() = default;
 
     // ── Methods ──────────────────────────────────────────────────────────
-    // source: nitro_webgpu.native.dart:700
+    // source: nitro_webgpu.native.dart:956
     virtual void initInstance(NitroCppBuffer options) = 0;
-    // source: nitro_webgpu.native.dart:703
-    virtual std::string wgpuVersion() = 0;
-    // source: nitro_webgpu.native.dart:710
-    virtual void requestAdapter(NitroCppBuffer options, NitroError* _nitro_err, int64_t dartPort) = 0;
-    // source: nitro_webgpu.native.dart:712
-    virtual NitroCppBuffer adapterGetInfo(int64_t adapter) = 0;
-    // source: nitro_webgpu.native.dart:713
-    virtual NitroCppBuffer adapterGetLimits(int64_t adapter) = 0;
-    // source: nitro_webgpu.native.dart:716
-    virtual bool adapterHasTimestampQuery(int64_t adapter) = 0;
-    // source: nitro_webgpu.native.dart:718
-    virtual void adapterRelease(int64_t adapter) = 0;
-    // source: nitro_webgpu.native.dart:725
-    virtual void requestDevice(int64_t adapter, NitroCppBuffer descriptor, NitroError* _nitro_err, int64_t dartPort) = 0;
-    // source: nitro_webgpu.native.dart:728
-    virtual int64_t deviceGetQueue(int64_t device) = 0;
-    // source: nitro_webgpu.native.dart:733
-    virtual void deviceDestroy(int64_t device) = 0;
-    // source: nitro_webgpu.native.dart:735
-    virtual void deviceRelease(int64_t device) = 0;
-    // source: nitro_webgpu.native.dart:736
-    virtual void queueRelease(int64_t queue) = 0;
-    // source: nitro_webgpu.native.dart:742
-    virtual void devicePushErrorScope(int64_t device, int64_t filter) = 0;
-    // source: nitro_webgpu.native.dart:746
-    virtual void devicePopErrorScope(int64_t device, NitroError* _nitro_err, int64_t dartPort) = 0;
-    // source: nitro_webgpu.native.dart:758
-    virtual int64_t deviceCreateBuffer(int64_t device, NitroCppBuffer descriptor) = 0;
-    // source: nitro_webgpu.native.dart:762
-    virtual void bufferDestroy(int64_t buffer) = 0;
-    // source: nitro_webgpu.native.dart:763
-    virtual void bufferRelease(int64_t buffer) = 0;
-    // source: nitro_webgpu.native.dart:764
-    virtual int64_t bufferGetSize(int64_t buffer) = 0;
-    // source: nitro_webgpu.native.dart:768
-    virtual void queueWriteBuffer(int64_t queue, int64_t buffer, int64_t bufferOffset, const uint8_t* data, size_t data_length) = 0;
-    // source: nitro_webgpu.native.dart:774
-    virtual void bufferMapRead(int64_t buffer, int64_t offset, int64_t size, NitroError* _nitro_err, int64_t dartPort) = 0;
-    // source: nitro_webgpu.native.dart:780
-    virtual int64_t deviceCreateShaderModuleWgsl(int64_t device, const std::string& label, const std::string& wgsl) = 0;
-    // source: nitro_webgpu.native.dart:781
-    virtual void shaderModuleRelease(int64_t module) = 0;
-    // source: nitro_webgpu.native.dart:783
-    virtual int64_t deviceCreateComputePipeline(int64_t device, NitroCppBuffer descriptor) = 0;
-    // source: nitro_webgpu.native.dart:785
-    virtual void computePipelineRelease(int64_t pipeline) = 0;
-    // source: nitro_webgpu.native.dart:789
-    virtual int64_t computePipelineGetBindGroupLayout(int64_t pipeline, int64_t groupIndex) = 0;
-    // source: nitro_webgpu.native.dart:790
-    virtual void bindGroupLayoutRelease(int64_t layout) = 0;
-    // source: nitro_webgpu.native.dart:792
-    virtual int64_t deviceCreateBindGroup(int64_t device, NitroCppBuffer descriptor) = 0;
-    // source: nitro_webgpu.native.dart:793
-    virtual void bindGroupRelease(int64_t bindGroup) = 0;
-    // source: nitro_webgpu.native.dart:797
-    virtual int64_t deviceCreateCommandEncoder(int64_t device, const std::string& label) = 0;
-    // source: nitro_webgpu.native.dart:798
-    virtual void commandEncoderRelease(int64_t encoder) = 0;
-    // source: nitro_webgpu.native.dart:800
-    virtual int64_t encoderBeginComputePass(int64_t encoder, NitroCppBuffer descriptor) = 0;
-    // source: nitro_webgpu.native.dart:801
-    virtual void computePassSetPipeline(int64_t pass, int64_t pipeline) = 0;
-    // source: nitro_webgpu.native.dart:802
-    virtual void computePassSetBindGroup(int64_t pass, int64_t index, int64_t bindGroup) = 0;
-    // source: nitro_webgpu.native.dart:803
-    virtual void computePassDispatchWorkgroups(int64_t pass, int64_t x, int64_t y, int64_t z) = 0;
-    // source: nitro_webgpu.native.dart:804
-    virtual void computePassEnd(int64_t pass) = 0;
-    // source: nitro_webgpu.native.dart:805
-    virtual void computePassRelease(int64_t pass) = 0;
-    // source: nitro_webgpu.native.dart:807
-    virtual void encoderCopyBufferToBuffer(int64_t encoder, int64_t src, int64_t srcOffset, int64_t dst, int64_t dstOffset, int64_t size) = 0;
-    // source: nitro_webgpu.native.dart:812
-    virtual int64_t encoderFinish(int64_t encoder, const std::string& label) = 0;
-    // source: nitro_webgpu.native.dart:813
-    virtual void commandBufferRelease(int64_t commandBuffer) = 0;
-    // source: nitro_webgpu.native.dart:815
-    virtual void queueSubmitOne(int64_t queue, int64_t commandBuffer) = 0;
-    // source: nitro_webgpu.native.dart:819
-    virtual void queueOnSubmittedWorkDone(int64_t queue, NitroError* _nitro_err, int64_t dartPort) = 0;
-    // source: nitro_webgpu.native.dart:823
-    virtual int64_t deviceCreateTexture(int64_t device, NitroCppBuffer descriptor) = 0;
-    // source: nitro_webgpu.native.dart:827
-    virtual void textureDestroy(int64_t texture) = 0;
-    // source: nitro_webgpu.native.dart:828
-    virtual void textureRelease(int64_t texture) = 0;
-    // source: nitro_webgpu.native.dart:830
-    virtual int64_t textureCreateView(int64_t texture, NitroCppBuffer descriptor) = 0;
-    // source: nitro_webgpu.native.dart:831
-    virtual void textureViewRelease(int64_t view) = 0;
-    // source: nitro_webgpu.native.dart:836
-    virtual void queueWriteTexture(int64_t queue, int64_t texture, const uint8_t* data, size_t data_length, int64_t bytesPerRow, int64_t width, int64_t height, int64_t mipLevel, int64_t arrayLayer) = 0;
-    // source: nitro_webgpu.native.dart:839
-    virtual int64_t deviceCreateSampler(int64_t device, NitroCppBuffer descriptor) = 0;
-    // source: nitro_webgpu.native.dart:840
-    virtual void samplerRelease(int64_t sampler) = 0;
-    // source: nitro_webgpu.native.dart:842
-    virtual int64_t deviceCreateRenderPipeline(int64_t device, NitroCppBuffer descriptor) = 0;
-    // source: nitro_webgpu.native.dart:843
-    virtual void renderPipelineRelease(int64_t pipeline) = 0;
-    // source: nitro_webgpu.native.dart:847
-    virtual int64_t renderPipelineGetBindGroupLayout(int64_t pipeline, int64_t groupIndex) = 0;
-    // source: nitro_webgpu.native.dart:851
-    virtual int64_t deviceCreateBindGroupLayout(int64_t device, NitroCppBuffer descriptor) = 0;
-    // source: nitro_webgpu.native.dart:853
-    virtual int64_t deviceCreatePipelineLayout(int64_t device, NitroCppBuffer descriptor) = 0;
-    // source: nitro_webgpu.native.dart:855
-    virtual void pipelineLayoutRelease(int64_t layout) = 0;
-    // source: nitro_webgpu.native.dart:857
-    virtual int64_t encoderBeginRenderPass(int64_t encoder, NitroCppBuffer descriptor) = 0;
-    // source: nitro_webgpu.native.dart:858
-    virtual void renderPassSetPipeline(int64_t pass, int64_t pipeline) = 0;
-    // source: nitro_webgpu.native.dart:859
-    virtual void renderPassSetBindGroup(int64_t pass, int64_t index, int64_t bindGroup) = 0;
-    // source: nitro_webgpu.native.dart:861
-    virtual void renderPassSetVertexBuffer(int64_t pass, int64_t slot, int64_t buffer, int64_t offset) = 0;
-    // source: nitro_webgpu.native.dart:864
-    virtual void renderPassSetIndexBuffer(int64_t pass, int64_t buffer, int64_t indexFormat, int64_t offset) = 0;
-    // source: nitro_webgpu.native.dart:867
-    virtual void renderPassDraw(int64_t pass, int64_t vertexCount, int64_t instanceCount, int64_t firstVertex, int64_t firstInstance) = 0;
-    // source: nitro_webgpu.native.dart:869
-    virtual void renderPassDrawIndexed(int64_t pass, int64_t indexCount, int64_t instanceCount, int64_t firstIndex, int64_t baseVertex, int64_t firstInstance) = 0;
-    // source: nitro_webgpu.native.dart:871
-    virtual void renderPassEnd(int64_t pass) = 0;
-    // source: nitro_webgpu.native.dart:872
-    virtual void renderPassRelease(int64_t pass) = 0;
-    // source: nitro_webgpu.native.dart:876
-    virtual void encoderCopyTextureToBuffer(int64_t encoder, int64_t texture, int64_t buffer, int64_t bytesPerRow, int64_t width, int64_t height) = 0;
-    // source: nitro_webgpu.native.dart:881
-    virtual void encoderCopyBufferToTexture(int64_t encoder, int64_t buffer, int64_t bytesPerRow, int64_t texture, int64_t mipLevel, int64_t width, int64_t height) = 0;
-    // source: nitro_webgpu.native.dart:885
-    virtual void encoderCopyTextureToTexture(int64_t encoder, int64_t srcTexture, int64_t dstTexture, int64_t width, int64_t height) = 0;
-    // source: nitro_webgpu.native.dart:890
-    virtual void renderPassSetViewport(int64_t pass, double x, double y, double width, double height, double minDepth, double maxDepth) = 0;
-    // source: nitro_webgpu.native.dart:892
-    virtual void renderPassSetScissorRect(int64_t pass, int64_t x, int64_t y, int64_t width, int64_t height) = 0;
-    // source: nitro_webgpu.native.dart:894
-    virtual void renderPassSetBlendConstant(int64_t pass, double r, double g, double b, double a) = 0;
-    // source: nitro_webgpu.native.dart:902
-    virtual void renderPassDrawIndirect(int64_t pass, int64_t buffer, int64_t offset) = 0;
-    // source: nitro_webgpu.native.dart:906
-    virtual void renderPassDrawIndexedIndirect(int64_t pass, int64_t buffer, int64_t offset) = 0;
-    // source: nitro_webgpu.native.dart:909
-    virtual void computePassDispatchWorkgroupsIndirect(int64_t pass, int64_t buffer, int64_t offset) = 0;
-    // source: nitro_webgpu.native.dart:914
-    virtual int64_t deviceCreateOcclusionQuerySet(int64_t device, int64_t count) = 0;
-    // source: nitro_webgpu.native.dart:917
-    virtual NitroCppBuffer deviceGetLimits(int64_t device) = 0;
-    // source: nitro_webgpu.native.dart:919
-    virtual void renderPassBeginOcclusionQuery(int64_t pass, int64_t queryIndex) = 0;
-    // source: nitro_webgpu.native.dart:920
-    virtual void renderPassEndOcclusionQuery(int64_t pass) = 0;
-    // source: nitro_webgpu.native.dart:921
-    virtual void renderPassSetStencilReference(int64_t pass, int64_t reference) = 0;
-    // source: nitro_webgpu.native.dart:924
-    virtual void renderPassSetBindGroupOffsets(int64_t pass, int64_t index, int64_t bindGroup, int64_t offsetCount, int64_t o0, int64_t o1, int64_t o2, int64_t o3) = 0;
-    // source: nitro_webgpu.native.dart:926
-    virtual void computePassSetBindGroupOffsets(int64_t pass, int64_t index, int64_t bindGroup, int64_t offsetCount, int64_t o0, int64_t o1, int64_t o2, int64_t o3) = 0;
-    // source: nitro_webgpu.native.dart:931
-    virtual int64_t deviceCreateRenderBundleEncoder(int64_t device, NitroCppBuffer descriptor) = 0;
-    // source: nitro_webgpu.native.dart:933
-    virtual void bundleSetPipeline(int64_t bundleEncoder, int64_t pipeline) = 0;
-    // source: nitro_webgpu.native.dart:934
-    virtual void bundleSetBindGroup(int64_t bundleEncoder, int64_t index, int64_t bindGroup) = 0;
-    // source: nitro_webgpu.native.dart:935
-    virtual void bundleSetVertexBuffer(int64_t bundleEncoder, int64_t slot, int64_t buffer, int64_t offset) = 0;
-    // source: nitro_webgpu.native.dart:937
-    virtual void bundleSetIndexBuffer(int64_t bundleEncoder, int64_t buffer, int64_t indexFormat, int64_t offset) = 0;
-    // source: nitro_webgpu.native.dart:939
-    virtual void bundleDraw(int64_t bundleEncoder, int64_t vertexCount, int64_t instanceCount, int64_t firstVertex, int64_t firstInstance) = 0;
-    // source: nitro_webgpu.native.dart:941
-    virtual void bundleDrawIndexed(int64_t bundleEncoder, int64_t indexCount, int64_t instanceCount, int64_t firstIndex, int64_t baseVertex, int64_t firstInstance) = 0;
-    // source: nitro_webgpu.native.dart:945
-    virtual int64_t bundleFinish(int64_t bundleEncoder, const std::string& label) = 0;
-    // source: nitro_webgpu.native.dart:946
-    virtual void renderBundleEncoderRelease(int64_t bundleEncoder) = 0;
-    // source: nitro_webgpu.native.dart:947
-    virtual void renderBundleRelease(int64_t bundle) = 0;
-    // source: nitro_webgpu.native.dart:948
-    virtual void renderPassExecuteBundle(int64_t pass, int64_t bundle) = 0;
-    // source: nitro_webgpu.native.dart:954
-    virtual int64_t deviceCreateTimestampQuerySet(int64_t device, int64_t count) = 0;
-    // source: nitro_webgpu.native.dart:955
-    virtual void querySetRelease(int64_t querySet) = 0;
     // source: nitro_webgpu.native.dart:959
+    virtual std::string wgpuVersion() = 0;
+    // source: nitro_webgpu.native.dart:966
+    virtual void requestAdapter(NitroCppBuffer options, NitroError* _nitro_err, int64_t dartPort) = 0;
+    // source: nitro_webgpu.native.dart:968
+    virtual NitroCppBuffer adapterGetInfo(int64_t adapter) = 0;
+    // source: nitro_webgpu.native.dart:969
+    virtual NitroCppBuffer adapterGetLimits(int64_t adapter) = 0;
+    // source: nitro_webgpu.native.dart:972
+    virtual bool adapterHasTimestampQuery(int64_t adapter) = 0;
+    // source: nitro_webgpu.native.dart:976
+    virtual int64_t adapterGetFeatures(int64_t adapter) = 0;
+    // source: nitro_webgpu.native.dart:978
+    virtual void adapterRelease(int64_t adapter) = 0;
+    // source: nitro_webgpu.native.dart:985
+    virtual void requestDevice(int64_t adapter, NitroCppBuffer descriptor, NitroError* _nitro_err, int64_t dartPort) = 0;
+    // source: nitro_webgpu.native.dart:988
+    virtual int64_t deviceGetQueue(int64_t device) = 0;
+    // source: nitro_webgpu.native.dart:993
+    virtual void deviceDestroy(int64_t device) = 0;
+    // source: nitro_webgpu.native.dart:995
+    virtual void deviceRelease(int64_t device) = 0;
+    // source: nitro_webgpu.native.dart:996
+    virtual void queueRelease(int64_t queue) = 0;
+    // source: nitro_webgpu.native.dart:1000
+    virtual int64_t deviceGetFeatures(int64_t device) = 0;
+    // source: nitro_webgpu.native.dart:1006
+    virtual void devicePushErrorScope(int64_t device, int64_t filter) = 0;
+    // source: nitro_webgpu.native.dart:1010
+    virtual void devicePopErrorScope(int64_t device, NitroError* _nitro_err, int64_t dartPort) = 0;
+    // source: nitro_webgpu.native.dart:1022
+    virtual int64_t deviceCreateBuffer(int64_t device, NitroCppBuffer descriptor) = 0;
+    // source: nitro_webgpu.native.dart:1026
+    virtual void bufferDestroy(int64_t buffer) = 0;
+    // source: nitro_webgpu.native.dart:1027
+    virtual void bufferRelease(int64_t buffer) = 0;
+    // source: nitro_webgpu.native.dart:1028
+    virtual int64_t bufferGetSize(int64_t buffer) = 0;
+    // source: nitro_webgpu.native.dart:1032
+    virtual void queueWriteBuffer(int64_t queue, int64_t buffer, int64_t bufferOffset, const uint8_t* data, size_t data_length) = 0;
+    // source: nitro_webgpu.native.dart:1038
+    virtual void bufferMapRead(int64_t buffer, int64_t offset, int64_t size, NitroError* _nitro_err, int64_t dartPort) = 0;
+    // source: nitro_webgpu.native.dart:1044
+    virtual void bufferMapWrite(int64_t buffer, int64_t offset, int64_t size, NitroError* _nitro_err, int64_t dartPort) = 0;
+    // source: nitro_webgpu.native.dart:1050
+    virtual void bufferWriteMapped(int64_t buffer, int64_t offset, const uint8_t* data, size_t data_length) = 0;
+    // source: nitro_webgpu.native.dart:1053
+    virtual void bufferUnmap(int64_t buffer) = 0;
+    // source: nitro_webgpu.native.dart:1059
+    virtual int64_t bufferGetUsage(int64_t buffer) = 0;
+    // source: nitro_webgpu.native.dart:1065
+    virtual int64_t deviceCreateShaderModuleWgsl(int64_t device, const std::string& label, const std::string& wgsl) = 0;
+    // source: nitro_webgpu.native.dart:1066
+    virtual void shaderModuleRelease(int64_t module) = 0;
+    // source: nitro_webgpu.native.dart:1070
+    virtual void shaderModuleGetCompilationInfo(int64_t module, NitroError* _nitro_err, int64_t dartPort) = 0;
+    // source: nitro_webgpu.native.dart:1072
+    virtual int64_t deviceCreateComputePipeline(int64_t device, NitroCppBuffer descriptor) = 0;
+    // source: nitro_webgpu.native.dart:1074
+    virtual void computePipelineRelease(int64_t pipeline) = 0;
+    // source: nitro_webgpu.native.dart:1078
+    virtual int64_t computePipelineGetBindGroupLayout(int64_t pipeline, int64_t groupIndex) = 0;
+    // source: nitro_webgpu.native.dart:1079
+    virtual void bindGroupLayoutRelease(int64_t layout) = 0;
+    // source: nitro_webgpu.native.dart:1081
+    virtual int64_t deviceCreateBindGroup(int64_t device, NitroCppBuffer descriptor) = 0;
+    // source: nitro_webgpu.native.dart:1082
+    virtual void bindGroupRelease(int64_t bindGroup) = 0;
+    // source: nitro_webgpu.native.dart:1086
+    virtual int64_t deviceCreateCommandEncoder(int64_t device, const std::string& label) = 0;
+    // source: nitro_webgpu.native.dart:1087
+    virtual void commandEncoderRelease(int64_t encoder) = 0;
+    // source: nitro_webgpu.native.dart:1089
+    virtual int64_t encoderBeginComputePass(int64_t encoder, NitroCppBuffer descriptor) = 0;
+    // source: nitro_webgpu.native.dart:1090
+    virtual void computePassSetPipeline(int64_t pass, int64_t pipeline) = 0;
+    // source: nitro_webgpu.native.dart:1091
+    virtual void computePassSetBindGroup(int64_t pass, int64_t index, int64_t bindGroup) = 0;
+    // source: nitro_webgpu.native.dart:1092
+    virtual void computePassDispatchWorkgroups(int64_t pass, int64_t x, int64_t y, int64_t z) = 0;
+    // source: nitro_webgpu.native.dart:1093
+    virtual void computePassEnd(int64_t pass) = 0;
+    // source: nitro_webgpu.native.dart:1094
+    virtual void computePassRelease(int64_t pass) = 0;
+    // source: nitro_webgpu.native.dart:1096
+    virtual void encoderCopyBufferToBuffer(int64_t encoder, int64_t src, int64_t srcOffset, int64_t dst, int64_t dstOffset, int64_t size) = 0;
+    // source: nitro_webgpu.native.dart:1100
+    virtual void encoderClearBuffer(int64_t encoder, int64_t buffer, int64_t offset, int64_t size) = 0;
+    // source: nitro_webgpu.native.dart:1103
+    virtual void encoderWriteTimestamp(int64_t encoder, int64_t querySet, int64_t queryIndex) = 0;
+    // source: nitro_webgpu.native.dart:1107
+    virtual void encoderPushDebugGroup(int64_t encoder, const std::string& label) = 0;
+    // source: nitro_webgpu.native.dart:1108
+    virtual void encoderPopDebugGroup(int64_t encoder) = 0;
+    // source: nitro_webgpu.native.dart:1109
+    virtual void encoderInsertDebugMarker(int64_t encoder, const std::string& label) = 0;
+    // source: nitro_webgpu.native.dart:1110
+    virtual void renderPassPushDebugGroup(int64_t pass, const std::string& label) = 0;
+    // source: nitro_webgpu.native.dart:1111
+    virtual void renderPassPopDebugGroup(int64_t pass) = 0;
+    // source: nitro_webgpu.native.dart:1112
+    virtual void renderPassInsertDebugMarker(int64_t pass, const std::string& label) = 0;
+    // source: nitro_webgpu.native.dart:1113
+    virtual void computePassPushDebugGroup(int64_t pass, const std::string& label) = 0;
+    // source: nitro_webgpu.native.dart:1114
+    virtual void computePassPopDebugGroup(int64_t pass) = 0;
+    // source: nitro_webgpu.native.dart:1115
+    virtual void computePassInsertDebugMarker(int64_t pass, const std::string& label) = 0;
+    // source: nitro_webgpu.native.dart:1119
+    virtual int64_t encoderFinish(int64_t encoder, const std::string& label) = 0;
+    // source: nitro_webgpu.native.dart:1120
+    virtual void commandBufferRelease(int64_t commandBuffer) = 0;
+    // source: nitro_webgpu.native.dart:1122
+    virtual void queueSubmitOne(int64_t queue, int64_t commandBuffer) = 0;
+    // source: nitro_webgpu.native.dart:1126
+    virtual void queueOnSubmittedWorkDone(int64_t queue, NitroError* _nitro_err, int64_t dartPort) = 0;
+    // source: nitro_webgpu.native.dart:1130
+    virtual int64_t deviceCreateTexture(int64_t device, NitroCppBuffer descriptor) = 0;
+    // source: nitro_webgpu.native.dart:1134
+    virtual void textureDestroy(int64_t texture) = 0;
+    // source: nitro_webgpu.native.dart:1135
+    virtual void textureRelease(int64_t texture) = 0;
+    // source: nitro_webgpu.native.dart:1137
+    virtual int64_t textureCreateView(int64_t texture, NitroCppBuffer descriptor) = 0;
+    // source: nitro_webgpu.native.dart:1138
+    virtual void textureViewRelease(int64_t view) = 0;
+    // source: nitro_webgpu.native.dart:1140
+    virtual int64_t textureGetWidth(int64_t texture) = 0;
+    // source: nitro_webgpu.native.dart:1141
+    virtual int64_t textureGetHeight(int64_t texture) = 0;
+    // source: nitro_webgpu.native.dart:1142
+    virtual int64_t textureGetDepthOrArrayLayers(int64_t texture) = 0;
+    // source: nitro_webgpu.native.dart:1145
+    virtual int64_t textureGetFormat(int64_t texture) = 0;
+    // source: nitro_webgpu.native.dart:1149
+    virtual int64_t textureGetDimension(int64_t texture) = 0;
+    // source: nitro_webgpu.native.dart:1150
+    virtual int64_t textureGetMipLevelCount(int64_t texture) = 0;
+    // source: nitro_webgpu.native.dart:1151
+    virtual int64_t textureGetSampleCount(int64_t texture) = 0;
+    // source: nitro_webgpu.native.dart:1152
+    virtual int64_t textureGetUsage(int64_t texture) = 0;
+    // source: nitro_webgpu.native.dart:1158
+    virtual void queueWriteTexture(int64_t queue, int64_t texture, const uint8_t* data, size_t data_length, int64_t bytesPerRow, int64_t width, int64_t height, int64_t mipLevel, int64_t arrayLayer, int64_t originX, int64_t originY) = 0;
+    // source: nitro_webgpu.native.dart:1162
+    virtual int64_t deviceCreateSampler(int64_t device, NitroCppBuffer descriptor) = 0;
+    // source: nitro_webgpu.native.dart:1163
+    virtual void samplerRelease(int64_t sampler) = 0;
+    // source: nitro_webgpu.native.dart:1165
+    virtual int64_t deviceCreateRenderPipeline(int64_t device, NitroCppBuffer descriptor) = 0;
+    // source: nitro_webgpu.native.dart:1166
+    virtual void renderPipelineRelease(int64_t pipeline) = 0;
+    // source: nitro_webgpu.native.dart:1170
+    virtual int64_t renderPipelineGetBindGroupLayout(int64_t pipeline, int64_t groupIndex) = 0;
+    // source: nitro_webgpu.native.dart:1174
+    virtual int64_t deviceCreateBindGroupLayout(int64_t device, NitroCppBuffer descriptor) = 0;
+    // source: nitro_webgpu.native.dart:1176
+    virtual int64_t deviceCreatePipelineLayout(int64_t device, NitroCppBuffer descriptor) = 0;
+    // source: nitro_webgpu.native.dart:1178
+    virtual void pipelineLayoutRelease(int64_t layout) = 0;
+    // source: nitro_webgpu.native.dart:1180
+    virtual int64_t encoderBeginRenderPass(int64_t encoder, NitroCppBuffer descriptor) = 0;
+    // source: nitro_webgpu.native.dart:1181
+    virtual void renderPassSetPipeline(int64_t pass, int64_t pipeline) = 0;
+    // source: nitro_webgpu.native.dart:1182
+    virtual void renderPassSetBindGroup(int64_t pass, int64_t index, int64_t bindGroup) = 0;
+    // source: nitro_webgpu.native.dart:1184
+    virtual void renderPassSetVertexBuffer(int64_t pass, int64_t slot, int64_t buffer, int64_t offset) = 0;
+    // source: nitro_webgpu.native.dart:1187
+    virtual void renderPassSetIndexBuffer(int64_t pass, int64_t buffer, int64_t indexFormat, int64_t offset) = 0;
+    // source: nitro_webgpu.native.dart:1190
+    virtual void renderPassDraw(int64_t pass, int64_t vertexCount, int64_t instanceCount, int64_t firstVertex, int64_t firstInstance) = 0;
+    // source: nitro_webgpu.native.dart:1192
+    virtual void renderPassDrawIndexed(int64_t pass, int64_t indexCount, int64_t instanceCount, int64_t firstIndex, int64_t baseVertex, int64_t firstInstance) = 0;
+    // source: nitro_webgpu.native.dart:1194
+    virtual void renderPassEnd(int64_t pass) = 0;
+    // source: nitro_webgpu.native.dart:1195
+    virtual void renderPassRelease(int64_t pass) = 0;
+    // source: nitro_webgpu.native.dart:1200
+    virtual void encoderCopyTextureToBuffer(int64_t encoder, int64_t texture, int64_t buffer, int64_t bytesPerRow, int64_t width, int64_t height, int64_t mipLevel, int64_t originX, int64_t originY, int64_t originZ, int64_t bufferOffset) = 0;
+    // source: nitro_webgpu.native.dart:1206
+    virtual void encoderCopyBufferToTexture(int64_t encoder, int64_t buffer, int64_t bytesPerRow, int64_t texture, int64_t mipLevel, int64_t width, int64_t height, int64_t bufferOffset, int64_t originX, int64_t originY, int64_t originZ) = 0;
+    // source: nitro_webgpu.native.dart:1212
+    virtual void encoderCopyTextureToTexture(int64_t encoder, int64_t srcTexture, int64_t dstTexture, int64_t width, int64_t height, int64_t depth, int64_t srcMip, int64_t srcX, int64_t srcY, int64_t srcZ, int64_t dstMip, int64_t dstX, int64_t dstY, int64_t dstZ) = 0;
+    // source: nitro_webgpu.native.dart:1218
+    virtual void renderPassSetViewport(int64_t pass, double x, double y, double width, double height, double minDepth, double maxDepth) = 0;
+    // source: nitro_webgpu.native.dart:1220
+    virtual void renderPassSetScissorRect(int64_t pass, int64_t x, int64_t y, int64_t width, int64_t height) = 0;
+    // source: nitro_webgpu.native.dart:1222
+    virtual void renderPassSetBlendConstant(int64_t pass, double r, double g, double b, double a) = 0;
+    // source: nitro_webgpu.native.dart:1230
+    virtual void renderPassDrawIndirect(int64_t pass, int64_t buffer, int64_t offset) = 0;
+    // source: nitro_webgpu.native.dart:1234
+    virtual void renderPassDrawIndexedIndirect(int64_t pass, int64_t buffer, int64_t offset) = 0;
+    // source: nitro_webgpu.native.dart:1237
+    virtual void computePassDispatchWorkgroupsIndirect(int64_t pass, int64_t buffer, int64_t offset) = 0;
+    // source: nitro_webgpu.native.dart:1242
+    virtual int64_t deviceCreateOcclusionQuerySet(int64_t device, int64_t count) = 0;
+    // source: nitro_webgpu.native.dart:1245
+    virtual NitroCppBuffer deviceGetLimits(int64_t device) = 0;
+    // source: nitro_webgpu.native.dart:1247
+    virtual void renderPassBeginOcclusionQuery(int64_t pass, int64_t queryIndex) = 0;
+    // source: nitro_webgpu.native.dart:1248
+    virtual void renderPassEndOcclusionQuery(int64_t pass) = 0;
+    // source: nitro_webgpu.native.dart:1249
+    virtual void renderPassSetStencilReference(int64_t pass, int64_t reference) = 0;
+    // source: nitro_webgpu.native.dart:1252
+    virtual void renderPassSetBindGroupOffsets(int64_t pass, int64_t index, int64_t bindGroup, int64_t offsetCount, int64_t o0, int64_t o1, int64_t o2, int64_t o3, int64_t o4, int64_t o5, int64_t o6, int64_t o7) = 0;
+    // source: nitro_webgpu.native.dart:1255
+    virtual void computePassSetBindGroupOffsets(int64_t pass, int64_t index, int64_t bindGroup, int64_t offsetCount, int64_t o0, int64_t o1, int64_t o2, int64_t o3, int64_t o4, int64_t o5, int64_t o6, int64_t o7) = 0;
+    // source: nitro_webgpu.native.dart:1261
+    virtual int64_t deviceCreateRenderBundleEncoder(int64_t device, NitroCppBuffer descriptor) = 0;
+    // source: nitro_webgpu.native.dart:1263
+    virtual void bundleSetPipeline(int64_t bundleEncoder, int64_t pipeline) = 0;
+    // source: nitro_webgpu.native.dart:1264
+    virtual void bundleSetBindGroup(int64_t bundleEncoder, int64_t index, int64_t bindGroup) = 0;
+    // source: nitro_webgpu.native.dart:1265
+    virtual void bundleSetVertexBuffer(int64_t bundleEncoder, int64_t slot, int64_t buffer, int64_t offset) = 0;
+    // source: nitro_webgpu.native.dart:1267
+    virtual void bundleSetIndexBuffer(int64_t bundleEncoder, int64_t buffer, int64_t indexFormat, int64_t offset) = 0;
+    // source: nitro_webgpu.native.dart:1269
+    virtual void bundleDraw(int64_t bundleEncoder, int64_t vertexCount, int64_t instanceCount, int64_t firstVertex, int64_t firstInstance) = 0;
+    // source: nitro_webgpu.native.dart:1271
+    virtual void bundleDrawIndexed(int64_t bundleEncoder, int64_t indexCount, int64_t instanceCount, int64_t firstIndex, int64_t baseVertex, int64_t firstInstance) = 0;
+    // source: nitro_webgpu.native.dart:1275
+    virtual void bundleDrawIndirect(int64_t bundleEncoder, int64_t buffer, int64_t offset) = 0;
+    // source: nitro_webgpu.native.dart:1276
+    virtual void bundleDrawIndexedIndirect(int64_t bundleEncoder, int64_t buffer, int64_t offset) = 0;
+    // source: nitro_webgpu.native.dart:1279
+    virtual int64_t bundleFinish(int64_t bundleEncoder, const std::string& label) = 0;
+    // source: nitro_webgpu.native.dart:1280
+    virtual void renderBundleEncoderRelease(int64_t bundleEncoder) = 0;
+    // source: nitro_webgpu.native.dart:1281
+    virtual void renderBundleRelease(int64_t bundle) = 0;
+    // source: nitro_webgpu.native.dart:1282
+    virtual void renderPassExecuteBundle(int64_t pass, int64_t bundle) = 0;
+    // source: nitro_webgpu.native.dart:1288
+    virtual int64_t deviceCreateTimestampQuerySet(int64_t device, int64_t count) = 0;
+    // source: nitro_webgpu.native.dart:1289
+    virtual void querySetRelease(int64_t querySet) = 0;
+    // source: nitro_webgpu.native.dart:1291
+    virtual int64_t querySetGetCount(int64_t querySet) = 0;
+    // source: nitro_webgpu.native.dart:1294
+    virtual int64_t querySetGetType(int64_t querySet) = 0;
+    // source: nitro_webgpu.native.dart:1298
     virtual void encoderResolveQuerySet(int64_t encoder, int64_t querySet, int64_t firstQuery, int64_t queryCount, int64_t destination, int64_t destinationOffset) = 0;
-    // source: nitro_webgpu.native.dart:963
+    // source: nitro_webgpu.native.dart:1302
     virtual double queueTimestampPeriod(int64_t queue) = 0;
 
     // ── Streams ──────────────────────────────────────────────────────────

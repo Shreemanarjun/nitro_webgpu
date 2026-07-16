@@ -79,7 +79,7 @@ class GpuAdapterInfo {
   });
 }
 
-/// Curated subset of `WGPULimits`.
+/// The full standard `WGPULimits` set.
 @hybridRecord
 class GpuLimits {
   final int maxTextureDimension1D;
@@ -87,17 +87,32 @@ class GpuLimits {
   final int maxTextureDimension3D;
   final int maxTextureArrayLayers;
   final int maxBindGroups;
+  final int maxBindGroupsPlusVertexBuffers;
   final int maxBindingsPerBindGroup;
+  final int maxDynamicUniformBuffersPerPipelineLayout;
+  final int maxDynamicStorageBuffersPerPipelineLayout;
+  final int maxSampledTexturesPerShaderStage;
+  final int maxSamplersPerShaderStage;
+  final int maxStorageBuffersPerShaderStage;
+  final int maxStorageTexturesPerShaderStage;
+  final int maxUniformBuffersPerShaderStage;
   final int maxUniformBufferBindingSize;
   final int maxStorageBufferBindingSize;
   final int minUniformBufferOffsetAlignment;
   final int minStorageBufferOffsetAlignment;
+  final int maxVertexBuffers;
   final int maxBufferSize;
+  final int maxVertexAttributes;
+  final int maxVertexBufferArrayStride;
+  final int maxInterStageShaderVariables;
+  final int maxColorAttachments;
+  final int maxColorAttachmentBytesPerSample;
   final int maxComputeWorkgroupStorageSize;
   final int maxComputeInvocationsPerWorkgroup;
   final int maxComputeWorkgroupSizeX;
   final int maxComputeWorkgroupSizeY;
   final int maxComputeWorkgroupSizeZ;
+  final int maxComputeWorkgroupsPerDimension;
 
   const GpuLimits({
     required this.maxTextureDimension1D,
@@ -105,17 +120,32 @@ class GpuLimits {
     required this.maxTextureDimension3D,
     required this.maxTextureArrayLayers,
     required this.maxBindGroups,
+    required this.maxBindGroupsPlusVertexBuffers,
     required this.maxBindingsPerBindGroup,
+    required this.maxDynamicUniformBuffersPerPipelineLayout,
+    required this.maxDynamicStorageBuffersPerPipelineLayout,
+    required this.maxSampledTexturesPerShaderStage,
+    required this.maxSamplersPerShaderStage,
+    required this.maxStorageBuffersPerShaderStage,
+    required this.maxStorageTexturesPerShaderStage,
+    required this.maxUniformBuffersPerShaderStage,
     required this.maxUniformBufferBindingSize,
     required this.maxStorageBufferBindingSize,
     required this.minUniformBufferOffsetAlignment,
     required this.minStorageBufferOffsetAlignment,
+    required this.maxVertexBuffers,
     required this.maxBufferSize,
+    required this.maxVertexAttributes,
+    required this.maxVertexBufferArrayStride,
+    required this.maxInterStageShaderVariables,
+    required this.maxColorAttachments,
+    required this.maxColorAttachmentBytesPerSample,
     required this.maxComputeWorkgroupStorageSize,
     required this.maxComputeInvocationsPerWorkgroup,
     required this.maxComputeWorkgroupSizeX,
     required this.maxComputeWorkgroupSizeY,
     required this.maxComputeWorkgroupSizeZ,
+    required this.maxComputeWorkgroupsPerDimension,
   });
 }
 
@@ -132,10 +162,15 @@ class GpuDeviceDescriptor {
   /// Limit overrides; null keeps every limit at its default.
   final GpuRequiredLimits? requiredLimits;
 
+  /// Feature bitmask: bit `i` set requests raw `WGPUFeatureName` value `i`
+  /// (see [NitroWebgpu.adapterGetFeatures]). 0 = no extra features.
+  final int requiredFeatures;
+
   const GpuDeviceDescriptor({
     this.label = '',
     this.requireTimestampQueries = false,
     this.requiredLimits,
+    this.requiredFeatures = 0,
   });
 }
 
@@ -261,6 +296,15 @@ class GpuSamplerDescriptor {
   final int addressModeV;
   final int addressModeW;
 
+  /// Raw `WGPUCompareFunction`; non-zero makes this a comparison sampler
+  /// (WGSL `sampler_comparison`, for shadow mapping).
+  final int compare;
+  final double lodMinClamp;
+  final double lodMaxClamp;
+
+  /// >1 enables anisotropic filtering (all filters must be linear).
+  final int maxAnisotropy;
+
   const GpuSamplerDescriptor({
     this.label = '',
     this.magFilter = 2,
@@ -269,6 +313,10 @@ class GpuSamplerDescriptor {
     this.addressModeU = 1,
     this.addressModeV = 1,
     this.addressModeW = 1,
+    this.compare = 0,
+    this.lodMinClamp = 0.0,
+    this.lodMaxClamp = 32.0,
+    this.maxAnisotropy = 1,
   });
 }
 
@@ -347,6 +395,10 @@ class GpuTextureDescriptor {
   /// Depth for 3D textures / array layer count for 2D (6 for cubes).
   final int depthOrArrayLayers;
 
+  /// Extra raw format views may reinterpret this texture as (e.g. the srgb
+  /// variant); 0 = none.
+  final int viewFormat;
+
   const GpuTextureDescriptor({
     this.label = '',
     required this.width,
@@ -357,6 +409,7 @@ class GpuTextureDescriptor {
     this.sampleCount = 1,
     this.dimension = 2,
     this.depthOrArrayLayers = 1,
+    this.viewFormat = 0,
   });
 }
 
@@ -377,6 +430,10 @@ class GpuTextureViewDescriptor {
   /// 0 = all remaining array layers.
   final int arrayLayerCount;
 
+  /// Raw `WGPUTextureFormat` reinterpretation (must be listed as the
+  /// texture's viewFormat); 0 = the texture's own format.
+  final int format;
+
   const GpuTextureViewDescriptor({
     this.label = '',
     this.baseMipLevel = 0,
@@ -384,28 +441,77 @@ class GpuTextureViewDescriptor {
     this.dimension = 0,
     this.baseArrayLayer = 0,
     this.arrayLayerCount = 0,
+    this.format = 0,
   });
 }
 
 /// Requested device limits; -1 leaves a limit at its default.
 @hybridRecord
 class GpuRequiredLimits {
+  final int maxTextureDimension1D;
   final int maxTextureDimension2D;
+  final int maxTextureDimension3D;
   final int maxTextureArrayLayers;
   final int maxBindGroups;
+  final int maxBindGroupsPlusVertexBuffers;
+  final int maxBindingsPerBindGroup;
+  final int maxDynamicUniformBuffersPerPipelineLayout;
+  final int maxDynamicStorageBuffersPerPipelineLayout;
+  final int maxSampledTexturesPerShaderStage;
+  final int maxSamplersPerShaderStage;
+  final int maxStorageBuffersPerShaderStage;
+  final int maxStorageTexturesPerShaderStage;
+  final int maxUniformBuffersPerShaderStage;
   final int maxUniformBufferBindingSize;
   final int maxStorageBufferBindingSize;
+  final int minUniformBufferOffsetAlignment;
+  final int minStorageBufferOffsetAlignment;
+  final int maxVertexBuffers;
   final int maxBufferSize;
+  final int maxVertexAttributes;
+  final int maxVertexBufferArrayStride;
+  final int maxInterStageShaderVariables;
+  final int maxColorAttachments;
+  final int maxColorAttachmentBytesPerSample;
+  final int maxComputeWorkgroupStorageSize;
   final int maxComputeInvocationsPerWorkgroup;
+  final int maxComputeWorkgroupSizeX;
+  final int maxComputeWorkgroupSizeY;
+  final int maxComputeWorkgroupSizeZ;
+  final int maxComputeWorkgroupsPerDimension;
 
   const GpuRequiredLimits({
+    this.maxTextureDimension1D = -1,
     this.maxTextureDimension2D = -1,
+    this.maxTextureDimension3D = -1,
     this.maxTextureArrayLayers = -1,
     this.maxBindGroups = -1,
+    this.maxBindGroupsPlusVertexBuffers = -1,
+    this.maxBindingsPerBindGroup = -1,
+    this.maxDynamicUniformBuffersPerPipelineLayout = -1,
+    this.maxDynamicStorageBuffersPerPipelineLayout = -1,
+    this.maxSampledTexturesPerShaderStage = -1,
+    this.maxSamplersPerShaderStage = -1,
+    this.maxStorageBuffersPerShaderStage = -1,
+    this.maxStorageTexturesPerShaderStage = -1,
+    this.maxUniformBuffersPerShaderStage = -1,
     this.maxUniformBufferBindingSize = -1,
     this.maxStorageBufferBindingSize = -1,
+    this.minUniformBufferOffsetAlignment = -1,
+    this.minStorageBufferOffsetAlignment = -1,
+    this.maxVertexBuffers = -1,
     this.maxBufferSize = -1,
+    this.maxVertexAttributes = -1,
+    this.maxVertexBufferArrayStride = -1,
+    this.maxInterStageShaderVariables = -1,
+    this.maxColorAttachments = -1,
+    this.maxColorAttachmentBytesPerSample = -1,
+    this.maxComputeWorkgroupStorageSize = -1,
     this.maxComputeInvocationsPerWorkgroup = -1,
+    this.maxComputeWorkgroupSizeX = -1,
+    this.maxComputeWorkgroupSizeY = -1,
+    this.maxComputeWorkgroupSizeZ = -1,
+    this.maxComputeWorkgroupsPerDimension = -1,
   });
 }
 
@@ -418,8 +524,14 @@ class GpuRenderBundleEncoderDescriptor {
   final int format1;
   final int format2;
   final int format3;
+  final int format4;
+  final int format5;
+  final int format6;
+  final int format7;
   final int depthFormat;
   final int sampleCount;
+  final bool depthReadOnly;
+  final bool stencilReadOnly;
 
   const GpuRenderBundleEncoderDescriptor({
     this.label = '',
@@ -427,8 +539,14 @@ class GpuRenderBundleEncoderDescriptor {
     this.format1 = 0,
     this.format2 = 0,
     this.format3 = 0,
+    this.format4 = 0,
+    this.format5 = 0,
+    this.format6 = 0,
+    this.format7 = 0,
     this.depthFormat = 0,
     this.sampleCount = 1,
+    this.depthReadOnly = false,
+    this.stencilReadOnly = false,
   });
 }
 
@@ -492,6 +610,11 @@ class GpuRenderPassDescriptor {
   /// Raw `WGPUQuerySet` (occlusion type) address; 0 = none.
   final int occlusionQuerySetAddress;
 
+  /// Bind the depth/stencil aspect read-only (its load/store ops are then
+  /// ignored and the pass may sample the attachment).
+  final bool depthReadOnly;
+  final bool stencilReadOnly;
+
   const GpuRenderPassDescriptor({
     this.label = '',
     required this.colorAttachments,
@@ -506,6 +629,8 @@ class GpuRenderPassDescriptor {
     this.stencilStoreOp = 0,
     this.stencilClearValue = 0,
     this.occlusionQuerySetAddress = 0,
+    this.depthReadOnly = false,
+    this.stencilReadOnly = false,
   });
 }
 
@@ -566,12 +691,26 @@ class GpuBindGroupLayoutEntry {
   /// For buffer entries (types 1–3): bind with dynamic offsets.
   final bool hasDynamicOffset;
 
+  /// For texture entries (type 5): raw `WGPUTextureSampleType` —
+  /// 2 = float, 3 = unfilterable-float, 4 = depth, 5 = sint, 6 = uint.
+  final int sampleType;
+
+  /// For texture entries (type 5): bind `texture_multisampled_2d`.
+  final bool multisampled;
+
+  /// For sampler entries (type 4): raw `WGPUSamplerBindingType` —
+  /// 2 = filtering, 3 = non-filtering, 4 = comparison.
+  final int samplerType;
+
   const GpuBindGroupLayoutEntry({
     required this.binding,
     required this.visibility,
     required this.type,
     this.viewDimension = 2,
     this.hasDynamicOffset = false,
+    this.sampleType = 2,
+    this.multisampled = false,
+    this.samplerType = 2,
   });
 }
 
@@ -587,9 +726,10 @@ class GpuBindGroupLayoutDescriptor {
   });
 }
 
-/// Descriptor for [NitroWebgpu.deviceCreatePipelineLayout]. Up to four bind
-/// group layouts (WebGPU's guaranteed minimum); 0 = slot unused. Unused
-/// slots must be trailing.
+/// Descriptor for [NitroWebgpu.deviceCreatePipelineLayout]. Up to eight
+/// bind group layouts (devices past the default `maxBindGroups` of 4 need
+/// a matching `requiredLimits`); 0 = slot unused. Unused slots must be
+/// trailing.
 @hybridRecord
 class GpuPipelineLayoutDescriptor {
   final String label;
@@ -597,6 +737,10 @@ class GpuPipelineLayoutDescriptor {
   final int layout1;
   final int layout2;
   final int layout3;
+  final int layout4;
+  final int layout5;
+  final int layout6;
+  final int layout7;
 
   const GpuPipelineLayoutDescriptor({
     this.label = '',
@@ -604,6 +748,10 @@ class GpuPipelineLayoutDescriptor {
     this.layout1 = 0,
     this.layout2 = 0,
     this.layout3 = 0,
+    this.layout4 = 0,
+    this.layout5 = 0,
+    this.layout6 = 0,
+    this.layout7 = 0,
   });
 }
 
@@ -644,18 +792,67 @@ class GpuRenderPipelineDescriptor {
   /// MSAA sample count (1 or 4). Attachments must match.
   final int sampleCount;
 
-  /// Extra color target formats (raw); 0 = unused (trailing only).
+  /// Extra color target formats (raw); 0 = unused (trailing only). Up to
+  /// eight targets total (the WebGPU default `maxColorAttachments`).
   final int targetFormat1;
   final int targetFormat2;
   final int targetFormat3;
+  final int targetFormat4;
+  final int targetFormat5;
+  final int targetFormat6;
+  final int targetFormat7;
 
   /// Raw `WGPUCompareFunction` for stencil (8 = always). Both faces.
   final int stencilCompare;
 
-  /// Raw `WGPUStencilOperation` (1 = keep, 3 = replace). Both faces.
+  /// Raw `WGPUStencilOperation` (1 = keep, 3 = replace). Both faces
+  /// unless the stencilBack* overrides are set.
   final int stencilFailOp;
   final int stencilDepthFailOp;
   final int stencilPassOp;
+
+  /// Raw `WGPUCullMode`: 0/1 = none, 2 = front, 3 = back.
+  final int cullMode;
+
+  /// Raw `WGPUFrontFace`: 0/1 = counter-clockwise, 2 = clockwise.
+  final int frontFace;
+
+  /// Raw `WGPUIndexFormat` for strip topologies; 0 = undefined.
+  final int stripIndexFormat;
+
+  /// Constant depth bias added to each fragment (shadow-map acne fix).
+  final int depthBias;
+  final double depthBiasSlopeScale;
+  final double depthBiasClamp;
+
+  /// Stencil aspect masks; -1 = all bits (0xFFFFFFFF).
+  final int stencilReadMask;
+  final int stencilWriteMask;
+
+  /// Back-face stencil overrides; compare 0 = mirror the front face state.
+  final int stencilBackCompare;
+  final int stencilBackFailOp;
+  final int stencilBackDepthFailOp;
+  final int stencilBackPassOp;
+
+  /// Custom blend (raw `WGPUBlendOperation`/`WGPUBlendFactor`). A non-zero
+  /// [colorBlendOp] overrides [blendMode] and applies to every color target.
+  final int colorBlendOp;
+  final int colorBlendSrc;
+  final int colorBlendDst;
+  final int alphaBlendOp;
+  final int alphaBlendSrc;
+  final int alphaBlendDst;
+
+  /// Color write mask bits (r=1, g=2, b=4, a=8); -1 = all channels.
+  /// Applies to every color target.
+  final int writeMask;
+
+  /// Multisample coverage mask; -1 = all samples.
+  final int multisampleMask;
+
+  /// Derive MSAA coverage from fragment alpha (needs sampleCount > 1).
+  final bool alphaToCoverageEnabled;
 
   const GpuRenderPipelineDescriptor({
     this.label = '',
@@ -674,11 +871,70 @@ class GpuRenderPipelineDescriptor {
     this.targetFormat1 = 0,
     this.targetFormat2 = 0,
     this.targetFormat3 = 0,
+    this.targetFormat4 = 0,
+    this.targetFormat5 = 0,
+    this.targetFormat6 = 0,
+    this.targetFormat7 = 0,
     this.stencilCompare = 8,
     this.stencilFailOp = 1,
     this.stencilDepthFailOp = 1,
     this.stencilPassOp = 1,
+    this.cullMode = 0,
+    this.frontFace = 0,
+    this.stripIndexFormat = 0,
+    this.depthBias = 0,
+    this.depthBiasSlopeScale = 0.0,
+    this.depthBiasClamp = 0.0,
+    this.stencilReadMask = -1,
+    this.stencilWriteMask = -1,
+    this.stencilBackCompare = 0,
+    this.stencilBackFailOp = 0,
+    this.stencilBackDepthFailOp = 0,
+    this.stencilBackPassOp = 0,
+    this.colorBlendOp = 0,
+    this.colorBlendSrc = 0,
+    this.colorBlendDst = 0,
+    this.alphaBlendOp = 0,
+    this.alphaBlendSrc = 0,
+    this.alphaBlendDst = 0,
+    this.writeMask = -1,
+    this.multisampleMask = -1,
+    this.alphaToCoverageEnabled = false,
   });
+}
+
+/// One diagnostic from [NitroWebgpu.shaderModuleGetCompilationInfo].
+@hybridRecord
+class GpuCompilationMessage {
+  final String message;
+
+  /// Raw `WGPUCompilationMessageType`: 1 = error, 2 = warning, 3 = info.
+  final int type;
+
+  /// 1-based source position (0 when not applicable).
+  final int lineNum;
+  final int linePos;
+
+  /// UTF-8 byte offset/length of the span the message covers.
+  final int offset;
+  final int length;
+
+  const GpuCompilationMessage({
+    required this.message,
+    required this.type,
+    this.lineNum = 0,
+    this.linePos = 0,
+    this.offset = 0,
+    this.length = 0,
+  });
+}
+
+/// Structured shader diagnostics.
+@hybridRecord
+class GpuCompilationInfo {
+  final List<GpuCompilationMessage> messages;
+
+  const GpuCompilationInfo({required this.messages});
 }
 
 /// Low-level WebGPU module. Handles are raw native addresses (`int`) —
@@ -715,6 +971,10 @@ abstract class NitroWebgpu extends HybridObject {
   /// Whether the adapter supports the `timestamp-query` feature.
   bool adapterHasTimestampQuery(int adapter);
 
+  /// Bitmask of supported standard features: bit `i` set = raw
+  /// `WGPUFeatureName` value `i` is supported.
+  int adapterGetFeatures(int adapter);
+
   void adapterRelease(int adapter);
 
   // ── Device / queue ─────────────────────────────────────────────────────
@@ -734,6 +994,10 @@ abstract class NitroWebgpu extends HybridObject {
 
   void deviceRelease(int device);
   void queueRelease(int queue);
+
+  /// Bitmask of features the device was created with (same encoding as
+  /// [adapterGetFeatures]).
+  int deviceGetFeatures(int device);
 
   // ── Error handling ─────────────────────────────────────────────────────
 
@@ -773,12 +1037,37 @@ abstract class NitroWebgpu extends HybridObject {
   @nitroNativeAsync
   Future<GpuMappedData> bufferMapRead(int buffer, int offset, int size);
 
+  /// Maps [size] bytes at [offset] for writing (usage needs
+  /// `GpuBufferUsage.mapWrite`). The buffer stays mapped until
+  /// [bufferUnmap]; write into it with [bufferWriteMapped].
+  @nitroNativeAsync
+  Future<void> bufferMapWrite(int buffer, int offset, int size);
+
+  /// Copies [data] directly into the mapped range at [offset] (zero
+  /// intermediate copies — the Dart buffer is written straight into mapped
+  /// GPU memory). The buffer must be mapped (mappedAtCreation or
+  /// [bufferMapWrite]).
+  void bufferWriteMapped(int buffer, int offset, @zeroCopy Uint8List data);
+
+  /// Unmaps a mapped buffer, making it usable on the GPU again.
+  void bufferUnmap(int buffer);
+
+  // ── Introspection (note: wgpuBufferGetMapState is an upstream todo!()
+  //    stub in v29 — map state is tracked in the Dart wrapper instead) ────
+
+  /// The buffer's usage bitmask as created.
+  int bufferGetUsage(int buffer);
+
   // ── Shaders / pipelines / bind groups ──────────────────────────────────
 
   /// Creates a WGSL shader module. Compile errors surface through error
   /// scopes — use the wrapper's checked create.
   int deviceCreateShaderModuleWgsl(int device, String label, String wgsl);
   void shaderModuleRelease(int module);
+
+  /// Structured compile diagnostics (line/column/span per message).
+  @nitroNativeAsync
+  Future<GpuCompilationInfo> shaderModuleGetCompilationInfo(int module);
 
   int deviceCreateComputePipeline(
       int device, GpuComputePipelineDescriptor descriptor);
@@ -807,6 +1096,24 @@ abstract class NitroWebgpu extends HybridObject {
   void encoderCopyBufferToBuffer(
       int encoder, int src, int srcOffset, int dst, int dstOffset, int size);
 
+  /// Zero-fills [size] bytes of [buffer] at [offset]; -1 = to the end.
+  void encoderClearBuffer(int encoder, int buffer, int offset, int size);
+
+  /// Writes a timestamp outside a pass (device needs timestamp queries).
+  void encoderWriteTimestamp(int encoder, int querySet, int queryIndex);
+
+  // ── Debug groups / markers (show up in GPU captures) ───────────────────
+
+  void encoderPushDebugGroup(int encoder, String label);
+  void encoderPopDebugGroup(int encoder);
+  void encoderInsertDebugMarker(int encoder, String label);
+  void renderPassPushDebugGroup(int pass, String label);
+  void renderPassPopDebugGroup(int pass);
+  void renderPassInsertDebugMarker(int pass, String label);
+  void computePassPushDebugGroup(int pass, String label);
+  void computePassPopDebugGroup(int pass);
+  void computePassInsertDebugMarker(int pass, String label);
+
   /// Finishes the encoder into a command buffer (encoder becomes invalid but
   /// still needs [commandEncoderRelease]).
   int encoderFinish(int encoder, String label);
@@ -830,11 +1137,27 @@ abstract class NitroWebgpu extends HybridObject {
   int textureCreateView(int texture, GpuTextureViewDescriptor descriptor);
   void textureViewRelease(int view);
 
-  /// Copies [data] into mip [mipLevel] of a 2D [texture] (usage must include
-  /// `GpuTextureUsage.copyDst`). No 256-byte row alignment is required for
+  int textureGetWidth(int texture);
+  int textureGetHeight(int texture);
+  int textureGetDepthOrArrayLayers(int texture);
+
+  /// Raw `WGPUTextureFormat`.
+  int textureGetFormat(int texture);
+
+  /// Raw `WGPUTextureDimension` as stored (0 when created via a defaulted
+  /// descriptor — this plugin always passes it explicitly).
+  int textureGetDimension(int texture);
+  int textureGetMipLevelCount(int texture);
+  int textureGetSampleCount(int texture);
+  int textureGetUsage(int texture);
+
+  /// Copies [data] into mip [mipLevel] of [texture] at origin
+  /// ([originX], [originY], [arrayLayer]) — usage must include
+  /// `GpuTextureUsage.copyDst`. No 256-byte row alignment is required for
   /// writeTexture; [bytesPerRow] is the tight source stride.
   void queueWriteTexture(int queue, int texture, @zeroCopy Uint8List data,
-      int bytesPerRow, int width, int height, int mipLevel, int arrayLayer);
+      int bytesPerRow, int width, int height, int mipLevel, int arrayLayer,
+      int originX, int originY);
 
   int deviceCreateSampler(int device, GpuSamplerDescriptor descriptor);
   void samplerRelease(int sampler);
@@ -871,19 +1194,24 @@ abstract class NitroWebgpu extends HybridObject {
   void renderPassEnd(int pass);
   void renderPassRelease(int pass);
 
-  /// Copies a full 2D texture (mip 0) into [buffer]. [bytesPerRow] must be a
+  /// Copies a [width]×[height] region of [texture] (mip [mipLevel], origin
+  /// x/y/z) into [buffer] at [bufferOffset]. [bytesPerRow] must be a
   /// multiple of 256 per the WebGPU spec.
   void encoderCopyTextureToBuffer(int encoder, int texture, int buffer,
-      int bytesPerRow, int width, int height);
+      int bytesPerRow, int width, int height, int mipLevel, int originX,
+      int originY, int originZ, int bufferOffset);
 
-  /// Copies [buffer] contents into mip [mipLevel] of a 2D [texture].
-  /// [bytesPerRow] must be a multiple of 256 for buffer↔texture copies.
+  /// Copies [buffer] contents at [bufferOffset] into mip [mipLevel] of
+  /// [texture] at origin x/y/z. [bytesPerRow] must be a multiple of 256.
   void encoderCopyBufferToTexture(int encoder, int buffer, int bytesPerRow,
-      int texture, int mipLevel, int width, int height);
+      int texture, int mipLevel, int width, int height, int bufferOffset,
+      int originX, int originY, int originZ);
 
-  /// Copies a [width]×[height] region between mip 0 of two 2D textures.
-  void encoderCopyTextureToTexture(
-      int encoder, int srcTexture, int dstTexture, int width, int height);
+  /// Copies a [width]×[height]×[depth] region between two textures at
+  /// per-side mips and origins (z = array layer or 3D depth slice).
+  void encoderCopyTextureToTexture(int encoder, int srcTexture,
+      int dstTexture, int width, int height, int depth, int srcMip, int srcX,
+      int srcY, int srcZ, int dstMip, int dstX, int dstY, int dstZ);
 
   // ── Render pass state ──────────────────────────────────────────────────
 
@@ -920,11 +1248,13 @@ abstract class NitroWebgpu extends HybridObject {
   void renderPassEndOcclusionQuery(int pass);
   void renderPassSetStencilReference(int pass, int reference);
 
-  /// setBindGroup with up to four dynamic offsets (count = how many apply).
+  /// setBindGroup with up to eight dynamic offsets (count = how many apply).
   void renderPassSetBindGroupOffsets(int pass, int index, int bindGroup,
-      int offsetCount, int o0, int o1, int o2, int o3);
+      int offsetCount, int o0, int o1, int o2, int o3, int o4, int o5,
+      int o6, int o7);
   void computePassSetBindGroupOffsets(int pass, int index, int bindGroup,
-      int offsetCount, int o0, int o1, int o2, int o3);
+      int offsetCount, int o0, int o1, int o2, int o3, int o4, int o5,
+      int o6, int o7);
 
   // ── Render bundles ─────────────────────────────────────────────────────
 
@@ -941,6 +1271,10 @@ abstract class NitroWebgpu extends HybridObject {
   void bundleDrawIndexed(int bundleEncoder, int indexCount, int instanceCount,
       int firstIndex, int baseVertex, int firstInstance);
 
+  /// Indirect draws inside bundles (same arg layouts as the pass variants).
+  void bundleDrawIndirect(int bundleEncoder, int buffer, int offset);
+  void bundleDrawIndexedIndirect(int bundleEncoder, int buffer, int offset);
+
   /// Finishes recording; the encoder is invalid afterwards (still release it).
   int bundleFinish(int bundleEncoder, String label);
   void renderBundleEncoderRelease(int bundleEncoder);
@@ -953,6 +1287,11 @@ abstract class NitroWebgpu extends HybridObject {
   /// have been created with `requireTimestampQueries`.
   int deviceCreateTimestampQuerySet(int device, int count);
   void querySetRelease(int querySet);
+
+  int querySetGetCount(int querySet);
+
+  /// Raw `WGPUQueryType`: 1 = occlusion, 2 = timestamp.
+  int querySetGetType(int querySet);
 
   /// Resolves query slots into [destination] (usage must include
   /// `GpuBufferUsage.queryResolve`); 8 bytes per slot, raw GPU ticks.

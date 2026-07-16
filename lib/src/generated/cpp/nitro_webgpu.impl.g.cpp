@@ -73,6 +73,12 @@ public:
         // return false;
     }
 
+    int64_t adapterGetFeatures(int64_t adapter) override {
+        // TODO: implement adapterGetFeatures
+        throw std::runtime_error("Not implemented: adapterGetFeatures");
+        // return 0;
+    }
+
     void adapterRelease(int64_t adapter) override {
         // TODO: implement adapterRelease
         throw std::runtime_error("Not implemented: adapterRelease");
@@ -103,6 +109,12 @@ public:
     void queueRelease(int64_t queue) override {
         // TODO: implement queueRelease
         throw std::runtime_error("Not implemented: queueRelease");
+    }
+
+    int64_t deviceGetFeatures(int64_t device) override {
+        // TODO: implement deviceGetFeatures
+        throw std::runtime_error("Not implemented: deviceGetFeatures");
+        // return 0;
     }
 
     void devicePushErrorScope(int64_t device, int64_t filter) override {
@@ -149,6 +161,28 @@ public:
         throw std::runtime_error("Not implemented: bufferMapRead");
     }
 
+    void bufferMapWrite(int64_t buffer, int64_t offset, int64_t size, NitroError* _nitro_err, int64_t dartPort) override {
+        // TODO: on error, populate _nitro_err (hasError/name/message via strdup) before posting.
+        // TODO: post result via Dart_PostCObject_DL(dartPort, ...)
+        throw std::runtime_error("Not implemented: bufferMapWrite");
+    }
+
+    void bufferWriteMapped(int64_t buffer, int64_t offset, const uint8_t* data, size_t data_length) override {
+        // TODO: implement bufferWriteMapped
+        throw std::runtime_error("Not implemented: bufferWriteMapped");
+    }
+
+    void bufferUnmap(int64_t buffer) override {
+        // TODO: implement bufferUnmap
+        throw std::runtime_error("Not implemented: bufferUnmap");
+    }
+
+    int64_t bufferGetUsage(int64_t buffer) override {
+        // TODO: implement bufferGetUsage
+        throw std::runtime_error("Not implemented: bufferGetUsage");
+        // return 0;
+    }
+
     int64_t deviceCreateShaderModuleWgsl(int64_t device, const std::string& label, const std::string& wgsl) override {
         // TODO: implement deviceCreateShaderModuleWgsl
         throw std::runtime_error("Not implemented: deviceCreateShaderModuleWgsl");
@@ -158,6 +192,12 @@ public:
     void shaderModuleRelease(int64_t module) override {
         // TODO: implement shaderModuleRelease
         throw std::runtime_error("Not implemented: shaderModuleRelease");
+    }
+
+    void shaderModuleGetCompilationInfo(int64_t module, NitroError* _nitro_err, int64_t dartPort) override {
+        // TODO: on error, populate _nitro_err (hasError/name/message via strdup) before posting.
+        // TODO: post result via Dart_PostCObject_DL(dartPort, ...)
+        throw std::runtime_error("Not implemented: shaderModuleGetCompilationInfo");
     }
 
     int64_t deviceCreateComputePipeline(int64_t device, NitroCppBuffer descriptor) override {
@@ -240,6 +280,61 @@ public:
         throw std::runtime_error("Not implemented: encoderCopyBufferToBuffer");
     }
 
+    void encoderClearBuffer(int64_t encoder, int64_t buffer, int64_t offset, int64_t size) override {
+        // TODO: implement encoderClearBuffer
+        throw std::runtime_error("Not implemented: encoderClearBuffer");
+    }
+
+    void encoderWriteTimestamp(int64_t encoder, int64_t querySet, int64_t queryIndex) override {
+        // TODO: implement encoderWriteTimestamp
+        throw std::runtime_error("Not implemented: encoderWriteTimestamp");
+    }
+
+    void encoderPushDebugGroup(int64_t encoder, const std::string& label) override {
+        // TODO: implement encoderPushDebugGroup
+        throw std::runtime_error("Not implemented: encoderPushDebugGroup");
+    }
+
+    void encoderPopDebugGroup(int64_t encoder) override {
+        // TODO: implement encoderPopDebugGroup
+        throw std::runtime_error("Not implemented: encoderPopDebugGroup");
+    }
+
+    void encoderInsertDebugMarker(int64_t encoder, const std::string& label) override {
+        // TODO: implement encoderInsertDebugMarker
+        throw std::runtime_error("Not implemented: encoderInsertDebugMarker");
+    }
+
+    void renderPassPushDebugGroup(int64_t pass, const std::string& label) override {
+        // TODO: implement renderPassPushDebugGroup
+        throw std::runtime_error("Not implemented: renderPassPushDebugGroup");
+    }
+
+    void renderPassPopDebugGroup(int64_t pass) override {
+        // TODO: implement renderPassPopDebugGroup
+        throw std::runtime_error("Not implemented: renderPassPopDebugGroup");
+    }
+
+    void renderPassInsertDebugMarker(int64_t pass, const std::string& label) override {
+        // TODO: implement renderPassInsertDebugMarker
+        throw std::runtime_error("Not implemented: renderPassInsertDebugMarker");
+    }
+
+    void computePassPushDebugGroup(int64_t pass, const std::string& label) override {
+        // TODO: implement computePassPushDebugGroup
+        throw std::runtime_error("Not implemented: computePassPushDebugGroup");
+    }
+
+    void computePassPopDebugGroup(int64_t pass) override {
+        // TODO: implement computePassPopDebugGroup
+        throw std::runtime_error("Not implemented: computePassPopDebugGroup");
+    }
+
+    void computePassInsertDebugMarker(int64_t pass, const std::string& label) override {
+        // TODO: implement computePassInsertDebugMarker
+        throw std::runtime_error("Not implemented: computePassInsertDebugMarker");
+    }
+
     int64_t encoderFinish(int64_t encoder, const std::string& label) override {
         // TODO: implement encoderFinish
         throw std::runtime_error("Not implemented: encoderFinish");
@@ -289,7 +384,55 @@ public:
         throw std::runtime_error("Not implemented: textureViewRelease");
     }
 
-    void queueWriteTexture(int64_t queue, int64_t texture, const uint8_t* data, size_t data_length, int64_t bytesPerRow, int64_t width, int64_t height, int64_t mipLevel, int64_t arrayLayer) override {
+    int64_t textureGetWidth(int64_t texture) override {
+        // TODO: implement textureGetWidth
+        throw std::runtime_error("Not implemented: textureGetWidth");
+        // return 0;
+    }
+
+    int64_t textureGetHeight(int64_t texture) override {
+        // TODO: implement textureGetHeight
+        throw std::runtime_error("Not implemented: textureGetHeight");
+        // return 0;
+    }
+
+    int64_t textureGetDepthOrArrayLayers(int64_t texture) override {
+        // TODO: implement textureGetDepthOrArrayLayers
+        throw std::runtime_error("Not implemented: textureGetDepthOrArrayLayers");
+        // return 0;
+    }
+
+    int64_t textureGetFormat(int64_t texture) override {
+        // TODO: implement textureGetFormat
+        throw std::runtime_error("Not implemented: textureGetFormat");
+        // return 0;
+    }
+
+    int64_t textureGetDimension(int64_t texture) override {
+        // TODO: implement textureGetDimension
+        throw std::runtime_error("Not implemented: textureGetDimension");
+        // return 0;
+    }
+
+    int64_t textureGetMipLevelCount(int64_t texture) override {
+        // TODO: implement textureGetMipLevelCount
+        throw std::runtime_error("Not implemented: textureGetMipLevelCount");
+        // return 0;
+    }
+
+    int64_t textureGetSampleCount(int64_t texture) override {
+        // TODO: implement textureGetSampleCount
+        throw std::runtime_error("Not implemented: textureGetSampleCount");
+        // return 0;
+    }
+
+    int64_t textureGetUsage(int64_t texture) override {
+        // TODO: implement textureGetUsage
+        throw std::runtime_error("Not implemented: textureGetUsage");
+        // return 0;
+    }
+
+    void queueWriteTexture(int64_t queue, int64_t texture, const uint8_t* data, size_t data_length, int64_t bytesPerRow, int64_t width, int64_t height, int64_t mipLevel, int64_t arrayLayer, int64_t originX, int64_t originY) override {
         // TODO: implement queueWriteTexture
         throw std::runtime_error("Not implemented: queueWriteTexture");
     }
@@ -385,17 +528,17 @@ public:
         throw std::runtime_error("Not implemented: renderPassRelease");
     }
 
-    void encoderCopyTextureToBuffer(int64_t encoder, int64_t texture, int64_t buffer, int64_t bytesPerRow, int64_t width, int64_t height) override {
+    void encoderCopyTextureToBuffer(int64_t encoder, int64_t texture, int64_t buffer, int64_t bytesPerRow, int64_t width, int64_t height, int64_t mipLevel, int64_t originX, int64_t originY, int64_t originZ, int64_t bufferOffset) override {
         // TODO: implement encoderCopyTextureToBuffer
         throw std::runtime_error("Not implemented: encoderCopyTextureToBuffer");
     }
 
-    void encoderCopyBufferToTexture(int64_t encoder, int64_t buffer, int64_t bytesPerRow, int64_t texture, int64_t mipLevel, int64_t width, int64_t height) override {
+    void encoderCopyBufferToTexture(int64_t encoder, int64_t buffer, int64_t bytesPerRow, int64_t texture, int64_t mipLevel, int64_t width, int64_t height, int64_t bufferOffset, int64_t originX, int64_t originY, int64_t originZ) override {
         // TODO: implement encoderCopyBufferToTexture
         throw std::runtime_error("Not implemented: encoderCopyBufferToTexture");
     }
 
-    void encoderCopyTextureToTexture(int64_t encoder, int64_t srcTexture, int64_t dstTexture, int64_t width, int64_t height) override {
+    void encoderCopyTextureToTexture(int64_t encoder, int64_t srcTexture, int64_t dstTexture, int64_t width, int64_t height, int64_t depth, int64_t srcMip, int64_t srcX, int64_t srcY, int64_t srcZ, int64_t dstMip, int64_t dstX, int64_t dstY, int64_t dstZ) override {
         // TODO: implement encoderCopyTextureToTexture
         throw std::runtime_error("Not implemented: encoderCopyTextureToTexture");
     }
@@ -457,12 +600,12 @@ public:
         throw std::runtime_error("Not implemented: renderPassSetStencilReference");
     }
 
-    void renderPassSetBindGroupOffsets(int64_t pass, int64_t index, int64_t bindGroup, int64_t offsetCount, int64_t o0, int64_t o1, int64_t o2, int64_t o3) override {
+    void renderPassSetBindGroupOffsets(int64_t pass, int64_t index, int64_t bindGroup, int64_t offsetCount, int64_t o0, int64_t o1, int64_t o2, int64_t o3, int64_t o4, int64_t o5, int64_t o6, int64_t o7) override {
         // TODO: implement renderPassSetBindGroupOffsets
         throw std::runtime_error("Not implemented: renderPassSetBindGroupOffsets");
     }
 
-    void computePassSetBindGroupOffsets(int64_t pass, int64_t index, int64_t bindGroup, int64_t offsetCount, int64_t o0, int64_t o1, int64_t o2, int64_t o3) override {
+    void computePassSetBindGroupOffsets(int64_t pass, int64_t index, int64_t bindGroup, int64_t offsetCount, int64_t o0, int64_t o1, int64_t o2, int64_t o3, int64_t o4, int64_t o5, int64_t o6, int64_t o7) override {
         // TODO: implement computePassSetBindGroupOffsets
         throw std::runtime_error("Not implemented: computePassSetBindGroupOffsets");
     }
@@ -503,6 +646,16 @@ public:
         throw std::runtime_error("Not implemented: bundleDrawIndexed");
     }
 
+    void bundleDrawIndirect(int64_t bundleEncoder, int64_t buffer, int64_t offset) override {
+        // TODO: implement bundleDrawIndirect
+        throw std::runtime_error("Not implemented: bundleDrawIndirect");
+    }
+
+    void bundleDrawIndexedIndirect(int64_t bundleEncoder, int64_t buffer, int64_t offset) override {
+        // TODO: implement bundleDrawIndexedIndirect
+        throw std::runtime_error("Not implemented: bundleDrawIndexedIndirect");
+    }
+
     int64_t bundleFinish(int64_t bundleEncoder, const std::string& label) override {
         // TODO: implement bundleFinish
         throw std::runtime_error("Not implemented: bundleFinish");
@@ -533,6 +686,18 @@ public:
     void querySetRelease(int64_t querySet) override {
         // TODO: implement querySetRelease
         throw std::runtime_error("Not implemented: querySetRelease");
+    }
+
+    int64_t querySetGetCount(int64_t querySet) override {
+        // TODO: implement querySetGetCount
+        throw std::runtime_error("Not implemented: querySetGetCount");
+        // return 0;
+    }
+
+    int64_t querySetGetType(int64_t querySet) override {
+        // TODO: implement querySetGetType
+        throw std::runtime_error("Not implemented: querySetGetType");
+        // return 0;
     }
 
     void encoderResolveQuerySet(int64_t encoder, int64_t querySet, int64_t firstQuery, int64_t queryCount, int64_t destination, int64_t destinationOffset) override {

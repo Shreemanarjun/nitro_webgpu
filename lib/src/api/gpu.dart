@@ -20,22 +20,83 @@ export '../nitro_webgpu.native.dart'
         GpuBufferUsage,
         GpuTextureUsage,
         GpuShaderStage,
-        GpuRequiredLimits;
+        GpuRequiredLimits,
+        GpuCompilationMessage;
 
 /// Texture formats supported by the curated layer (raw `WGPUTextureFormat`).
 enum GpuTextureFormat {
   r8Unorm(0x01),
+  r8Snorm(0x02),
+  r8Uint(0x03),
+  r8Sint(0x04),
+  r16Uint(0x07),
+  r16Sint(0x08),
+  r16Float(0x09),
   rg8Unorm(0x0A),
+  rg8Snorm(0x0B),
+  rg8Uint(0x0C),
+  rg8Sint(0x0D),
   r32Float(0x0E),
+  r32Uint(0x0F),
+  r32Sint(0x10),
+  rg16Uint(0x13),
+  rg16Sint(0x14),
+  rg16Float(0x15),
   rgba8Unorm(0x16),
   rgba8UnormSrgb(0x17),
+  rgba8Snorm(0x18),
+  rgba8Uint(0x19),
+  rgba8Sint(0x1A),
   bgra8Unorm(0x1B),
   bgra8UnormSrgb(0x1C),
+  rgb10a2Unorm(0x1E),
+  rg11b10Ufloat(0x1F),
+  rg32Float(0x21),
+  rg32Uint(0x22),
+  rg32Sint(0x23),
+  rgba16Uint(0x26),
+  rgba16Sint(0x27),
   rgba16Float(0x28),
   rgba32Float(0x29),
+  rgba32Uint(0x2A),
+  rgba32Sint(0x2B),
+  stencil8(0x2C),
+  depth16Unorm(0x2D),
   depth24Plus(0x2E),
   depth24PlusStencil8(0x2F),
-  depth32Float(0x30);
+  depth32Float(0x30),
+
+  // Block-compressed formats. Gated on the matching GpuFeature
+  // (textureCompressionBc / Etc2 / Astc); pass an explicit block-aligned
+  // `bytesPerRow` to `writeTexture` (e.g. BC1 = 8 bytes per 4×4 block row).
+  bc1RgbaUnorm(0x32),
+  bc1RgbaUnormSrgb(0x33),
+  bc2RgbaUnorm(0x34),
+  bc2RgbaUnormSrgb(0x35),
+  bc3RgbaUnorm(0x36),
+  bc3RgbaUnormSrgb(0x37),
+  bc4RUnorm(0x38),
+  bc4RSnorm(0x39),
+  bc5RgUnorm(0x3A),
+  bc5RgSnorm(0x3B),
+  bc6hRgbUfloat(0x3C),
+  bc6hRgbFloat(0x3D),
+  bc7RgbaUnorm(0x3E),
+  bc7RgbaUnormSrgb(0x3F),
+  etc2Rgb8Unorm(0x40),
+  etc2Rgb8UnormSrgb(0x41),
+  etc2Rgb8A1Unorm(0x42),
+  etc2Rgb8A1UnormSrgb(0x43),
+  etc2Rgba8Unorm(0x44),
+  etc2Rgba8UnormSrgb(0x45),
+  eacR11Unorm(0x46),
+  eacR11Snorm(0x47),
+  eacRg11Unorm(0x48),
+  eacRg11Snorm(0x49),
+  astc4x4Unorm(0x4A),
+  astc4x4UnormSrgb(0x4B),
+  astc8x8Unorm(0x58),
+  astc8x8UnormSrgb(0x59);
 
   final int raw;
   const GpuTextureFormat(this.raw);
@@ -79,16 +140,235 @@ enum GpuStencilOperation {
   const GpuStencilOperation(this.raw);
 }
 
+/// A buffer's mapping state. Tracked by the wrapper (the native
+/// `wgpuBufferGetMapState` is an unimplemented stub in wgpu-native v29).
+enum GpuBufferMapState { unmapped, mapped }
+
+/// A query set's kind (raw `WGPUQueryType`).
+enum GpuQueryType {
+  occlusion(1),
+  timestamp(2);
+
+  final int raw;
+  const GpuQueryType(this.raw);
+}
+
+/// Primitive assembly (raw `WGPUPrimitiveTopology`).
+enum GpuPrimitiveTopology {
+  pointList(1),
+  lineList(2),
+  lineStrip(3),
+  triangleList(4),
+  triangleStrip(5);
+
+  final int raw;
+  const GpuPrimitiveTopology(this.raw);
+}
+
+/// Face culling (raw `WGPUCullMode`).
+enum GpuCullMode {
+  none(1),
+  front(2),
+  back(3);
+
+  final int raw;
+  const GpuCullMode(this.raw);
+}
+
+/// Which winding is front-facing (raw `WGPUFrontFace`).
+enum GpuFrontFace {
+  ccw(1),
+  cw(2);
+
+  final int raw;
+  const GpuFrontFace(this.raw);
+}
+
+/// Blend equation operator (raw `WGPUBlendOperation`).
+enum GpuBlendOperation {
+  add(1),
+  subtract(2),
+  reverseSubtract(3),
+  min(4),
+  max(5);
+
+  final int raw;
+  const GpuBlendOperation(this.raw);
+}
+
+/// Blend factor (raw `WGPUBlendFactor`).
+enum GpuBlendFactor {
+  zero(1),
+  one(2),
+  src(3),
+  oneMinusSrc(4),
+  srcAlpha(5),
+  oneMinusSrcAlpha(6),
+  dst(7),
+  oneMinusDst(8),
+  dstAlpha(9),
+  oneMinusDstAlpha(10),
+  srcAlphaSaturated(11),
+  constant(12),
+  oneMinusConstant(13);
+
+  final int raw;
+  const GpuBlendFactor(this.raw);
+}
+
+/// A custom blend state — one equation per color/alpha component pair.
+/// Feeds `pass.setBlendConstant` via the `constant` factors.
+class GpuBlendState {
+  final GpuBlendOperation colorOp;
+  final GpuBlendFactor colorSrc;
+  final GpuBlendFactor colorDst;
+  final GpuBlendOperation alphaOp;
+  final GpuBlendFactor alphaSrc;
+  final GpuBlendFactor alphaDst;
+
+  const GpuBlendState({
+    this.colorOp = GpuBlendOperation.add,
+    required this.colorSrc,
+    required this.colorDst,
+    this.alphaOp = GpuBlendOperation.add,
+    GpuBlendFactor? alphaSrc,
+    GpuBlendFactor? alphaDst,
+  })  : alphaSrc = alphaSrc ?? colorSrc,
+        alphaDst = alphaDst ?? colorDst;
+}
+
+/// Channel mask bits for a pipeline's `colorWriteMask`.
+abstract final class GpuColorWriteMask {
+  static const int red = 1;
+  static const int green = 2;
+  static const int blue = 4;
+  static const int alpha = 8;
+  static const int all = 15;
+}
+
+/// A stencil face state (used for the back-face override).
+class GpuStencilFace {
+  final GpuCompareFunction compare;
+  final GpuStencilOperation failOp;
+  final GpuStencilOperation depthFailOp;
+  final GpuStencilOperation passOp;
+
+  const GpuStencilFace({
+    this.compare = GpuCompareFunction.always,
+    this.failOp = GpuStencilOperation.keep,
+    this.depthFailOp = GpuStencilOperation.keep,
+    this.passOp = GpuStencilOperation.keep,
+  });
+}
+
+/// How a texture binding is sampled in shaders
+/// (raw `WGPUTextureSampleType`).
+enum GpuTextureSampleType {
+  float(2),
+  unfilterableFloat(3),
+  depth(4),
+  sint(5),
+  uint(6);
+
+  final int raw;
+  const GpuTextureSampleType(this.raw);
+}
+
+/// Sampler binding flavor (raw `WGPUSamplerBindingType`).
+enum GpuSamplerBindingType {
+  filtering(2),
+  nonFiltering(3),
+  comparison(4);
+
+  final int raw;
+  const GpuSamplerBindingType(this.raw);
+}
+
+/// Optional device features (raw `WGPUFeatureName`). Query support with
+/// [GpuAdapter.features]; request via `requestDevice(requiredFeatures:)`.
+enum GpuFeature {
+  coreFeaturesAndLimits(0x01),
+  depthClipControl(0x02),
+  depth32FloatStencil8(0x03),
+  textureCompressionBc(0x04),
+  textureCompressionBcSliced3d(0x05),
+  textureCompressionEtc2(0x06),
+  textureCompressionAstc(0x07),
+  textureCompressionAstcSliced3d(0x08),
+  timestampQuery(0x09),
+  indirectFirstInstance(0x0A),
+  shaderF16(0x0B),
+  rg11b10UfloatRenderable(0x0C),
+  bgra8UnormStorage(0x0D),
+  float32Filterable(0x0E),
+  float32Blendable(0x0F),
+  clipDistances(0x10),
+  dualSourceBlending(0x11),
+  subgroups(0x12),
+  textureFormatsTier1(0x13),
+  textureFormatsTier2(0x14),
+  primitiveIndex(0x15),
+  textureComponentSwizzle(0x16);
+
+  final int raw;
+  const GpuFeature(this.raw);
+
+  static Set<GpuFeature> fromBits(int bits) => {
+        for (final f in GpuFeature.values)
+          if ((bits >> f.raw) & 1 == 1) f,
+      };
+
+  static int toBits(Set<GpuFeature> features) {
+    var bits = 0;
+    for (final f in features) {
+      bits |= 1 << f.raw;
+    }
+    return bits;
+  }
+}
+
 /// Vertex attribute data types (raw `WGPUVertexFormat`).
 enum GpuVertexFormat {
+  uint8(0x01),
+  uint8x2(0x02),
+  uint8x4(0x03),
+  sint8(0x04),
+  sint8x2(0x05),
+  sint8x4(0x06),
+  unorm8(0x07),
+  unorm8x2(0x08),
   unorm8x4(0x09),
+  snorm8(0x0A),
+  snorm8x2(0x0B),
+  snorm8x4(0x0C),
+  uint16(0x0D),
+  uint16x2(0x0E),
+  uint16x4(0x0F),
+  sint16(0x10),
+  sint16x2(0x11),
+  sint16x4(0x12),
+  unorm16(0x13),
+  unorm16x2(0x14),
+  unorm16x4(0x15),
+  snorm16(0x16),
+  snorm16x2(0x17),
+  snorm16x4(0x18),
+  float16(0x19),
+  float16x2(0x1A),
   float16x4(0x1B),
   float32(0x1C),
   float32x2(0x1D),
   float32x3(0x1E),
   float32x4(0x1F),
   uint32(0x20),
-  sint32(0x24);
+  uint32x2(0x21),
+  uint32x3(0x22),
+  uint32x4(0x23),
+  sint32(0x24),
+  sint32x2(0x25),
+  sint32x3(0x26),
+  sint32x4(0x27),
+  unorm8x4Bgra(0x29);
 
   final int raw;
   const GpuVertexFormat(this.raw);
@@ -196,12 +476,26 @@ class GpuLayoutEntry {
   /// For buffer types: bind with dynamic offsets via `setBindGroup`.
   final bool hasDynamicOffset;
 
+  /// For [GpuBindingType.texture]: how shaders sample it (use
+  /// [GpuTextureSampleType.depth] for `texture_depth_2d`).
+  final GpuTextureSampleType sampleType;
+
+  /// For [GpuBindingType.texture]: bind `texture_multisampled_2d`.
+  final bool multisampled;
+
+  /// For [GpuBindingType.sampler]: use [GpuSamplerBindingType.comparison]
+  /// for `sampler_comparison` (shadow mapping).
+  final GpuSamplerBindingType samplerType;
+
   const GpuLayoutEntry({
     required this.binding,
     required this.visibility,
     required this.type,
     this.viewDimension = GpuTextureViewDimension.d2,
     this.hasDynamicOffset = false,
+    this.sampleType = GpuTextureSampleType.float,
+    this.multisampled = false,
+    this.samplerType = GpuSamplerBindingType.filtering,
   });
 }
 
@@ -391,6 +685,13 @@ class GpuAdapter {
     return NitroWebgpu.instance.adapterHasTimestampQuery(_address);
   }
 
+  /// The optional features this adapter can enable.
+  Set<GpuFeature> get features {
+    _checkAlive();
+    return GpuFeature.fromBits(
+        NitroWebgpu.instance.adapterGetFeatures(_address));
+  }
+
   /// Requests a logical device. The adapter stays usable afterwards and may
   /// be disposed independently of the device.
   ///
@@ -400,6 +701,7 @@ class GpuAdapter {
     String label = '',
     bool requireTimestampQueries = false,
     GpuRequiredLimits? requiredLimits,
+    Set<GpuFeature> requiredFeatures = const {},
   }) async {
     _checkAlive();
     final address = await NitroWebgpu.instance.requestDevice(
@@ -408,9 +710,12 @@ class GpuAdapter {
         label: label,
         requireTimestampQueries: requireTimestampQueries,
         requiredLimits: requiredLimits,
+        requiredFeatures: GpuFeature.toBits(requiredFeatures),
       ),
     );
-    return GpuDevice._(address, hasTimestampQueries: requireTimestampQueries);
+    return GpuDevice._(address,
+        hasTimestampQueries: requireTimestampQueries ||
+            requiredFeatures.contains(GpuFeature.timestampQuery));
   }
 
   void dispose() {
@@ -503,7 +808,7 @@ class GpuDevice {
         mappedAtCreation: mappedAtCreation,
       ),
     );
-    return GpuBuffer._(address, size);
+    return GpuBuffer._(address, size, mapped: mappedAtCreation);
   }
 
   /// Checked create: compiles [wgsl] and throws [GpuValidationException] on
@@ -567,11 +872,21 @@ class GpuDevice {
     return GpuBindGroup._(address);
   }
 
+  /// [compare] makes this a comparison sampler (WGSL `sampler_comparison`
+  /// — bind with [GpuSamplerBindingType.comparison]). [maxAnisotropy] > 1
+  /// needs all filters linear.
   GpuSampler createSampler({
     GpuFilterMode magFilter = GpuFilterMode.linear,
     GpuFilterMode minFilter = GpuFilterMode.linear,
     GpuFilterMode mipmapFilter = GpuFilterMode.nearest,
     GpuAddressMode addressMode = GpuAddressMode.clampToEdge,
+    GpuAddressMode? addressModeU,
+    GpuAddressMode? addressModeV,
+    GpuAddressMode? addressModeW,
+    GpuCompareFunction? compare,
+    double lodMinClamp = 0.0,
+    double lodMaxClamp = 32.0,
+    int maxAnisotropy = 1,
     String label = '',
   }) {
     _checkAlive();
@@ -582,9 +897,13 @@ class GpuDevice {
         magFilter: magFilter.raw,
         minFilter: minFilter.raw,
         mipmapFilter: mipmapFilter.raw,
-        addressModeU: addressMode.raw,
-        addressModeV: addressMode.raw,
-        addressModeW: addressMode.raw,
+        addressModeU: (addressModeU ?? addressMode).raw,
+        addressModeV: (addressModeV ?? addressMode).raw,
+        addressModeW: (addressModeW ?? addressMode).raw,
+        compare: compare?.raw ?? 0,
+        lodMinClamp: lodMinClamp,
+        lodMaxClamp: lodMaxClamp,
+        maxAnisotropy: maxAnisotropy,
       ),
     );
     return GpuSampler._(address);
@@ -601,6 +920,13 @@ class GpuDevice {
   GpuLimits get limits {
     _checkAlive();
     return NitroWebgpu.instance.deviceGetLimits(_address);
+  }
+
+  /// The features this device was created with.
+  Set<GpuFeature> get features {
+    _checkAlive();
+    return GpuFeature.fromBits(
+        NitroWebgpu.instance.deviceGetFeatures(_address));
   }
 
   /// Checked create of an occlusion query set with [count] slots.
@@ -642,6 +968,7 @@ class GpuDevice {
     int sampleCount = 1,
     GpuTextureDimension dimension = GpuTextureDimension.d2,
     int depthOrArrayLayers = 1,
+    GpuTextureFormat? viewFormat,
     String label = '',
   }) {
     _checkAlive();
@@ -657,6 +984,7 @@ class GpuDevice {
         sampleCount: sampleCount,
         dimension: dimension.raw,
         depthOrArrayLayers: depthOrArrayLayers,
+        viewFormat: viewFormat?.raw ?? 0,
       ),
     );
     return GpuTexture._(address, width, height, format);
@@ -680,16 +1008,30 @@ class GpuDevice {
     bool depthWriteEnabled = true,
     GpuCompareFunction depthCompare = GpuCompareFunction.less,
     GpuBlendMode blend = GpuBlendMode.none,
+    GpuBlendState? blendState,
+    int colorWriteMask = GpuColorWriteMask.all,
     int sampleCount = 1,
     List<GpuTextureFormat> extraTargetFormats = const [],
     GpuCompareFunction stencilCompare = GpuCompareFunction.always,
     GpuStencilOperation stencilFailOp = GpuStencilOperation.keep,
     GpuStencilOperation stencilDepthFailOp = GpuStencilOperation.keep,
     GpuStencilOperation stencilPassOp = GpuStencilOperation.keep,
+    GpuStencilFace? stencilBack,
+    int stencilReadMask = 0xFFFFFFFF,
+    int stencilWriteMask = 0xFFFFFFFF,
+    GpuPrimitiveTopology topology = GpuPrimitiveTopology.triangleList,
+    GpuCullMode cullMode = GpuCullMode.none,
+    GpuFrontFace frontFace = GpuFrontFace.ccw,
+    GpuIndexFormat? stripIndexFormat,
+    int depthBias = 0,
+    double depthBiasSlopeScale = 0.0,
+    double depthBiasClamp = 0.0,
+    int? multisampleMask,
+    bool alphaToCoverage = false,
     String label = '',
   }) async {
-    if (extraTargetFormats.length > 3) {
-      throw ArgumentError('at most 4 color targets are supported');
+    if (extraTargetFormats.length > 7) {
+      throw ArgumentError('at most 8 color targets are supported');
     }
     _checkAlive();
     pushErrorScope(GpuErrorFilter.validation);
@@ -729,10 +1071,40 @@ class GpuDevice {
             extraTargetFormats.length > 1 ? extraTargetFormats[1].raw : 0,
         targetFormat3:
             extraTargetFormats.length > 2 ? extraTargetFormats[2].raw : 0,
+        targetFormat4:
+            extraTargetFormats.length > 3 ? extraTargetFormats[3].raw : 0,
+        targetFormat5:
+            extraTargetFormats.length > 4 ? extraTargetFormats[4].raw : 0,
+        targetFormat6:
+            extraTargetFormats.length > 5 ? extraTargetFormats[5].raw : 0,
+        targetFormat7:
+            extraTargetFormats.length > 6 ? extraTargetFormats[6].raw : 0,
         stencilCompare: stencilCompare.raw,
         stencilFailOp: stencilFailOp.raw,
         stencilDepthFailOp: stencilDepthFailOp.raw,
         stencilPassOp: stencilPassOp.raw,
+        cullMode: cullMode.raw,
+        frontFace: frontFace.raw,
+        stripIndexFormat: stripIndexFormat?.raw ?? 0,
+        topology: topology.raw,
+        depthBias: depthBias,
+        depthBiasSlopeScale: depthBiasSlopeScale,
+        depthBiasClamp: depthBiasClamp,
+        stencilReadMask: stencilReadMask,
+        stencilWriteMask: stencilWriteMask,
+        stencilBackCompare: stencilBack?.compare.raw ?? 0,
+        stencilBackFailOp: stencilBack?.failOp.raw ?? 0,
+        stencilBackDepthFailOp: stencilBack?.depthFailOp.raw ?? 0,
+        stencilBackPassOp: stencilBack?.passOp.raw ?? 0,
+        colorBlendOp: blendState?.colorOp.raw ?? 0,
+        colorBlendSrc: blendState?.colorSrc.raw ?? 0,
+        colorBlendDst: blendState?.colorDst.raw ?? 0,
+        alphaBlendOp: blendState?.alphaOp.raw ?? 0,
+        alphaBlendSrc: blendState?.alphaSrc.raw ?? 0,
+        alphaBlendDst: blendState?.alphaDst.raw ?? 0,
+        writeMask: colorWriteMask,
+        multisampleMask: multisampleMask ?? -1,
+        alphaToCoverageEnabled: alphaToCoverage,
       ),
     );
     final error = await popErrorScope();
@@ -749,11 +1121,13 @@ class GpuDevice {
     required List<GpuTextureFormat> colorFormats,
     GpuTextureFormat? depthFormat,
     int sampleCount = 1,
+    bool depthReadOnly = false,
+    bool stencilReadOnly = false,
     String label = '',
   }) {
     _checkAlive();
-    if (colorFormats.isEmpty || colorFormats.length > 4) {
-      throw ArgumentError('1 to 4 color formats are supported');
+    if (colorFormats.isEmpty || colorFormats.length > 8) {
+      throw ArgumentError('1 to 8 color formats are supported');
     }
     final address = NitroWebgpu.instance.deviceCreateRenderBundleEncoder(
       _address,
@@ -763,8 +1137,14 @@ class GpuDevice {
         format1: colorFormats.length > 1 ? colorFormats[1].raw : 0,
         format2: colorFormats.length > 2 ? colorFormats[2].raw : 0,
         format3: colorFormats.length > 3 ? colorFormats[3].raw : 0,
+        format4: colorFormats.length > 4 ? colorFormats[4].raw : 0,
+        format5: colorFormats.length > 5 ? colorFormats[5].raw : 0,
+        format6: colorFormats.length > 6 ? colorFormats[6].raw : 0,
+        format7: colorFormats.length > 7 ? colorFormats[7].raw : 0,
         depthFormat: depthFormat?.raw ?? 0,
         sampleCount: sampleCount,
+        depthReadOnly: depthReadOnly,
+        stencilReadOnly: stencilReadOnly,
       ),
     );
     return GpuRenderBundleEncoder._(address);
@@ -789,6 +1169,9 @@ class GpuDevice {
               type: e.type.raw,
               viewDimension: e.viewDimension.raw,
               hasDynamicOffset: e.hasDynamicOffset,
+              sampleType: e.sampleType.raw,
+              multisampled: e.multisampled,
+              samplerType: e.samplerType.raw,
             ),
         ],
       ),
@@ -802,17 +1185,21 @@ class GpuDevice {
     String label = '',
   }) {
     _checkAlive();
-    if (layouts.length > 4) {
-      throw ArgumentError('at most 4 bind group layouts are supported');
+    if (layouts.isEmpty || layouts.length > 8) {
+      throw ArgumentError('1 to 8 bind group layouts are supported');
     }
     final address = NitroWebgpu.instance.deviceCreatePipelineLayout(
       _address,
       GpuPipelineLayoutDescriptor(
         label: label,
-        layout0: layouts.isNotEmpty ? layouts[0]._address : 0,
+        layout0: layouts[0]._address,
         layout1: layouts.length > 1 ? layouts[1]._address : 0,
         layout2: layouts.length > 2 ? layouts[2]._address : 0,
         layout3: layouts.length > 3 ? layouts[3]._address : 0,
+        layout4: layouts.length > 4 ? layouts[4]._address : 0,
+        layout5: layouts.length > 5 ? layouts[5]._address : 0,
+        layout6: layouts.length > 6 ? layouts[6]._address : 0,
+        layout7: layouts.length > 7 ? layouts[7]._address : 0,
       ),
     );
     return GpuPipelineLayout._(address);
@@ -868,6 +1255,8 @@ class GpuQueue {
       {int? bytesPerRow,
       int mipLevel = 0,
       int arrayLayer = 0,
+      int originX = 0,
+      int originY = 0,
       int? width,
       int? height}) {
     _checkAlive();
@@ -882,6 +1271,8 @@ class GpuQueue {
       h,
       mipLevel,
       arrayLayer,
+      originX,
+      originY,
     );
   }
 
@@ -926,13 +1317,48 @@ class GpuBuffer {
   /// Byte size the buffer was created with.
   final int size;
   bool _disposed = false;
+  GpuBufferMapState _mapState;
 
-  GpuBuffer._(this._address, this.size) {
+  GpuBuffer._(this._address, this.size, {bool mapped = false})
+      : _mapState = mapped ? GpuBufferMapState.mapped : GpuBufferMapState.unmapped {
     _finalizer.attach(this, _address, detach: this);
+  }
+
+  /// The buffer's current mapping state (wrapper-tracked).
+  GpuBufferMapState get mapState => _mapState;
+
+  /// The usage bitmask the buffer was created with (see [GpuBufferUsage]).
+  int get usage {
+    _checkAlive();
+    return NitroWebgpu.instance.bufferGetUsage(_address);
   }
 
   void _checkAlive() {
     if (_disposed) throw StateError('GpuBuffer used after dispose()');
+  }
+
+  /// Maps the buffer for writing (requires [GpuBufferUsage.mapWrite]).
+  /// Write with [writeMapped], then call [unmap] before GPU use.
+  Future<void> mapWrite({int offset = 0, int? size}) async {
+    _checkAlive();
+    await NitroWebgpu.instance
+        .bufferMapWrite(_address, offset, size ?? this.size);
+    _mapState = GpuBufferMapState.mapped;
+  }
+
+  /// Writes [data] directly into the mapped range (zero-copy: straight from
+  /// the Dart buffer into mapped GPU memory). The buffer must be mapped —
+  /// created with `mappedAtCreation: true` or via [mapWrite].
+  void writeMapped(Uint8List data, {int offset = 0}) {
+    _checkAlive();
+    NitroWebgpu.instance.bufferWriteMapped(_address, offset, data);
+  }
+
+  /// Unmaps a mapped buffer so the GPU can use it.
+  void unmap() {
+    _checkAlive();
+    NitroWebgpu.instance.bufferUnmap(_address);
+    _mapState = GpuBufferMapState.unmapped;
   }
 
   /// Maps the buffer for reading (requires [GpuBufferUsage.mapRead]) and
@@ -971,6 +1397,17 @@ class GpuShaderModule {
 
   GpuShaderModule._(this._address) {
     _finalizer.attach(this, _address, detach: this);
+  }
+
+  /// Structured compile diagnostics (naga messages with line/column).
+  /// Valid modules usually return an empty list. Note: wgpu-native
+  /// v29.0.1.1 does not implement the underlying query yet, so this
+  /// currently always resolves empty — compile errors surface through the
+  /// checked `createShaderModule` instead.
+  Future<List<GpuCompilationMessage>> getCompilationInfo() async {
+    final info =
+        await NitroWebgpu.instance.shaderModuleGetCompilationInfo(_address);
+    return info.messages;
   }
 
   void dispose() {
@@ -1242,6 +1679,8 @@ class GpuCommandEncoder {
         stencilStoreOp: depthAttachment?.stencilStoreOp?.raw ?? 0,
         stencilClearValue: depthAttachment?.stencilClearValue ?? 0,
         occlusionQuerySetAddress: occlusionQuerySet?._address ?? 0,
+        depthReadOnly: depthAttachment?.depthReadOnly ?? false,
+        stencilReadOnly: depthAttachment?.stencilReadOnly ?? false,
       ),
     );
     return GpuRenderPassEncoder._(address);
@@ -1267,45 +1706,120 @@ class GpuCommandEncoder {
     );
   }
 
-  /// Copies [source] buffer contents into mip [mipLevel] of [texture].
-  /// [bytesPerRow] must be a multiple of 256 for buffer-to-texture copies.
+  /// Copies [source] buffer contents at [bufferOffset] into mip [mipLevel]
+  /// of [texture] at ([originX], [originY], [originZ]). [bytesPerRow] must
+  /// be a multiple of 256 for buffer-to-texture copies.
   void copyBufferToTexture(GpuBuffer source, GpuTexture texture,
-      {int? bytesPerRow, int mipLevel = 0, int? width, int? height}) {
+      {int? bytesPerRow,
+      int mipLevel = 0,
+      int bufferOffset = 0,
+      int originX = 0,
+      int originY = 0,
+      int originZ = 0,
+      int? width,
+      int? height}) {
     _checkAlive();
     final w = width ?? texture.width;
     final h = height ?? texture.height;
     NitroWebgpu.instance.encoderCopyBufferToTexture(
         _address, source._address, bytesPerRow ?? w * 4, texture._address,
-        mipLevel, w, h);
+        mipLevel, w, h, bufferOffset, originX, originY, originZ);
   }
 
-  /// Copies a region between mip 0 of two textures (defaults to the source's
-  /// full size).
+  /// Copies a region between two textures — any mip level, any origin
+  /// (z = array layer / 3D slice), [depth] slices deep. Defaults to the
+  /// source's full mip-0 size.
   void copyTextureToTexture(GpuTexture source, GpuTexture destination,
-      {int? width, int? height}) {
+      {int? width,
+      int? height,
+      int depth = 1,
+      int srcMipLevel = 0,
+      int srcX = 0,
+      int srcY = 0,
+      int srcZ = 0,
+      int dstMipLevel = 0,
+      int dstX = 0,
+      int dstY = 0,
+      int dstZ = 0}) {
     _checkAlive();
     NitroWebgpu.instance.encoderCopyTextureToTexture(
         _address,
         source._address,
         destination._address,
         width ?? source.width,
-        height ?? source.height);
+        height ?? source.height,
+        depth,
+        srcMipLevel,
+        srcX,
+        srcY,
+        srcZ,
+        dstMipLevel,
+        dstX,
+        dstY,
+        dstZ);
   }
 
-  /// Copies the full contents of [texture] (mip 0) into [destination].
-  /// [bytesPerRow] must be a multiple of 256; defaults to `width * 4`
-  /// (valid for 4-byte formats when the row size meets the alignment).
+  /// Copies a region of [texture] (mip [mipLevel], origin x/y/z) into
+  /// [destination] at [bufferOffset]. [bytesPerRow] must be a multiple of
+  /// 256; defaults to `width * 4` when that meets the alignment.
   void copyTextureToBuffer(GpuTexture texture, GpuBuffer destination,
-      {int? bytesPerRow}) {
+      {int? bytesPerRow,
+      int mipLevel = 0,
+      int originX = 0,
+      int originY = 0,
+      int originZ = 0,
+      int bufferOffset = 0,
+      int? width,
+      int? height}) {
     _checkAlive();
+    final w = width ?? texture.width;
+    final h = height ?? texture.height;
     NitroWebgpu.instance.encoderCopyTextureToBuffer(
       _address,
       texture._address,
       destination._address,
-      bytesPerRow ?? texture.width * 4,
-      texture.width,
-      texture.height,
+      bytesPerRow ?? w * 4,
+      w,
+      h,
+      mipLevel,
+      originX,
+      originY,
+      originZ,
+      bufferOffset,
     );
+  }
+
+  /// Zero-fills [size] bytes of [buffer] at [offset] (null = to the end).
+  /// The buffer's usage must include [GpuBufferUsage.copyDst]; offset and
+  /// size must be 4-byte aligned.
+  void clearBuffer(GpuBuffer buffer, {int offset = 0, int? size}) {
+    _checkAlive();
+    NitroWebgpu.instance
+        .encoderClearBuffer(_address, buffer._address, offset, size ?? -1);
+  }
+
+  /// Writes a timestamp into [querySet] outside any pass (device must have
+  /// timestamp queries enabled).
+  void writeTimestamp(GpuQuerySet querySet, int queryIndex) {
+    _checkAlive();
+    NitroWebgpu.instance
+        .encoderWriteTimestamp(_address, querySet._address, queryIndex);
+  }
+
+  /// Debug groups/markers show up in GPU captures (Xcode, RenderDoc).
+  void pushDebugGroup(String label) {
+    _checkAlive();
+    NitroWebgpu.instance.encoderPushDebugGroup(_address, label);
+  }
+
+  void popDebugGroup() {
+    _checkAlive();
+    NitroWebgpu.instance.encoderPopDebugGroup(_address);
+  }
+
+  void insertDebugMarker(String label) {
+    _checkAlive();
+    NitroWebgpu.instance.encoderInsertDebugMarker(_address, label);
   }
 
   void copyBufferToBuffer(GpuBuffer source, GpuBuffer destination,
@@ -1369,8 +1883,8 @@ class GpuComputePassEncoder {
           .computePassSetBindGroup(_address, index, bindGroup._address);
       return;
     }
-    if (dynamicOffsets.length > 4) {
-      throw ArgumentError('at most 4 dynamic offsets are supported');
+    if (dynamicOffsets.length > 8) {
+      throw ArgumentError('at most 8 dynamic offsets are supported');
     }
     NitroWebgpu.instance.computePassSetBindGroupOffsets(
       _address,
@@ -1381,7 +1895,26 @@ class GpuComputePassEncoder {
       dynamicOffsets.length > 1 ? dynamicOffsets[1] : 0,
       dynamicOffsets.length > 2 ? dynamicOffsets[2] : 0,
       dynamicOffsets.length > 3 ? dynamicOffsets[3] : 0,
+      dynamicOffsets.length > 4 ? dynamicOffsets[4] : 0,
+      dynamicOffsets.length > 5 ? dynamicOffsets[5] : 0,
+      dynamicOffsets.length > 6 ? dynamicOffsets[6] : 0,
+      dynamicOffsets.length > 7 ? dynamicOffsets[7] : 0,
     );
+  }
+
+  void pushDebugGroup(String label) {
+    _checkAlive();
+    NitroWebgpu.instance.computePassPushDebugGroup(_address, label);
+  }
+
+  void popDebugGroup() {
+    _checkAlive();
+    NitroWebgpu.instance.computePassPopDebugGroup(_address);
+  }
+
+  void insertDebugMarker(String label) {
+    _checkAlive();
+    NitroWebgpu.instance.computePassInsertDebugMarker(_address, label);
   }
 
   void dispatchWorkgroups(int x, [int y = 1, int z = 1]) {
@@ -1425,6 +1958,38 @@ class GpuTexture {
     if (_disposed) throw StateError('GpuTexture used after dispose()');
   }
 
+  /// Number of mip levels (native-backed).
+  int get mipLevelCount {
+    _checkAlive();
+    return NitroWebgpu.instance.textureGetMipLevelCount(_address);
+  }
+
+  /// MSAA sample count (native-backed).
+  int get sampleCount {
+    _checkAlive();
+    return NitroWebgpu.instance.textureGetSampleCount(_address);
+  }
+
+  /// Array layer count (2D) / depth (3D), native-backed.
+  int get depthOrArrayLayers {
+    _checkAlive();
+    return NitroWebgpu.instance.textureGetDepthOrArrayLayers(_address);
+  }
+
+  /// The texture's dimensionality (native-backed).
+  GpuTextureDimension get dimension {
+    _checkAlive();
+    final raw = NitroWebgpu.instance.textureGetDimension(_address);
+    return GpuTextureDimension.values
+        .firstWhere((d) => d.raw == raw, orElse: () => GpuTextureDimension.d2);
+  }
+
+  /// The usage bitmask the texture was created with (native-backed).
+  int get usage {
+    _checkAlive();
+    return NitroWebgpu.instance.textureGetUsage(_address);
+  }
+
   /// Creates a view. Null counts mean "all remaining"; null [dimension]
   /// infers from the texture (pass [GpuTextureViewDimension.cube] for
   /// cube-sampled 6-layer textures).
@@ -1435,6 +2000,7 @@ class GpuTexture {
     GpuTextureViewDimension? dimension,
     int baseArrayLayer = 0,
     int? arrayLayerCount,
+    GpuTextureFormat? format,
   }) {
     _checkAlive();
     final address = NitroWebgpu.instance.textureCreateView(
@@ -1446,6 +2012,7 @@ class GpuTexture {
         dimension: dimension?.raw ?? 0,
         baseArrayLayer: baseArrayLayer,
         arrayLayerCount: arrayLayerCount ?? 0,
+        format: format?.raw ?? 0,
       ),
     );
     return GpuTextureView._(address);
@@ -1555,6 +2122,11 @@ class GpuDepthAttachmentInfo {
   final GpuStoreOp? stencilStoreOp;
   final int stencilClearValue;
 
+  /// Bind the aspect read-only — load/store ops are ignored and the pass
+  /// may sample the attachment.
+  final bool depthReadOnly;
+  final bool stencilReadOnly;
+
   const GpuDepthAttachmentInfo({
     required this.view,
     this.loadOp = GpuLoadOp.clear,
@@ -1563,6 +2135,8 @@ class GpuDepthAttachmentInfo {
     this.stencilLoadOp,
     this.stencilStoreOp,
     this.stencilClearValue = 0,
+    this.depthReadOnly = false,
+    this.stencilReadOnly = false,
   });
 }
 
@@ -1614,8 +2188,8 @@ class GpuRenderPassEncoder {
           .renderPassSetBindGroup(_address, index, bindGroup._address);
       return;
     }
-    if (dynamicOffsets.length > 4) {
-      throw ArgumentError('at most 4 dynamic offsets are supported');
+    if (dynamicOffsets.length > 8) {
+      throw ArgumentError('at most 8 dynamic offsets are supported');
     }
     NitroWebgpu.instance.renderPassSetBindGroupOffsets(
       _address,
@@ -1626,6 +2200,10 @@ class GpuRenderPassEncoder {
       dynamicOffsets.length > 1 ? dynamicOffsets[1] : 0,
       dynamicOffsets.length > 2 ? dynamicOffsets[2] : 0,
       dynamicOffsets.length > 3 ? dynamicOffsets[3] : 0,
+      dynamicOffsets.length > 4 ? dynamicOffsets[4] : 0,
+      dynamicOffsets.length > 5 ? dynamicOffsets[5] : 0,
+      dynamicOffsets.length > 6 ? dynamicOffsets[6] : 0,
+      dynamicOffsets.length > 7 ? dynamicOffsets[7] : 0,
     );
   }
 
@@ -1642,6 +2220,21 @@ class GpuRenderPassEncoder {
   void setStencilReference(int reference) {
     _checkAlive();
     NitroWebgpu.instance.renderPassSetStencilReference(_address, reference);
+  }
+
+  void pushDebugGroup(String label) {
+    _checkAlive();
+    NitroWebgpu.instance.renderPassPushDebugGroup(_address, label);
+  }
+
+  void popDebugGroup() {
+    _checkAlive();
+    NitroWebgpu.instance.renderPassPopDebugGroup(_address);
+  }
+
+  void insertDebugMarker(String label) {
+    _checkAlive();
+    NitroWebgpu.instance.renderPassInsertDebugMarker(_address, label);
   }
 
   /// Replays a pre-recorded [GpuRenderBundle].
@@ -1740,6 +2333,17 @@ class GpuQuerySet {
     _finalizer.attach(this, _address, detach: this);
   }
 
+  /// Whether this is an occlusion or timestamp set (native-backed).
+  GpuQueryType get type {
+    _checkAlive();
+    final raw = NitroWebgpu.instance.querySetGetType(_address);
+    return GpuQueryType.values.firstWhere((t) => t.raw == raw);
+  }
+
+  void _checkAlive() {
+    if (_disposed) throw StateError('GpuQuerySet used after dispose()');
+  }
+
   void dispose() {
     if (_disposed) return;
     _disposed = true;
@@ -1820,6 +2424,18 @@ class GpuRenderBundleEncoder {
     _checkAlive();
     NitroWebgpu.instance.bundleDrawIndexed(_address, indexCount,
         instanceCount, firstIndex, baseVertex, firstInstance);
+  }
+
+  void drawIndirect(GpuBuffer indirectBuffer, {int offset = 0}) {
+    _checkAlive();
+    NitroWebgpu.instance
+        .bundleDrawIndirect(_address, indirectBuffer._address, offset);
+  }
+
+  void drawIndexedIndirect(GpuBuffer indirectBuffer, {int offset = 0}) {
+    _checkAlive();
+    NitroWebgpu.instance
+        .bundleDrawIndexedIndirect(_address, indirectBuffer._address, offset);
   }
 
   /// Finishes recording; the encoder is consumed.

@@ -128,35 +128,65 @@ public struct GpuLimits: NitroEncodable {
   public var maxTextureDimension3D: Int64
   public var maxTextureArrayLayers: Int64
   public var maxBindGroups: Int64
+  public var maxBindGroupsPlusVertexBuffers: Int64
   public var maxBindingsPerBindGroup: Int64
+  public var maxDynamicUniformBuffersPerPipelineLayout: Int64
+  public var maxDynamicStorageBuffersPerPipelineLayout: Int64
+  public var maxSampledTexturesPerShaderStage: Int64
+  public var maxSamplersPerShaderStage: Int64
+  public var maxStorageBuffersPerShaderStage: Int64
+  public var maxStorageTexturesPerShaderStage: Int64
+  public var maxUniformBuffersPerShaderStage: Int64
   public var maxUniformBufferBindingSize: Int64
   public var maxStorageBufferBindingSize: Int64
   public var minUniformBufferOffsetAlignment: Int64
   public var minStorageBufferOffsetAlignment: Int64
+  public var maxVertexBuffers: Int64
   public var maxBufferSize: Int64
+  public var maxVertexAttributes: Int64
+  public var maxVertexBufferArrayStride: Int64
+  public var maxInterStageShaderVariables: Int64
+  public var maxColorAttachments: Int64
+  public var maxColorAttachmentBytesPerSample: Int64
   public var maxComputeWorkgroupStorageSize: Int64
   public var maxComputeInvocationsPerWorkgroup: Int64
   public var maxComputeWorkgroupSizeX: Int64
   public var maxComputeWorkgroupSizeY: Int64
   public var maxComputeWorkgroupSizeZ: Int64
+  public var maxComputeWorkgroupsPerDimension: Int64
 
-  public init(maxTextureDimension1D: Int64, maxTextureDimension2D: Int64, maxTextureDimension3D: Int64, maxTextureArrayLayers: Int64, maxBindGroups: Int64, maxBindingsPerBindGroup: Int64, maxUniformBufferBindingSize: Int64, maxStorageBufferBindingSize: Int64, minUniformBufferOffsetAlignment: Int64, minStorageBufferOffsetAlignment: Int64, maxBufferSize: Int64, maxComputeWorkgroupStorageSize: Int64, maxComputeInvocationsPerWorkgroup: Int64, maxComputeWorkgroupSizeX: Int64, maxComputeWorkgroupSizeY: Int64, maxComputeWorkgroupSizeZ: Int64) {
+  public init(maxTextureDimension1D: Int64, maxTextureDimension2D: Int64, maxTextureDimension3D: Int64, maxTextureArrayLayers: Int64, maxBindGroups: Int64, maxBindGroupsPlusVertexBuffers: Int64, maxBindingsPerBindGroup: Int64, maxDynamicUniformBuffersPerPipelineLayout: Int64, maxDynamicStorageBuffersPerPipelineLayout: Int64, maxSampledTexturesPerShaderStage: Int64, maxSamplersPerShaderStage: Int64, maxStorageBuffersPerShaderStage: Int64, maxStorageTexturesPerShaderStage: Int64, maxUniformBuffersPerShaderStage: Int64, maxUniformBufferBindingSize: Int64, maxStorageBufferBindingSize: Int64, minUniformBufferOffsetAlignment: Int64, minStorageBufferOffsetAlignment: Int64, maxVertexBuffers: Int64, maxBufferSize: Int64, maxVertexAttributes: Int64, maxVertexBufferArrayStride: Int64, maxInterStageShaderVariables: Int64, maxColorAttachments: Int64, maxColorAttachmentBytesPerSample: Int64, maxComputeWorkgroupStorageSize: Int64, maxComputeInvocationsPerWorkgroup: Int64, maxComputeWorkgroupSizeX: Int64, maxComputeWorkgroupSizeY: Int64, maxComputeWorkgroupSizeZ: Int64, maxComputeWorkgroupsPerDimension: Int64) {
     self.maxTextureDimension1D = maxTextureDimension1D
     self.maxTextureDimension2D = maxTextureDimension2D
     self.maxTextureDimension3D = maxTextureDimension3D
     self.maxTextureArrayLayers = maxTextureArrayLayers
     self.maxBindGroups = maxBindGroups
+    self.maxBindGroupsPlusVertexBuffers = maxBindGroupsPlusVertexBuffers
     self.maxBindingsPerBindGroup = maxBindingsPerBindGroup
+    self.maxDynamicUniformBuffersPerPipelineLayout = maxDynamicUniformBuffersPerPipelineLayout
+    self.maxDynamicStorageBuffersPerPipelineLayout = maxDynamicStorageBuffersPerPipelineLayout
+    self.maxSampledTexturesPerShaderStage = maxSampledTexturesPerShaderStage
+    self.maxSamplersPerShaderStage = maxSamplersPerShaderStage
+    self.maxStorageBuffersPerShaderStage = maxStorageBuffersPerShaderStage
+    self.maxStorageTexturesPerShaderStage = maxStorageTexturesPerShaderStage
+    self.maxUniformBuffersPerShaderStage = maxUniformBuffersPerShaderStage
     self.maxUniformBufferBindingSize = maxUniformBufferBindingSize
     self.maxStorageBufferBindingSize = maxStorageBufferBindingSize
     self.minUniformBufferOffsetAlignment = minUniformBufferOffsetAlignment
     self.minStorageBufferOffsetAlignment = minStorageBufferOffsetAlignment
+    self.maxVertexBuffers = maxVertexBuffers
     self.maxBufferSize = maxBufferSize
+    self.maxVertexAttributes = maxVertexAttributes
+    self.maxVertexBufferArrayStride = maxVertexBufferArrayStride
+    self.maxInterStageShaderVariables = maxInterStageShaderVariables
+    self.maxColorAttachments = maxColorAttachments
+    self.maxColorAttachmentBytesPerSample = maxColorAttachmentBytesPerSample
     self.maxComputeWorkgroupStorageSize = maxComputeWorkgroupStorageSize
     self.maxComputeInvocationsPerWorkgroup = maxComputeInvocationsPerWorkgroup
     self.maxComputeWorkgroupSizeX = maxComputeWorkgroupSizeX
     self.maxComputeWorkgroupSizeY = maxComputeWorkgroupSizeY
     self.maxComputeWorkgroupSizeZ = maxComputeWorkgroupSizeZ
+    self.maxComputeWorkgroupsPerDimension = maxComputeWorkgroupsPerDimension
   }
 
   public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuLimits {
@@ -170,17 +200,32 @@ public struct GpuLimits: NitroEncodable {
       maxTextureDimension3D: r.readInt(),
       maxTextureArrayLayers: r.readInt(),
       maxBindGroups: r.readInt(),
+      maxBindGroupsPlusVertexBuffers: r.readInt(),
       maxBindingsPerBindGroup: r.readInt(),
+      maxDynamicUniformBuffersPerPipelineLayout: r.readInt(),
+      maxDynamicStorageBuffersPerPipelineLayout: r.readInt(),
+      maxSampledTexturesPerShaderStage: r.readInt(),
+      maxSamplersPerShaderStage: r.readInt(),
+      maxStorageBuffersPerShaderStage: r.readInt(),
+      maxStorageTexturesPerShaderStage: r.readInt(),
+      maxUniformBuffersPerShaderStage: r.readInt(),
       maxUniformBufferBindingSize: r.readInt(),
       maxStorageBufferBindingSize: r.readInt(),
       minUniformBufferOffsetAlignment: r.readInt(),
       minStorageBufferOffsetAlignment: r.readInt(),
+      maxVertexBuffers: r.readInt(),
       maxBufferSize: r.readInt(),
+      maxVertexAttributes: r.readInt(),
+      maxVertexBufferArrayStride: r.readInt(),
+      maxInterStageShaderVariables: r.readInt(),
+      maxColorAttachments: r.readInt(),
+      maxColorAttachmentBytesPerSample: r.readInt(),
       maxComputeWorkgroupStorageSize: r.readInt(),
       maxComputeInvocationsPerWorkgroup: r.readInt(),
       maxComputeWorkgroupSizeX: r.readInt(),
       maxComputeWorkgroupSizeY: r.readInt(),
       maxComputeWorkgroupSizeZ: r.readInt(),
+      maxComputeWorkgroupsPerDimension: r.readInt(),
     )
   }
 
@@ -190,17 +235,32 @@ public struct GpuLimits: NitroEncodable {
     writer.writeInt(maxTextureDimension3D)
     writer.writeInt(maxTextureArrayLayers)
     writer.writeInt(maxBindGroups)
+    writer.writeInt(maxBindGroupsPlusVertexBuffers)
     writer.writeInt(maxBindingsPerBindGroup)
+    writer.writeInt(maxDynamicUniformBuffersPerPipelineLayout)
+    writer.writeInt(maxDynamicStorageBuffersPerPipelineLayout)
+    writer.writeInt(maxSampledTexturesPerShaderStage)
+    writer.writeInt(maxSamplersPerShaderStage)
+    writer.writeInt(maxStorageBuffersPerShaderStage)
+    writer.writeInt(maxStorageTexturesPerShaderStage)
+    writer.writeInt(maxUniformBuffersPerShaderStage)
     writer.writeInt(maxUniformBufferBindingSize)
     writer.writeInt(maxStorageBufferBindingSize)
     writer.writeInt(minUniformBufferOffsetAlignment)
     writer.writeInt(minStorageBufferOffsetAlignment)
+    writer.writeInt(maxVertexBuffers)
     writer.writeInt(maxBufferSize)
+    writer.writeInt(maxVertexAttributes)
+    writer.writeInt(maxVertexBufferArrayStride)
+    writer.writeInt(maxInterStageShaderVariables)
+    writer.writeInt(maxColorAttachments)
+    writer.writeInt(maxColorAttachmentBytesPerSample)
     writer.writeInt(maxComputeWorkgroupStorageSize)
     writer.writeInt(maxComputeInvocationsPerWorkgroup)
     writer.writeInt(maxComputeWorkgroupSizeX)
     writer.writeInt(maxComputeWorkgroupSizeY)
     writer.writeInt(maxComputeWorkgroupSizeZ)
+    writer.writeInt(maxComputeWorkgroupsPerDimension)
   }
 
   public func toNative() -> UnsafeMutablePointer<UInt8>? {
@@ -214,11 +274,13 @@ public struct GpuDeviceDescriptor: NitroEncodable {
   public var label: String
   public var requireTimestampQueries: Bool
   public var requiredLimits: GpuRequiredLimits?
+  public var requiredFeatures: Int64
 
-  public init(label: String, requireTimestampQueries: Bool, requiredLimits: GpuRequiredLimits?) {
+  public init(label: String, requireTimestampQueries: Bool, requiredLimits: GpuRequiredLimits?, requiredFeatures: Int64) {
     self.label = label
     self.requireTimestampQueries = requireTimestampQueries
     self.requiredLimits = requiredLimits
+    self.requiredFeatures = requiredFeatures
   }
 
   public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuDeviceDescriptor {
@@ -230,6 +292,7 @@ public struct GpuDeviceDescriptor: NitroEncodable {
       label: r.readString(),
       requireTimestampQueries: r.readBool(),
       requiredLimits: r.readNullTag() ? nil : GpuRequiredLimits.fromReader(r),
+      requiredFeatures: r.readInt(),
     )
   }
 
@@ -238,6 +301,7 @@ public struct GpuDeviceDescriptor: NitroEncodable {
     writer.writeBool(requireTimestampQueries)
     writer.writeNullTag(requiredLimits == nil)
     if let val = requiredLimits { val.writeFields(writer) }
+    writer.writeInt(requiredFeatures)
   }
 
   public func toNative() -> UnsafeMutablePointer<UInt8>? {
@@ -487,8 +551,12 @@ public struct GpuSamplerDescriptor: NitroEncodable {
   public var addressModeU: Int64
   public var addressModeV: Int64
   public var addressModeW: Int64
+  public var compare: Int64
+  public var lodMinClamp: Double
+  public var lodMaxClamp: Double
+  public var maxAnisotropy: Int64
 
-  public init(label: String, magFilter: Int64, minFilter: Int64, mipmapFilter: Int64, addressModeU: Int64, addressModeV: Int64, addressModeW: Int64) {
+  public init(label: String, magFilter: Int64, minFilter: Int64, mipmapFilter: Int64, addressModeU: Int64, addressModeV: Int64, addressModeW: Int64, compare: Int64, lodMinClamp: Double, lodMaxClamp: Double, maxAnisotropy: Int64) {
     self.label = label
     self.magFilter = magFilter
     self.minFilter = minFilter
@@ -496,6 +564,10 @@ public struct GpuSamplerDescriptor: NitroEncodable {
     self.addressModeU = addressModeU
     self.addressModeV = addressModeV
     self.addressModeW = addressModeW
+    self.compare = compare
+    self.lodMinClamp = lodMinClamp
+    self.lodMaxClamp = lodMaxClamp
+    self.maxAnisotropy = maxAnisotropy
   }
 
   public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuSamplerDescriptor {
@@ -511,6 +583,10 @@ public struct GpuSamplerDescriptor: NitroEncodable {
       addressModeU: r.readInt(),
       addressModeV: r.readInt(),
       addressModeW: r.readInt(),
+      compare: r.readInt(),
+      lodMinClamp: r.readDouble(),
+      lodMaxClamp: r.readDouble(),
+      maxAnisotropy: r.readInt(),
     )
   }
 
@@ -522,6 +598,10 @@ public struct GpuSamplerDescriptor: NitroEncodable {
     writer.writeInt(addressModeU)
     writer.writeInt(addressModeV)
     writer.writeInt(addressModeW)
+    writer.writeInt(compare)
+    writer.writeDouble(lodMinClamp)
+    writer.writeDouble(lodMaxClamp)
+    writer.writeInt(maxAnisotropy)
   }
 
   public func toNative() -> UnsafeMutablePointer<UInt8>? {
@@ -646,8 +726,9 @@ public struct GpuTextureDescriptor: NitroEncodable {
   public var sampleCount: Int64
   public var dimension: Int64
   public var depthOrArrayLayers: Int64
+  public var viewFormat: Int64
 
-  public init(label: String, width: Int64, height: Int64, format: Int64, usage: Int64, mipLevelCount: Int64, sampleCount: Int64, dimension: Int64, depthOrArrayLayers: Int64) {
+  public init(label: String, width: Int64, height: Int64, format: Int64, usage: Int64, mipLevelCount: Int64, sampleCount: Int64, dimension: Int64, depthOrArrayLayers: Int64, viewFormat: Int64) {
     self.label = label
     self.width = width
     self.height = height
@@ -657,6 +738,7 @@ public struct GpuTextureDescriptor: NitroEncodable {
     self.sampleCount = sampleCount
     self.dimension = dimension
     self.depthOrArrayLayers = depthOrArrayLayers
+    self.viewFormat = viewFormat
   }
 
   public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuTextureDescriptor {
@@ -674,6 +756,7 @@ public struct GpuTextureDescriptor: NitroEncodable {
       sampleCount: r.readInt(),
       dimension: r.readInt(),
       depthOrArrayLayers: r.readInt(),
+      viewFormat: r.readInt(),
     )
   }
 
@@ -687,6 +770,7 @@ public struct GpuTextureDescriptor: NitroEncodable {
     writer.writeInt(sampleCount)
     writer.writeInt(dimension)
     writer.writeInt(depthOrArrayLayers)
+    writer.writeInt(viewFormat)
   }
 
   public func toNative() -> UnsafeMutablePointer<UInt8>? {
@@ -703,14 +787,16 @@ public struct GpuTextureViewDescriptor: NitroEncodable {
   public var dimension: Int64
   public var baseArrayLayer: Int64
   public var arrayLayerCount: Int64
+  public var format: Int64
 
-  public init(label: String, baseMipLevel: Int64, mipLevelCount: Int64, dimension: Int64, baseArrayLayer: Int64, arrayLayerCount: Int64) {
+  public init(label: String, baseMipLevel: Int64, mipLevelCount: Int64, dimension: Int64, baseArrayLayer: Int64, arrayLayerCount: Int64, format: Int64) {
     self.label = label
     self.baseMipLevel = baseMipLevel
     self.mipLevelCount = mipLevelCount
     self.dimension = dimension
     self.baseArrayLayer = baseArrayLayer
     self.arrayLayerCount = arrayLayerCount
+    self.format = format
   }
 
   public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuTextureViewDescriptor {
@@ -725,6 +811,7 @@ public struct GpuTextureViewDescriptor: NitroEncodable {
       dimension: r.readInt(),
       baseArrayLayer: r.readInt(),
       arrayLayerCount: r.readInt(),
+      format: r.readInt(),
     )
   }
 
@@ -735,6 +822,7 @@ public struct GpuTextureViewDescriptor: NitroEncodable {
     writer.writeInt(dimension)
     writer.writeInt(baseArrayLayer)
     writer.writeInt(arrayLayerCount)
+    writer.writeInt(format)
   }
 
   public func toNative() -> UnsafeMutablePointer<UInt8>? {
@@ -745,22 +833,70 @@ public struct GpuTextureViewDescriptor: NitroEncodable {
 }
 
 public struct GpuRequiredLimits: NitroEncodable {
+  public var maxTextureDimension1D: Int64
   public var maxTextureDimension2D: Int64
+  public var maxTextureDimension3D: Int64
   public var maxTextureArrayLayers: Int64
   public var maxBindGroups: Int64
+  public var maxBindGroupsPlusVertexBuffers: Int64
+  public var maxBindingsPerBindGroup: Int64
+  public var maxDynamicUniformBuffersPerPipelineLayout: Int64
+  public var maxDynamicStorageBuffersPerPipelineLayout: Int64
+  public var maxSampledTexturesPerShaderStage: Int64
+  public var maxSamplersPerShaderStage: Int64
+  public var maxStorageBuffersPerShaderStage: Int64
+  public var maxStorageTexturesPerShaderStage: Int64
+  public var maxUniformBuffersPerShaderStage: Int64
   public var maxUniformBufferBindingSize: Int64
   public var maxStorageBufferBindingSize: Int64
+  public var minUniformBufferOffsetAlignment: Int64
+  public var minStorageBufferOffsetAlignment: Int64
+  public var maxVertexBuffers: Int64
   public var maxBufferSize: Int64
+  public var maxVertexAttributes: Int64
+  public var maxVertexBufferArrayStride: Int64
+  public var maxInterStageShaderVariables: Int64
+  public var maxColorAttachments: Int64
+  public var maxColorAttachmentBytesPerSample: Int64
+  public var maxComputeWorkgroupStorageSize: Int64
   public var maxComputeInvocationsPerWorkgroup: Int64
+  public var maxComputeWorkgroupSizeX: Int64
+  public var maxComputeWorkgroupSizeY: Int64
+  public var maxComputeWorkgroupSizeZ: Int64
+  public var maxComputeWorkgroupsPerDimension: Int64
 
-  public init(maxTextureDimension2D: Int64, maxTextureArrayLayers: Int64, maxBindGroups: Int64, maxUniformBufferBindingSize: Int64, maxStorageBufferBindingSize: Int64, maxBufferSize: Int64, maxComputeInvocationsPerWorkgroup: Int64) {
+  public init(maxTextureDimension1D: Int64, maxTextureDimension2D: Int64, maxTextureDimension3D: Int64, maxTextureArrayLayers: Int64, maxBindGroups: Int64, maxBindGroupsPlusVertexBuffers: Int64, maxBindingsPerBindGroup: Int64, maxDynamicUniformBuffersPerPipelineLayout: Int64, maxDynamicStorageBuffersPerPipelineLayout: Int64, maxSampledTexturesPerShaderStage: Int64, maxSamplersPerShaderStage: Int64, maxStorageBuffersPerShaderStage: Int64, maxStorageTexturesPerShaderStage: Int64, maxUniformBuffersPerShaderStage: Int64, maxUniformBufferBindingSize: Int64, maxStorageBufferBindingSize: Int64, minUniformBufferOffsetAlignment: Int64, minStorageBufferOffsetAlignment: Int64, maxVertexBuffers: Int64, maxBufferSize: Int64, maxVertexAttributes: Int64, maxVertexBufferArrayStride: Int64, maxInterStageShaderVariables: Int64, maxColorAttachments: Int64, maxColorAttachmentBytesPerSample: Int64, maxComputeWorkgroupStorageSize: Int64, maxComputeInvocationsPerWorkgroup: Int64, maxComputeWorkgroupSizeX: Int64, maxComputeWorkgroupSizeY: Int64, maxComputeWorkgroupSizeZ: Int64, maxComputeWorkgroupsPerDimension: Int64) {
+    self.maxTextureDimension1D = maxTextureDimension1D
     self.maxTextureDimension2D = maxTextureDimension2D
+    self.maxTextureDimension3D = maxTextureDimension3D
     self.maxTextureArrayLayers = maxTextureArrayLayers
     self.maxBindGroups = maxBindGroups
+    self.maxBindGroupsPlusVertexBuffers = maxBindGroupsPlusVertexBuffers
+    self.maxBindingsPerBindGroup = maxBindingsPerBindGroup
+    self.maxDynamicUniformBuffersPerPipelineLayout = maxDynamicUniformBuffersPerPipelineLayout
+    self.maxDynamicStorageBuffersPerPipelineLayout = maxDynamicStorageBuffersPerPipelineLayout
+    self.maxSampledTexturesPerShaderStage = maxSampledTexturesPerShaderStage
+    self.maxSamplersPerShaderStage = maxSamplersPerShaderStage
+    self.maxStorageBuffersPerShaderStage = maxStorageBuffersPerShaderStage
+    self.maxStorageTexturesPerShaderStage = maxStorageTexturesPerShaderStage
+    self.maxUniformBuffersPerShaderStage = maxUniformBuffersPerShaderStage
     self.maxUniformBufferBindingSize = maxUniformBufferBindingSize
     self.maxStorageBufferBindingSize = maxStorageBufferBindingSize
+    self.minUniformBufferOffsetAlignment = minUniformBufferOffsetAlignment
+    self.minStorageBufferOffsetAlignment = minStorageBufferOffsetAlignment
+    self.maxVertexBuffers = maxVertexBuffers
     self.maxBufferSize = maxBufferSize
+    self.maxVertexAttributes = maxVertexAttributes
+    self.maxVertexBufferArrayStride = maxVertexBufferArrayStride
+    self.maxInterStageShaderVariables = maxInterStageShaderVariables
+    self.maxColorAttachments = maxColorAttachments
+    self.maxColorAttachmentBytesPerSample = maxColorAttachmentBytesPerSample
+    self.maxComputeWorkgroupStorageSize = maxComputeWorkgroupStorageSize
     self.maxComputeInvocationsPerWorkgroup = maxComputeInvocationsPerWorkgroup
+    self.maxComputeWorkgroupSizeX = maxComputeWorkgroupSizeX
+    self.maxComputeWorkgroupSizeY = maxComputeWorkgroupSizeY
+    self.maxComputeWorkgroupSizeZ = maxComputeWorkgroupSizeZ
+    self.maxComputeWorkgroupsPerDimension = maxComputeWorkgroupsPerDimension
   }
 
   public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuRequiredLimits {
@@ -769,24 +905,72 @@ public struct GpuRequiredLimits: NitroEncodable {
 
   public static func fromReader(_ r: NitroRecordReader) -> GpuRequiredLimits {
     return GpuRequiredLimits(
+      maxTextureDimension1D: r.readInt(),
       maxTextureDimension2D: r.readInt(),
+      maxTextureDimension3D: r.readInt(),
       maxTextureArrayLayers: r.readInt(),
       maxBindGroups: r.readInt(),
+      maxBindGroupsPlusVertexBuffers: r.readInt(),
+      maxBindingsPerBindGroup: r.readInt(),
+      maxDynamicUniformBuffersPerPipelineLayout: r.readInt(),
+      maxDynamicStorageBuffersPerPipelineLayout: r.readInt(),
+      maxSampledTexturesPerShaderStage: r.readInt(),
+      maxSamplersPerShaderStage: r.readInt(),
+      maxStorageBuffersPerShaderStage: r.readInt(),
+      maxStorageTexturesPerShaderStage: r.readInt(),
+      maxUniformBuffersPerShaderStage: r.readInt(),
       maxUniformBufferBindingSize: r.readInt(),
       maxStorageBufferBindingSize: r.readInt(),
+      minUniformBufferOffsetAlignment: r.readInt(),
+      minStorageBufferOffsetAlignment: r.readInt(),
+      maxVertexBuffers: r.readInt(),
       maxBufferSize: r.readInt(),
+      maxVertexAttributes: r.readInt(),
+      maxVertexBufferArrayStride: r.readInt(),
+      maxInterStageShaderVariables: r.readInt(),
+      maxColorAttachments: r.readInt(),
+      maxColorAttachmentBytesPerSample: r.readInt(),
+      maxComputeWorkgroupStorageSize: r.readInt(),
       maxComputeInvocationsPerWorkgroup: r.readInt(),
+      maxComputeWorkgroupSizeX: r.readInt(),
+      maxComputeWorkgroupSizeY: r.readInt(),
+      maxComputeWorkgroupSizeZ: r.readInt(),
+      maxComputeWorkgroupsPerDimension: r.readInt(),
     )
   }
 
   public func writeFields(_ writer: NitroRecordWriter) {
+    writer.writeInt(maxTextureDimension1D)
     writer.writeInt(maxTextureDimension2D)
+    writer.writeInt(maxTextureDimension3D)
     writer.writeInt(maxTextureArrayLayers)
     writer.writeInt(maxBindGroups)
+    writer.writeInt(maxBindGroupsPlusVertexBuffers)
+    writer.writeInt(maxBindingsPerBindGroup)
+    writer.writeInt(maxDynamicUniformBuffersPerPipelineLayout)
+    writer.writeInt(maxDynamicStorageBuffersPerPipelineLayout)
+    writer.writeInt(maxSampledTexturesPerShaderStage)
+    writer.writeInt(maxSamplersPerShaderStage)
+    writer.writeInt(maxStorageBuffersPerShaderStage)
+    writer.writeInt(maxStorageTexturesPerShaderStage)
+    writer.writeInt(maxUniformBuffersPerShaderStage)
     writer.writeInt(maxUniformBufferBindingSize)
     writer.writeInt(maxStorageBufferBindingSize)
+    writer.writeInt(minUniformBufferOffsetAlignment)
+    writer.writeInt(minStorageBufferOffsetAlignment)
+    writer.writeInt(maxVertexBuffers)
     writer.writeInt(maxBufferSize)
+    writer.writeInt(maxVertexAttributes)
+    writer.writeInt(maxVertexBufferArrayStride)
+    writer.writeInt(maxInterStageShaderVariables)
+    writer.writeInt(maxColorAttachments)
+    writer.writeInt(maxColorAttachmentBytesPerSample)
+    writer.writeInt(maxComputeWorkgroupStorageSize)
     writer.writeInt(maxComputeInvocationsPerWorkgroup)
+    writer.writeInt(maxComputeWorkgroupSizeX)
+    writer.writeInt(maxComputeWorkgroupSizeY)
+    writer.writeInt(maxComputeWorkgroupSizeZ)
+    writer.writeInt(maxComputeWorkgroupsPerDimension)
   }
 
   public func toNative() -> UnsafeMutablePointer<UInt8>? {
@@ -802,17 +986,29 @@ public struct GpuRenderBundleEncoderDescriptor: NitroEncodable {
   public var format1: Int64
   public var format2: Int64
   public var format3: Int64
+  public var format4: Int64
+  public var format5: Int64
+  public var format6: Int64
+  public var format7: Int64
   public var depthFormat: Int64
   public var sampleCount: Int64
+  public var depthReadOnly: Bool
+  public var stencilReadOnly: Bool
 
-  public init(label: String, format0: Int64, format1: Int64, format2: Int64, format3: Int64, depthFormat: Int64, sampleCount: Int64) {
+  public init(label: String, format0: Int64, format1: Int64, format2: Int64, format3: Int64, format4: Int64, format5: Int64, format6: Int64, format7: Int64, depthFormat: Int64, sampleCount: Int64, depthReadOnly: Bool, stencilReadOnly: Bool) {
     self.label = label
     self.format0 = format0
     self.format1 = format1
     self.format2 = format2
     self.format3 = format3
+    self.format4 = format4
+    self.format5 = format5
+    self.format6 = format6
+    self.format7 = format7
     self.depthFormat = depthFormat
     self.sampleCount = sampleCount
+    self.depthReadOnly = depthReadOnly
+    self.stencilReadOnly = stencilReadOnly
   }
 
   public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuRenderBundleEncoderDescriptor {
@@ -826,8 +1022,14 @@ public struct GpuRenderBundleEncoderDescriptor: NitroEncodable {
       format1: r.readInt(),
       format2: r.readInt(),
       format3: r.readInt(),
+      format4: r.readInt(),
+      format5: r.readInt(),
+      format6: r.readInt(),
+      format7: r.readInt(),
       depthFormat: r.readInt(),
       sampleCount: r.readInt(),
+      depthReadOnly: r.readBool(),
+      stencilReadOnly: r.readBool(),
     )
   }
 
@@ -837,8 +1039,14 @@ public struct GpuRenderBundleEncoderDescriptor: NitroEncodable {
     writer.writeInt(format1)
     writer.writeInt(format2)
     writer.writeInt(format3)
+    writer.writeInt(format4)
+    writer.writeInt(format5)
+    writer.writeInt(format6)
+    writer.writeInt(format7)
     writer.writeInt(depthFormat)
     writer.writeInt(sampleCount)
+    writer.writeBool(depthReadOnly)
+    writer.writeBool(stencilReadOnly)
   }
 
   public func toNative() -> UnsafeMutablePointer<UInt8>? {
@@ -918,8 +1126,10 @@ public struct GpuRenderPassDescriptor: NitroEncodable {
   public var stencilStoreOp: Int64
   public var stencilClearValue: Int64
   public var occlusionQuerySetAddress: Int64
+  public var depthReadOnly: Bool
+  public var stencilReadOnly: Bool
 
-  public init(label: String, colorAttachments: [GpuColorAttachment], timestampQuerySetAddress: Int64, timestampBeginIndex: Int64, timestampEndIndex: Int64, depthViewAddress: Int64, depthLoadOp: Int64, depthStoreOp: Int64, depthClearValue: Double, stencilLoadOp: Int64, stencilStoreOp: Int64, stencilClearValue: Int64, occlusionQuerySetAddress: Int64) {
+  public init(label: String, colorAttachments: [GpuColorAttachment], timestampQuerySetAddress: Int64, timestampBeginIndex: Int64, timestampEndIndex: Int64, depthViewAddress: Int64, depthLoadOp: Int64, depthStoreOp: Int64, depthClearValue: Double, stencilLoadOp: Int64, stencilStoreOp: Int64, stencilClearValue: Int64, occlusionQuerySetAddress: Int64, depthReadOnly: Bool, stencilReadOnly: Bool) {
     self.label = label
     self.colorAttachments = colorAttachments
     self.timestampQuerySetAddress = timestampQuerySetAddress
@@ -933,6 +1143,8 @@ public struct GpuRenderPassDescriptor: NitroEncodable {
     self.stencilStoreOp = stencilStoreOp
     self.stencilClearValue = stencilClearValue
     self.occlusionQuerySetAddress = occlusionQuerySetAddress
+    self.depthReadOnly = depthReadOnly
+    self.stencilReadOnly = stencilReadOnly
   }
 
   public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuRenderPassDescriptor {
@@ -954,6 +1166,8 @@ public struct GpuRenderPassDescriptor: NitroEncodable {
       stencilStoreOp: r.readInt(),
       stencilClearValue: r.readInt(),
       occlusionQuerySetAddress: r.readInt(),
+      depthReadOnly: r.readBool(),
+      stencilReadOnly: r.readBool(),
     )
   }
 
@@ -972,6 +1186,8 @@ public struct GpuRenderPassDescriptor: NitroEncodable {
     writer.writeInt(stencilStoreOp)
     writer.writeInt(stencilClearValue)
     writer.writeInt(occlusionQuerySetAddress)
+    writer.writeBool(depthReadOnly)
+    writer.writeBool(stencilReadOnly)
   }
 
   public func toNative() -> UnsafeMutablePointer<UInt8>? {
@@ -1060,13 +1276,19 @@ public struct GpuBindGroupLayoutEntry: NitroEncodable {
   public var type: Int64
   public var viewDimension: Int64
   public var hasDynamicOffset: Bool
+  public var sampleType: Int64
+  public var multisampled: Bool
+  public var samplerType: Int64
 
-  public init(binding: Int64, visibility: Int64, type: Int64, viewDimension: Int64, hasDynamicOffset: Bool) {
+  public init(binding: Int64, visibility: Int64, type: Int64, viewDimension: Int64, hasDynamicOffset: Bool, sampleType: Int64, multisampled: Bool, samplerType: Int64) {
     self.binding = binding
     self.visibility = visibility
     self.type = type
     self.viewDimension = viewDimension
     self.hasDynamicOffset = hasDynamicOffset
+    self.sampleType = sampleType
+    self.multisampled = multisampled
+    self.samplerType = samplerType
   }
 
   public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuBindGroupLayoutEntry {
@@ -1080,6 +1302,9 @@ public struct GpuBindGroupLayoutEntry: NitroEncodable {
       type: r.readInt(),
       viewDimension: r.readInt(),
       hasDynamicOffset: r.readBool(),
+      sampleType: r.readInt(),
+      multisampled: r.readBool(),
+      samplerType: r.readInt(),
     )
   }
 
@@ -1089,6 +1314,9 @@ public struct GpuBindGroupLayoutEntry: NitroEncodable {
     writer.writeInt(type)
     writer.writeInt(viewDimension)
     writer.writeBool(hasDynamicOffset)
+    writer.writeInt(sampleType)
+    writer.writeBool(multisampled)
+    writer.writeInt(samplerType)
   }
 
   public func toNative() -> UnsafeMutablePointer<UInt8>? {
@@ -1137,13 +1365,21 @@ public struct GpuPipelineLayoutDescriptor: NitroEncodable {
   public var layout1: Int64
   public var layout2: Int64
   public var layout3: Int64
+  public var layout4: Int64
+  public var layout5: Int64
+  public var layout6: Int64
+  public var layout7: Int64
 
-  public init(label: String, layout0: Int64, layout1: Int64, layout2: Int64, layout3: Int64) {
+  public init(label: String, layout0: Int64, layout1: Int64, layout2: Int64, layout3: Int64, layout4: Int64, layout5: Int64, layout6: Int64, layout7: Int64) {
     self.label = label
     self.layout0 = layout0
     self.layout1 = layout1
     self.layout2 = layout2
     self.layout3 = layout3
+    self.layout4 = layout4
+    self.layout5 = layout5
+    self.layout6 = layout6
+    self.layout7 = layout7
   }
 
   public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuPipelineLayoutDescriptor {
@@ -1157,6 +1393,10 @@ public struct GpuPipelineLayoutDescriptor: NitroEncodable {
       layout1: r.readInt(),
       layout2: r.readInt(),
       layout3: r.readInt(),
+      layout4: r.readInt(),
+      layout5: r.readInt(),
+      layout6: r.readInt(),
+      layout7: r.readInt(),
     )
   }
 
@@ -1166,6 +1406,10 @@ public struct GpuPipelineLayoutDescriptor: NitroEncodable {
     writer.writeInt(layout1)
     writer.writeInt(layout2)
     writer.writeInt(layout3)
+    writer.writeInt(layout4)
+    writer.writeInt(layout5)
+    writer.writeInt(layout6)
+    writer.writeInt(layout7)
   }
 
   public func toNative() -> UnsafeMutablePointer<UInt8>? {
@@ -1192,12 +1436,37 @@ public struct GpuRenderPipelineDescriptor: NitroEncodable {
   public var targetFormat1: Int64
   public var targetFormat2: Int64
   public var targetFormat3: Int64
+  public var targetFormat4: Int64
+  public var targetFormat5: Int64
+  public var targetFormat6: Int64
+  public var targetFormat7: Int64
   public var stencilCompare: Int64
   public var stencilFailOp: Int64
   public var stencilDepthFailOp: Int64
   public var stencilPassOp: Int64
+  public var cullMode: Int64
+  public var frontFace: Int64
+  public var stripIndexFormat: Int64
+  public var depthBias: Int64
+  public var depthBiasSlopeScale: Double
+  public var depthBiasClamp: Double
+  public var stencilReadMask: Int64
+  public var stencilWriteMask: Int64
+  public var stencilBackCompare: Int64
+  public var stencilBackFailOp: Int64
+  public var stencilBackDepthFailOp: Int64
+  public var stencilBackPassOp: Int64
+  public var colorBlendOp: Int64
+  public var colorBlendSrc: Int64
+  public var colorBlendDst: Int64
+  public var alphaBlendOp: Int64
+  public var alphaBlendSrc: Int64
+  public var alphaBlendDst: Int64
+  public var writeMask: Int64
+  public var multisampleMask: Int64
+  public var alphaToCoverageEnabled: Bool
 
-  public init(label: String, moduleAddress: Int64, vertexEntryPoint: String, fragmentEntryPoint: String, targetFormat: Int64, topology: Int64, vertexBuffers: [GpuVertexBufferLayout], layoutAddress: Int64, depthFormat: Int64, depthWriteEnabled: Bool, depthCompare: Int64, blendMode: Int64, sampleCount: Int64, targetFormat1: Int64, targetFormat2: Int64, targetFormat3: Int64, stencilCompare: Int64, stencilFailOp: Int64, stencilDepthFailOp: Int64, stencilPassOp: Int64) {
+  public init(label: String, moduleAddress: Int64, vertexEntryPoint: String, fragmentEntryPoint: String, targetFormat: Int64, topology: Int64, vertexBuffers: [GpuVertexBufferLayout], layoutAddress: Int64, depthFormat: Int64, depthWriteEnabled: Bool, depthCompare: Int64, blendMode: Int64, sampleCount: Int64, targetFormat1: Int64, targetFormat2: Int64, targetFormat3: Int64, targetFormat4: Int64, targetFormat5: Int64, targetFormat6: Int64, targetFormat7: Int64, stencilCompare: Int64, stencilFailOp: Int64, stencilDepthFailOp: Int64, stencilPassOp: Int64, cullMode: Int64, frontFace: Int64, stripIndexFormat: Int64, depthBias: Int64, depthBiasSlopeScale: Double, depthBiasClamp: Double, stencilReadMask: Int64, stencilWriteMask: Int64, stencilBackCompare: Int64, stencilBackFailOp: Int64, stencilBackDepthFailOp: Int64, stencilBackPassOp: Int64, colorBlendOp: Int64, colorBlendSrc: Int64, colorBlendDst: Int64, alphaBlendOp: Int64, alphaBlendSrc: Int64, alphaBlendDst: Int64, writeMask: Int64, multisampleMask: Int64, alphaToCoverageEnabled: Bool) {
     self.label = label
     self.moduleAddress = moduleAddress
     self.vertexEntryPoint = vertexEntryPoint
@@ -1214,10 +1483,35 @@ public struct GpuRenderPipelineDescriptor: NitroEncodable {
     self.targetFormat1 = targetFormat1
     self.targetFormat2 = targetFormat2
     self.targetFormat3 = targetFormat3
+    self.targetFormat4 = targetFormat4
+    self.targetFormat5 = targetFormat5
+    self.targetFormat6 = targetFormat6
+    self.targetFormat7 = targetFormat7
     self.stencilCompare = stencilCompare
     self.stencilFailOp = stencilFailOp
     self.stencilDepthFailOp = stencilDepthFailOp
     self.stencilPassOp = stencilPassOp
+    self.cullMode = cullMode
+    self.frontFace = frontFace
+    self.stripIndexFormat = stripIndexFormat
+    self.depthBias = depthBias
+    self.depthBiasSlopeScale = depthBiasSlopeScale
+    self.depthBiasClamp = depthBiasClamp
+    self.stencilReadMask = stencilReadMask
+    self.stencilWriteMask = stencilWriteMask
+    self.stencilBackCompare = stencilBackCompare
+    self.stencilBackFailOp = stencilBackFailOp
+    self.stencilBackDepthFailOp = stencilBackDepthFailOp
+    self.stencilBackPassOp = stencilBackPassOp
+    self.colorBlendOp = colorBlendOp
+    self.colorBlendSrc = colorBlendSrc
+    self.colorBlendDst = colorBlendDst
+    self.alphaBlendOp = alphaBlendOp
+    self.alphaBlendSrc = alphaBlendSrc
+    self.alphaBlendDst = alphaBlendDst
+    self.writeMask = writeMask
+    self.multisampleMask = multisampleMask
+    self.alphaToCoverageEnabled = alphaToCoverageEnabled
   }
 
   public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuRenderPipelineDescriptor {
@@ -1242,10 +1536,35 @@ public struct GpuRenderPipelineDescriptor: NitroEncodable {
       targetFormat1: r.readInt(),
       targetFormat2: r.readInt(),
       targetFormat3: r.readInt(),
+      targetFormat4: r.readInt(),
+      targetFormat5: r.readInt(),
+      targetFormat6: r.readInt(),
+      targetFormat7: r.readInt(),
       stencilCompare: r.readInt(),
       stencilFailOp: r.readInt(),
       stencilDepthFailOp: r.readInt(),
       stencilPassOp: r.readInt(),
+      cullMode: r.readInt(),
+      frontFace: r.readInt(),
+      stripIndexFormat: r.readInt(),
+      depthBias: r.readInt(),
+      depthBiasSlopeScale: r.readDouble(),
+      depthBiasClamp: r.readDouble(),
+      stencilReadMask: r.readInt(),
+      stencilWriteMask: r.readInt(),
+      stencilBackCompare: r.readInt(),
+      stencilBackFailOp: r.readInt(),
+      stencilBackDepthFailOp: r.readInt(),
+      stencilBackPassOp: r.readInt(),
+      colorBlendOp: r.readInt(),
+      colorBlendSrc: r.readInt(),
+      colorBlendDst: r.readInt(),
+      alphaBlendOp: r.readInt(),
+      alphaBlendSrc: r.readInt(),
+      alphaBlendDst: r.readInt(),
+      writeMask: r.readInt(),
+      multisampleMask: r.readInt(),
+      alphaToCoverageEnabled: r.readBool(),
     )
   }
 
@@ -1267,10 +1586,112 @@ public struct GpuRenderPipelineDescriptor: NitroEncodable {
     writer.writeInt(targetFormat1)
     writer.writeInt(targetFormat2)
     writer.writeInt(targetFormat3)
+    writer.writeInt(targetFormat4)
+    writer.writeInt(targetFormat5)
+    writer.writeInt(targetFormat6)
+    writer.writeInt(targetFormat7)
     writer.writeInt(stencilCompare)
     writer.writeInt(stencilFailOp)
     writer.writeInt(stencilDepthFailOp)
     writer.writeInt(stencilPassOp)
+    writer.writeInt(cullMode)
+    writer.writeInt(frontFace)
+    writer.writeInt(stripIndexFormat)
+    writer.writeInt(depthBias)
+    writer.writeDouble(depthBiasSlopeScale)
+    writer.writeDouble(depthBiasClamp)
+    writer.writeInt(stencilReadMask)
+    writer.writeInt(stencilWriteMask)
+    writer.writeInt(stencilBackCompare)
+    writer.writeInt(stencilBackFailOp)
+    writer.writeInt(stencilBackDepthFailOp)
+    writer.writeInt(stencilBackPassOp)
+    writer.writeInt(colorBlendOp)
+    writer.writeInt(colorBlendSrc)
+    writer.writeInt(colorBlendDst)
+    writer.writeInt(alphaBlendOp)
+    writer.writeInt(alphaBlendSrc)
+    writer.writeInt(alphaBlendDst)
+    writer.writeInt(writeMask)
+    writer.writeInt(multisampleMask)
+    writer.writeBool(alphaToCoverageEnabled)
+  }
+
+  public func toNative() -> UnsafeMutablePointer<UInt8>? {
+    let writer = NitroRecordWriter()
+    writeFields(writer)
+    return writer.toNative()
+  }
+}
+
+public struct GpuCompilationMessage: NitroEncodable {
+  public var message: String
+  public var type: Int64
+  public var lineNum: Int64
+  public var linePos: Int64
+  public var offset: Int64
+  public var length: Int64
+
+  public init(message: String, type: Int64, lineNum: Int64, linePos: Int64, offset: Int64, length: Int64) {
+    self.message = message
+    self.type = type
+    self.lineNum = lineNum
+    self.linePos = linePos
+    self.offset = offset
+    self.length = length
+  }
+
+  public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuCompilationMessage {
+    return fromReader(NitroRecordReader(ptr: ptr))
+  }
+
+  public static func fromReader(_ r: NitroRecordReader) -> GpuCompilationMessage {
+    return GpuCompilationMessage(
+      message: r.readString(),
+      type: r.readInt(),
+      lineNum: r.readInt(),
+      linePos: r.readInt(),
+      offset: r.readInt(),
+      length: r.readInt(),
+    )
+  }
+
+  public func writeFields(_ writer: NitroRecordWriter) {
+    writer.writeString(message)
+    writer.writeInt(type)
+    writer.writeInt(lineNum)
+    writer.writeInt(linePos)
+    writer.writeInt(offset)
+    writer.writeInt(length)
+  }
+
+  public func toNative() -> UnsafeMutablePointer<UInt8>? {
+    let writer = NitroRecordWriter()
+    writeFields(writer)
+    return writer.toNative()
+  }
+}
+
+public struct GpuCompilationInfo: NitroEncodable {
+  public var messages: [GpuCompilationMessage]
+
+  public init(messages: [GpuCompilationMessage]) {
+    self.messages = messages
+  }
+
+  public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuCompilationInfo {
+    return fromReader(NitroRecordReader(ptr: ptr))
+  }
+
+  public static func fromReader(_ r: NitroRecordReader) -> GpuCompilationInfo {
+    return GpuCompilationInfo(
+      messages: (0..<Int(r.readInt32())).map { _ in GpuCompilationMessage.fromReader(r) },
+    )
+  }
+
+  public func writeFields(_ writer: NitroRecordWriter) {
+    writer.writeInt32(Int32(messages.count))
+    for e in messages { e.writeFields(writer) }
   }
 
   public func toNative() -> UnsafeMutablePointer<UInt8>? {
@@ -1294,12 +1715,14 @@ public protocol HybridNitroWebgpuProtocol: AnyObject {
     func adapterGetInfo(adapter: Int64) -> GpuAdapterInfo
     func adapterGetLimits(adapter: Int64) -> GpuLimits
     func adapterHasTimestampQuery(adapter: Int64) -> Bool
+    func adapterGetFeatures(adapter: Int64) -> Int64
     func adapterRelease(adapter: Int64) -> Void
     func requestDevice(adapter: Int64, descriptor: GpuDeviceDescriptor) async throws -> Int64
     func deviceGetQueue(device: Int64) -> Int64
     func deviceDestroy(device: Int64) -> Void
     func deviceRelease(device: Int64) -> Void
     func queueRelease(queue: Int64) -> Void
+    func deviceGetFeatures(device: Int64) -> Int64
     func devicePushErrorScope(device: Int64, filter: Int64) -> Void
     func devicePopErrorScope(device: Int64) async throws -> GpuError?
     func deviceCreateBuffer(device: Int64, descriptor: GpuBufferDescriptor) -> Int64
@@ -1308,8 +1731,13 @@ public protocol HybridNitroWebgpuProtocol: AnyObject {
     func bufferGetSize(buffer: Int64) -> Int64
     func queueWriteBuffer(queue: Int64, buffer: Int64, bufferOffset: Int64, data: Data) -> Void
     func bufferMapRead(buffer: Int64, offset: Int64, size: Int64) async throws -> GpuMappedData
+    func bufferMapWrite(buffer: Int64, offset: Int64, size: Int64) async throws -> Void
+    func bufferWriteMapped(buffer: Int64, offset: Int64, data: Data) -> Void
+    func bufferUnmap(buffer: Int64) -> Void
+    func bufferGetUsage(buffer: Int64) -> Int64
     func deviceCreateShaderModuleWgsl(device: Int64, label: String, wgsl: String) -> Int64
     func shaderModuleRelease(module: Int64) -> Void
+    func shaderModuleGetCompilationInfo(module: Int64) async throws -> GpuCompilationInfo
     func deviceCreateComputePipeline(device: Int64, descriptor: GpuComputePipelineDescriptor) -> Int64
     func computePipelineRelease(pipeline: Int64) -> Void
     func computePipelineGetBindGroupLayout(pipeline: Int64, groupIndex: Int64) -> Int64
@@ -1325,6 +1753,17 @@ public protocol HybridNitroWebgpuProtocol: AnyObject {
     func computePassEnd(pass: Int64) -> Void
     func computePassRelease(pass: Int64) -> Void
     func encoderCopyBufferToBuffer(encoder: Int64, src: Int64, srcOffset: Int64, dst: Int64, dstOffset: Int64, size: Int64) -> Void
+    func encoderClearBuffer(encoder: Int64, buffer: Int64, offset: Int64, size: Int64) -> Void
+    func encoderWriteTimestamp(encoder: Int64, querySet: Int64, queryIndex: Int64) -> Void
+    func encoderPushDebugGroup(encoder: Int64, label: String) -> Void
+    func encoderPopDebugGroup(encoder: Int64) -> Void
+    func encoderInsertDebugMarker(encoder: Int64, label: String) -> Void
+    func renderPassPushDebugGroup(pass: Int64, label: String) -> Void
+    func renderPassPopDebugGroup(pass: Int64) -> Void
+    func renderPassInsertDebugMarker(pass: Int64, label: String) -> Void
+    func computePassPushDebugGroup(pass: Int64, label: String) -> Void
+    func computePassPopDebugGroup(pass: Int64) -> Void
+    func computePassInsertDebugMarker(pass: Int64, label: String) -> Void
     func encoderFinish(encoder: Int64, label: String) -> Int64
     func commandBufferRelease(commandBuffer: Int64) -> Void
     func queueSubmitOne(queue: Int64, commandBuffer: Int64) -> Void
@@ -1334,7 +1773,15 @@ public protocol HybridNitroWebgpuProtocol: AnyObject {
     func textureRelease(texture: Int64) -> Void
     func textureCreateView(texture: Int64, descriptor: GpuTextureViewDescriptor) -> Int64
     func textureViewRelease(view: Int64) -> Void
-    func queueWriteTexture(queue: Int64, texture: Int64, data: Data, bytesPerRow: Int64, width: Int64, height: Int64, mipLevel: Int64, arrayLayer: Int64) -> Void
+    func textureGetWidth(texture: Int64) -> Int64
+    func textureGetHeight(texture: Int64) -> Int64
+    func textureGetDepthOrArrayLayers(texture: Int64) -> Int64
+    func textureGetFormat(texture: Int64) -> Int64
+    func textureGetDimension(texture: Int64) -> Int64
+    func textureGetMipLevelCount(texture: Int64) -> Int64
+    func textureGetSampleCount(texture: Int64) -> Int64
+    func textureGetUsage(texture: Int64) -> Int64
+    func queueWriteTexture(queue: Int64, texture: Int64, data: Data, bytesPerRow: Int64, width: Int64, height: Int64, mipLevel: Int64, arrayLayer: Int64, originX: Int64, originY: Int64) -> Void
     func deviceCreateSampler(device: Int64, descriptor: GpuSamplerDescriptor) -> Int64
     func samplerRelease(sampler: Int64) -> Void
     func deviceCreateRenderPipeline(device: Int64, descriptor: GpuRenderPipelineDescriptor) -> Int64
@@ -1352,9 +1799,9 @@ public protocol HybridNitroWebgpuProtocol: AnyObject {
     func renderPassDrawIndexed(pass: Int64, indexCount: Int64, instanceCount: Int64, firstIndex: Int64, baseVertex: Int64, firstInstance: Int64) -> Void
     func renderPassEnd(pass: Int64) -> Void
     func renderPassRelease(pass: Int64) -> Void
-    func encoderCopyTextureToBuffer(encoder: Int64, texture: Int64, buffer: Int64, bytesPerRow: Int64, width: Int64, height: Int64) -> Void
-    func encoderCopyBufferToTexture(encoder: Int64, buffer: Int64, bytesPerRow: Int64, texture: Int64, mipLevel: Int64, width: Int64, height: Int64) -> Void
-    func encoderCopyTextureToTexture(encoder: Int64, srcTexture: Int64, dstTexture: Int64, width: Int64, height: Int64) -> Void
+    func encoderCopyTextureToBuffer(encoder: Int64, texture: Int64, buffer: Int64, bytesPerRow: Int64, width: Int64, height: Int64, mipLevel: Int64, originX: Int64, originY: Int64, originZ: Int64, bufferOffset: Int64) -> Void
+    func encoderCopyBufferToTexture(encoder: Int64, buffer: Int64, bytesPerRow: Int64, texture: Int64, mipLevel: Int64, width: Int64, height: Int64, bufferOffset: Int64, originX: Int64, originY: Int64, originZ: Int64) -> Void
+    func encoderCopyTextureToTexture(encoder: Int64, srcTexture: Int64, dstTexture: Int64, width: Int64, height: Int64, depth: Int64, srcMip: Int64, srcX: Int64, srcY: Int64, srcZ: Int64, dstMip: Int64, dstX: Int64, dstY: Int64, dstZ: Int64) -> Void
     func renderPassSetViewport(pass: Int64, x: Double, y: Double, width: Double, height: Double, minDepth: Double, maxDepth: Double) -> Void
     func renderPassSetScissorRect(pass: Int64, x: Int64, y: Int64, width: Int64, height: Int64) -> Void
     func renderPassSetBlendConstant(pass: Int64, r: Double, g: Double, b: Double, a: Double) -> Void
@@ -1366,8 +1813,8 @@ public protocol HybridNitroWebgpuProtocol: AnyObject {
     func renderPassBeginOcclusionQuery(pass: Int64, queryIndex: Int64) -> Void
     func renderPassEndOcclusionQuery(pass: Int64) -> Void
     func renderPassSetStencilReference(pass: Int64, reference: Int64) -> Void
-    func renderPassSetBindGroupOffsets(pass: Int64, index: Int64, bindGroup: Int64, offsetCount: Int64, o0: Int64, o1: Int64, o2: Int64, o3: Int64) -> Void
-    func computePassSetBindGroupOffsets(pass: Int64, index: Int64, bindGroup: Int64, offsetCount: Int64, o0: Int64, o1: Int64, o2: Int64, o3: Int64) -> Void
+    func renderPassSetBindGroupOffsets(pass: Int64, index: Int64, bindGroup: Int64, offsetCount: Int64, o0: Int64, o1: Int64, o2: Int64, o3: Int64, o4: Int64, o5: Int64, o6: Int64, o7: Int64) -> Void
+    func computePassSetBindGroupOffsets(pass: Int64, index: Int64, bindGroup: Int64, offsetCount: Int64, o0: Int64, o1: Int64, o2: Int64, o3: Int64, o4: Int64, o5: Int64, o6: Int64, o7: Int64) -> Void
     func deviceCreateRenderBundleEncoder(device: Int64, descriptor: GpuRenderBundleEncoderDescriptor) -> Int64
     func bundleSetPipeline(bundleEncoder: Int64, pipeline: Int64) -> Void
     func bundleSetBindGroup(bundleEncoder: Int64, index: Int64, bindGroup: Int64) -> Void
@@ -1375,12 +1822,16 @@ public protocol HybridNitroWebgpuProtocol: AnyObject {
     func bundleSetIndexBuffer(bundleEncoder: Int64, buffer: Int64, indexFormat: Int64, offset: Int64) -> Void
     func bundleDraw(bundleEncoder: Int64, vertexCount: Int64, instanceCount: Int64, firstVertex: Int64, firstInstance: Int64) -> Void
     func bundleDrawIndexed(bundleEncoder: Int64, indexCount: Int64, instanceCount: Int64, firstIndex: Int64, baseVertex: Int64, firstInstance: Int64) -> Void
+    func bundleDrawIndirect(bundleEncoder: Int64, buffer: Int64, offset: Int64) -> Void
+    func bundleDrawIndexedIndirect(bundleEncoder: Int64, buffer: Int64, offset: Int64) -> Void
     func bundleFinish(bundleEncoder: Int64, label: String) -> Int64
     func renderBundleEncoderRelease(bundleEncoder: Int64) -> Void
     func renderBundleRelease(bundle: Int64) -> Void
     func renderPassExecuteBundle(pass: Int64, bundle: Int64) -> Void
     func deviceCreateTimestampQuerySet(device: Int64, count: Int64) -> Int64
     func querySetRelease(querySet: Int64) -> Void
+    func querySetGetCount(querySet: Int64) -> Int64
+    func querySetGetType(querySet: Int64) -> Int64
     func encoderResolveQuerySet(encoder: Int64, querySet: Int64, firstQuery: Int64, queryCount: Int64, destination: Int64, destinationOffset: Int64) -> Void
     func queueTimestampPeriod(queue: Int64) -> Double
     var uncapturedErrors: AnyPublisher<GpuUncapturedError, Never> { get }

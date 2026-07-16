@@ -11,23 +11,40 @@ GC `Finalizer` safety net behind it.
 
 ## What works today
 
-Verified by **50 integration tests** on macOS (Metal) and the iOS simulator:
+Verified by **69 integration tests** on macOS (Metal) and the iOS simulator:
 
-- **Core**: adapter/device acquisition with `requiredLimits`, error scopes,
-  uncaptured-error stream, checked creates that surface WGSL/naga errors as
-  typed Dart exceptions.
+- **Core**: adapter/device acquisition with the full 31-field
+  `requiredLimits`/`limits` set, feature enumeration + `requiredFeatures`
+  (all 22 standard features), error scopes, uncaptured-error stream, checked
+  creates that surface WGSL/naga errors as typed Dart exceptions.
 - **Compute**: pipelines (auto or explicit layout), dispatch (direct +
   indirect), storage buffers/textures, dynamic bind-group offsets.
-- **Rendering**: vertex/index buffers with attribute layouts, instancing,
-  every draw variant (indexed/indirect/indexed-indirect), depth testing,
-  full stencil state (`depth24plus-stencil8`, ops, references), blend
-  presets, 4× MSAA with resolve targets, multiple color targets (up to 4),
-  viewport/scissor/blend-constant, render bundles, occlusion queries.
-- **Textures**: 1D/2D/3D/array/cube dimensions, per-mip and per-layer uploads
-  and views, samplers, storage textures, all four copy directions,
-  ~15 formats from `r8unorm` to `rgba32float`.
-- **Timing**: GPU timestamp queries on both pass types (feature-gated), with
-  `queue.timestampPeriod` for tick→ns conversion.
+- **Rendering**: full primitive state (topology, cull mode, front face),
+  vertex/index buffers (40 vertex formats), instancing, every draw variant
+  (indexed/indirect/indexed-indirect — in passes and bundles), depth testing
+  + depth bias, full stencil state (independent front/back faces, read/write
+  masks, references), blend presets plus arbitrary custom blend states and
+  color write masks, 4× MSAA with resolve targets + sample mask +
+  alpha-to-coverage, multiple color targets (up to 8),
+  viewport/scissor/blend-constant, render bundles, occlusion queries,
+  read-only depth/stencil attachments, debug groups/markers.
+- **Shadow mapping works end-to-end**: comparison samplers
+  (`sampler_comparison`), depth-sample-type bindings, and depth bias are all
+  wired and verified by a depth-pass → comparison-sample test.
+- **Textures**: 1D/2D/3D/array/cube dimensions, per-mip / per-layer /
+  origin-targeted uploads, format-reinterpreting views (srgb), samplers with
+  per-axis address modes + LOD clamps + anisotropy, storage textures, all
+  four copy directions with origins/mips/layers, `clearBuffer`, 39 standard
+  formats from `r8unorm` to `rgba32float` + `depth16unorm`/`stencil8`, and
+  feature-gated compressed formats (BC1–7, ETC2/EAC, ASTC).
+- **Buffers**: zero-copy `writeBuffer`/`writeTexture` uploads, `mapRead`,
+  and the mapped-write path (`mappedAtCreation` / `mapWrite` +
+  `writeMapped` straight into mapped GPU memory).
+- **Introspection**: native-backed getters for buffer usage, texture
+  properties, and query-set type; wrapper-tracked buffer map state.
+- **Timing**: GPU timestamp queries on both pass types plus encoder-level
+  `writeTimestamp` (feature-gated), with `queue.timestampPeriod` for
+  tick→ns conversion.
 - **Presentation**: the `WebGpuView` widget composites frames into the widget
   tree via Flutter's texture registry, pipelined 3 frames deep with
   backpressure. On Apple platforms each frame is a single GPU→GPU Metal blit
@@ -35,9 +52,8 @@ Verified by **50 integration tests** on macOS (Metal) and the iOS simulator:
   CPU-readback presenter is the automatic fallback elsewhere.
 
 See [PARITY.md](PARITY.md) for the audit of this surface against the full
-WebGPU spec: what's covered, what's curated-by-design, and the ranked backlog
-(cull mode/topology exposure, shadow-mapping samplers + depth bias, feature
-enumeration, custom blend state, copy origins, extended formats).
+WebGPU spec — what's covered and the probe-verified upstream gaps in
+wgpu-native v29 (e.g. async pipeline creation is unimplemented upstream).
 
 ## Quick taste
 
@@ -81,10 +97,15 @@ WebGpuView(
 | Linux | 🔜 M2.5 — core API compiles, presenter = CPU readback first |
 | Web | 📐 designed-for (`navigator.gpu` via JS interop), deferred |
 
-Known upstream gaps (wgpu-native v29.0.1.1): the device-lost callback never
-fires (the `onLost` stream is plumbed and will work once upstream delivers
-events); unbalanced `popErrorScope` would abort the process, so the plugin
-tracks scope depth natively and throws a Dart error instead.
+Known upstream gaps (wgpu-native v29.0.1.1, all probe-verified): the
+device-lost callback never fires (the `onLost` stream is plumbed and will
+work once upstream delivers events); unbalanced `popErrorScope` would abort
+the process, so the plugin tracks scope depth natively and throws a Dart
+error instead; `wgpuBufferWriteMappedRange` and `getCompilationInfo` are
+unimplemented upstream (the plugin works around the former and returns empty
+diagnostics for the latter); a command buffer that failed validation at
+`finish` aborts the process at submit — keep checked creates around
+validation-sensitive encodes. Details in [PARITY.md](PARITY.md).
 
 ## Example app
 
@@ -107,13 +128,17 @@ Two integration suites under `example/integration_test/`:
 - `wgpu_instance_test.dart` — 41 per-feature tests, milestone by milestone
   (link proof → adapter/device → compute → offscreen render → textures →
   3D → parity batches → presentation ring → timestamps → stress).
-- `wgpu_parity_complex_test.dart` — 9 cross-feature scenarios shaped like
+- `wgpu_parity_complex_test.dart` — 28 cross-feature scenarios shaped like
   real renderers: a fully GPU-driven frame (compute writes the vertex
   buffer, indirect args, and a texture; `drawIndirect` consumes all three),
-  deferred-shading MRT → lighting, per-mip render targets, texture arrays
-  with per-instance layer selection, bundle replay across passes,
-  compute-pass dynamic offsets, stencil+scissor masking, 3D-texture slices,
-  and a 6-pass ping-pong frame graph in one submit.
+  deferred-shading MRT → lighting, shadow mapping with comparison samplers,
+  back-face culling, point topology, custom blend + write masks, feature
+  round-trips, copy origins, mapped-write uploads, alpha-to-coverage, srgb
+  reinterpretation, read-only depth, stencil masks, bundle indirect draws,
+  per-mip render targets, texture arrays with per-instance layer selection,
+  bundle replay across passes, compute-pass dynamic offsets,
+  stencil+scissor masking, 3D-texture slices, and a 6-pass ping-pong frame
+  graph in one submit.
 
 ```sh
 cd example
@@ -151,5 +176,8 @@ scripts/gen.sh    # build_runner + swift-bridge workaround + nitrogen link/docto
   indirect, MSAA, storage textures, mips) → parity tail (bundles, occlusion,
   cube/array/3D, MRT, dynamic offsets, stencil, requiredLimits) → complex
   parity suite.
-- **Next**: PARITY.md P0 items, Android M2.3, Windows/Linux M2.4/2.5,
-  first CI run.
+- **P0/P1/P2 parity backlog**: primitive state, shadow-mapping enablers
+  (comparison samplers, depth bias), feature enumeration, custom blend +
+  write masks, copy origins, full limits, mapped writes, debug markers,
+  and the P2 tail — implemented and tested.
+- **Next**: Android M2.3, Windows/Linux M2.4/2.5, first CI run.
