@@ -8,6 +8,10 @@
 #include "third_party/wgpu_native/include/webgpu/webgpu.h"
 #include "third_party/wgpu_native/include/webgpu/wgpu.h"
 
+#ifdef __ANDROID__
+#include <android/log.h>
+#endif
+
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -201,6 +205,22 @@ public:
     void init(int64_t backendBits) {
         std::lock_guard<std::mutex> lock(mutex_);
         if (instance_) return;  // idempotent
+        // Route wgpu's own logs to the platform log so adapter selection and
+        // driver issues are diagnosable in the field.
+        wgpuSetLogLevel(WGPULogLevel_Warn);
+        wgpuSetLogCallback(
+            [](WGPULogLevel level, WGPUStringView message, void*) {
+#ifdef __ANDROID__
+                __android_log_print(
+                    level <= WGPULogLevel_Error ? ANDROID_LOG_ERROR
+                                                : ANDROID_LOG_WARN,
+                    "wgpu", "%.*s", (int)message.length, message.data);
+#else
+                fprintf(stderr, "[wgpu:%d] %.*s\n", (int)level,
+                        (int)message.length, message.data);
+#endif
+            },
+            nullptr);
         WGPUInstanceExtras extras = {};
         extras.chain.sType = static_cast<WGPUSType>(WGPUSType_InstanceExtras);
         extras.backends = mapBackends(backendBits);
@@ -323,6 +343,51 @@ private:
     std::thread pump_;
 };
 
+// Some Android vendors ship SwiftShader as a system Vulkan ICD and wgpu's
+// requestAdapter can hand it back even at HighPerformance. Before falling
+// back to wgpuInstanceRequestAdapter, enumerate every adapter and pick real
+// hardware directly. Runs on the Dart thread (never inside a wgpu callback —
+// re-entering wgpu from a callback panics).
+WGPUAdapter pickHardwareAdapter(int64_t powerPreference) {
+    WGPUInstance instance = WgpuContext::get().instance();
+    size_t count = wgpuInstanceEnumerateAdapters(instance, nullptr, nullptr);
+    if (count == 0) return nullptr;
+    std::vector<WGPUAdapter> adapters(count);
+    count = wgpuInstanceEnumerateAdapters(instance, nullptr, adapters.data());
+
+    // powerPreference: 1 = low power (prefer integrated), else prefer discrete.
+    const bool lowPower = powerPreference == 1;
+    auto rank = [lowPower](WGPUAdapterType t) {
+        switch (t) {
+            case WGPUAdapterType_DiscreteGPU: return lowPower ? 1 : 0;
+            case WGPUAdapterType_IntegratedGPU: return lowPower ? 0 : 1;
+            case WGPUAdapterType_Unknown: return 2;
+            default: return 3;  // CPU — never picked here
+        }
+    };
+    WGPUAdapter best = nullptr;
+    int bestRank = 3;
+    for (size_t i = 0; i < count; i++) {
+        if (!adapters[i]) continue;
+        WGPUAdapterInfo ai = WGPU_ADAPTER_INFO_INIT;
+        if (wgpuAdapterGetInfo(adapters[i], &ai) != WGPUStatus_Success) continue;
+        const int r = rank(ai.adapterType);
+        wgpuAdapterInfoFreeMembers(ai);
+        if (r < bestRank) {
+            bestRank = r;
+            best = adapters[i];
+        }
+    }
+    for (auto a : adapters) {
+        if (a && a != best) wgpuAdapterRelease(a);
+    }
+    if (bestRank >= 3) {
+        if (best) wgpuAdapterRelease(best);
+        return nullptr;  // only CPU adapters exist — use the normal path
+    }
+    return best;
+}
+
 // Pending async op: the NitroError slot stays alive until Dart receives the
 // port message, so callbacks may safely fill it before posting.
 struct PendingOp {
@@ -358,6 +423,15 @@ public:
         WGPURequestAdapterOptions wgpuOpts = WGPU_REQUEST_ADAPTER_OPTIONS_INIT;
         wgpuOpts.powerPreference = static_cast<WGPUPowerPreference>(opts.powerPreference);
         wgpuOpts.forceFallbackAdapter = opts.forceFallbackAdapter ? 1 : 0;
+
+        // Fast path: pick real hardware from enumeration (guards against
+        // vendor SwiftShader ICDs winning the default selection).
+        if (!opts.forceFallbackAdapter) {
+            if (WGPUAdapter hw = pickHardwareAdapter(opts.powerPreference)) {
+                postInt64(dartPort, (int64_t)(intptr_t)hw);
+                return;
+            }
+        }
 
         auto* op = new PendingOp{_nitro_err, dartPort};
         WGPURequestAdapterCallbackInfo cb = WGPU_REQUEST_ADAPTER_CALLBACK_INFO_INIT;

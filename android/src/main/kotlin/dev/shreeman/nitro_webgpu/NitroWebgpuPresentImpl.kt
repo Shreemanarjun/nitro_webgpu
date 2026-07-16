@@ -50,32 +50,37 @@ class NitroWebgpuPresentImpl(
     }
 
     override fun createPresenter(deviceAddress: Long, widthPx: Long, heightPx: Long): Long {
-        val producer = onMain {
-            textureRegistry.createSurfaceProducer().also {
-                it.setSize(widthPx.toInt(), heightPx.toInt())
+        // The whole setup runs as ONE main-thread block: surface lifecycle
+        // callbacks are posted to the main looper, so nothing can fire
+        // between adopting the Surface and registering the callback — the
+        // cold-start "surface re-created before the callback existed" race
+        // can't happen.
+        val (producer, token) = onMain {
+            val prod = textureRegistry.createSurfaceProducer()
+            prod.setSize(widthPx.toInt(), heightPx.toInt())
+            val t = native.nativeCreate(
+                deviceAddress, prod.surface, widthPx.toInt(), heightPx.toInt())
+            if (t == 0L) {
+                prod.release()
+            } else {
+                // Re-fetch the Surface on every callback, per the
+                // SurfaceProducer contract.
+                prod.setCallback(object : TextureRegistry.SurfaceProducer.Callback {
+                    override fun onSurfaceAvailable() {
+                        native.nativeReplaceSurface(t, prod.surface)
+                    }
+
+                    override fun onSurfaceCleanup() {
+                        native.nativeReplaceSurface(t, null)
+                    }
+                })
             }
+            Pair(prod, t)
         }
-        val surface = onMain { producer.surface }
-        val token = native.nativeCreate(
-            deviceAddress, surface, widthPx.toInt(), heightPx.toInt())
         if (token == 0L) {
-            mainHandler.post { producer.release() }
             throw IllegalStateException(
                 "nitro_webgpu: failed to create a surface presenter " +
                     "(WGPUSurface creation/configure failed)")
-        }
-        onMain {
-            // Lifecycle callbacks fire on the main thread; re-fetch the
-            // Surface each time per the SurfaceProducer contract.
-            producer.setCallback(object : TextureRegistry.SurfaceProducer.Callback {
-                override fun onSurfaceAvailable() {
-                    native.nativeReplaceSurface(token, producer.surface)
-                }
-
-                override fun onSurfaceCleanup() {
-                    native.nativeReplaceSurface(token, null)
-                }
-            })
         }
         entries[token] = Entry(producer)
         return token
