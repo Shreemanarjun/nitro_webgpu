@@ -1069,6 +1069,24 @@ abstract class NitroWebgpu extends HybridObject {
   @nitroNativeAsync
   Future<GpuCompilationInfo> shaderModuleGetCompilationInfo(int module);
 
+  // ── Off-thread creates ───────────────────────────────────────────────
+  // wgpu's CreatePipelineAsync is an unimplemented stub upstream, and the
+  // sync creates run naga + the driver's shader compiler — hundreds of ms
+  // for big shaders on mobile GPUs. These variants run the same sync call
+  // on a background thread so the Dart/UI isolate never blocks.
+
+  @nitroNativeAsync
+  Future<int> deviceCreateShaderModuleWgslAsync(
+      int device, String label, String wgsl);
+
+  @nitroNativeAsync
+  Future<int> deviceCreateRenderPipelineAsync(
+      int device, GpuRenderPipelineDescriptor descriptor);
+
+  @nitroNativeAsync
+  Future<int> deviceCreateComputePipelineAsync(
+      int device, GpuComputePipelineDescriptor descriptor);
+
   int deviceCreateComputePipeline(
       int device, GpuComputePipelineDescriptor descriptor);
   void computePipelineRelease(int pipeline);

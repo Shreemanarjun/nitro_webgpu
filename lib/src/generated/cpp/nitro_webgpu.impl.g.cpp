@@ -200,6 +200,24 @@ public:
         throw std::runtime_error("Not implemented: shaderModuleGetCompilationInfo");
     }
 
+    void deviceCreateShaderModuleWgslAsync(int64_t device, const std::string& label, const std::string& wgsl, NitroError* _nitro_err, int64_t dartPort) override {
+        // TODO: on error, populate _nitro_err (hasError/name/message via strdup) before posting.
+        // TODO: post result via Dart_PostCObject_DL(dartPort, ...)
+        throw std::runtime_error("Not implemented: deviceCreateShaderModuleWgslAsync");
+    }
+
+    void deviceCreateRenderPipelineAsync(int64_t device, NitroCppBuffer descriptor, NitroError* _nitro_err, int64_t dartPort) override {
+        // TODO: on error, populate _nitro_err (hasError/name/message via strdup) before posting.
+        // TODO: post result via Dart_PostCObject_DL(dartPort, ...)
+        throw std::runtime_error("Not implemented: deviceCreateRenderPipelineAsync");
+    }
+
+    void deviceCreateComputePipelineAsync(int64_t device, NitroCppBuffer descriptor, NitroError* _nitro_err, int64_t dartPort) override {
+        // TODO: on error, populate _nitro_err (hasError/name/message via strdup) before posting.
+        // TODO: post result via Dart_PostCObject_DL(dartPort, ...)
+        throw std::runtime_error("Not implemented: deviceCreateComputePipelineAsync");
+    }
+
     int64_t deviceCreateComputePipeline(int64_t device, NitroCppBuffer descriptor) override {
         // TODO: implement deviceCreateComputePipeline
         throw std::runtime_error("Not implemented: deviceCreateComputePipeline");

@@ -2341,197 +2341,203 @@ interface HybridNitroWebgpuSpec {
     fun shaderModuleRelease(module: Long): Unit
     // source: nitro_webgpu.native.dart:1070
     suspend fun shaderModuleGetCompilationInfo(module: Long): GpuCompilationInfo
-    // source: nitro_webgpu.native.dart:1072
-    fun deviceCreateComputePipeline(device: Long, descriptor: GpuComputePipelineDescriptor): Long
-    // source: nitro_webgpu.native.dart:1074
-    fun computePipelineRelease(pipeline: Long): Unit
-    // source: nitro_webgpu.native.dart:1078
-    fun computePipelineGetBindGroupLayout(pipeline: Long, groupIndex: Long): Long
     // source: nitro_webgpu.native.dart:1079
-    fun bindGroupLayoutRelease(layout: Long): Unit
-    // source: nitro_webgpu.native.dart:1081
-    fun deviceCreateBindGroup(device: Long, descriptor: GpuBindGroupDescriptor): Long
-    // source: nitro_webgpu.native.dart:1082
-    fun bindGroupRelease(bindGroup: Long): Unit
-    // source: nitro_webgpu.native.dart:1086
-    fun deviceCreateCommandEncoder(device: Long, label: String): Long
+    suspend fun deviceCreateShaderModuleWgslAsync(device: Long, label: String, wgsl: String): Long
+    // source: nitro_webgpu.native.dart:1083
+    suspend fun deviceCreateRenderPipelineAsync(device: Long, descriptor: GpuRenderPipelineDescriptor): Long
     // source: nitro_webgpu.native.dart:1087
-    fun commandEncoderRelease(encoder: Long): Unit
-    // source: nitro_webgpu.native.dart:1089
-    fun encoderBeginComputePass(encoder: Long, descriptor: GpuComputePassDescriptor): Long
+    suspend fun deviceCreateComputePipelineAsync(device: Long, descriptor: GpuComputePipelineDescriptor): Long
     // source: nitro_webgpu.native.dart:1090
-    fun computePassSetPipeline(pass: Long, pipeline: Long): Unit
-    // source: nitro_webgpu.native.dart:1091
-    fun computePassSetBindGroup(pass: Long, index: Long, bindGroup: Long): Unit
+    fun deviceCreateComputePipeline(device: Long, descriptor: GpuComputePipelineDescriptor): Long
     // source: nitro_webgpu.native.dart:1092
-    fun computePassDispatchWorkgroups(pass: Long, x: Long, y: Long, z: Long): Unit
-    // source: nitro_webgpu.native.dart:1093
-    fun computePassEnd(pass: Long): Unit
-    // source: nitro_webgpu.native.dart:1094
-    fun computePassRelease(pass: Long): Unit
+    fun computePipelineRelease(pipeline: Long): Unit
     // source: nitro_webgpu.native.dart:1096
-    fun encoderCopyBufferToBuffer(encoder: Long, src: Long, srcOffset: Long, dst: Long, dstOffset: Long, size: Long): Unit
+    fun computePipelineGetBindGroupLayout(pipeline: Long, groupIndex: Long): Long
+    // source: nitro_webgpu.native.dart:1097
+    fun bindGroupLayoutRelease(layout: Long): Unit
+    // source: nitro_webgpu.native.dart:1099
+    fun deviceCreateBindGroup(device: Long, descriptor: GpuBindGroupDescriptor): Long
     // source: nitro_webgpu.native.dart:1100
-    fun encoderClearBuffer(encoder: Long, buffer: Long, offset: Long, size: Long): Unit
-    // source: nitro_webgpu.native.dart:1103
-    fun encoderWriteTimestamp(encoder: Long, querySet: Long, queryIndex: Long): Unit
+    fun bindGroupRelease(bindGroup: Long): Unit
+    // source: nitro_webgpu.native.dart:1104
+    fun deviceCreateCommandEncoder(device: Long, label: String): Long
+    // source: nitro_webgpu.native.dart:1105
+    fun commandEncoderRelease(encoder: Long): Unit
     // source: nitro_webgpu.native.dart:1107
-    fun encoderPushDebugGroup(encoder: Long, label: String): Unit
+    fun encoderBeginComputePass(encoder: Long, descriptor: GpuComputePassDescriptor): Long
     // source: nitro_webgpu.native.dart:1108
-    fun encoderPopDebugGroup(encoder: Long): Unit
+    fun computePassSetPipeline(pass: Long, pipeline: Long): Unit
     // source: nitro_webgpu.native.dart:1109
-    fun encoderInsertDebugMarker(encoder: Long, label: String): Unit
+    fun computePassSetBindGroup(pass: Long, index: Long, bindGroup: Long): Unit
     // source: nitro_webgpu.native.dart:1110
-    fun renderPassPushDebugGroup(pass: Long, label: String): Unit
+    fun computePassDispatchWorkgroups(pass: Long, x: Long, y: Long, z: Long): Unit
     // source: nitro_webgpu.native.dart:1111
-    fun renderPassPopDebugGroup(pass: Long): Unit
+    fun computePassEnd(pass: Long): Unit
     // source: nitro_webgpu.native.dart:1112
-    fun renderPassInsertDebugMarker(pass: Long, label: String): Unit
-    // source: nitro_webgpu.native.dart:1113
-    fun computePassPushDebugGroup(pass: Long, label: String): Unit
+    fun computePassRelease(pass: Long): Unit
     // source: nitro_webgpu.native.dart:1114
-    fun computePassPopDebugGroup(pass: Long): Unit
-    // source: nitro_webgpu.native.dart:1115
-    fun computePassInsertDebugMarker(pass: Long, label: String): Unit
-    // source: nitro_webgpu.native.dart:1119
-    fun encoderFinish(encoder: Long, label: String): Long
-    // source: nitro_webgpu.native.dart:1120
-    fun commandBufferRelease(commandBuffer: Long): Unit
-    // source: nitro_webgpu.native.dart:1122
-    fun queueSubmitOne(queue: Long, commandBuffer: Long): Unit
+    fun encoderCopyBufferToBuffer(encoder: Long, src: Long, srcOffset: Long, dst: Long, dstOffset: Long, size: Long): Unit
+    // source: nitro_webgpu.native.dart:1118
+    fun encoderClearBuffer(encoder: Long, buffer: Long, offset: Long, size: Long): Unit
+    // source: nitro_webgpu.native.dart:1121
+    fun encoderWriteTimestamp(encoder: Long, querySet: Long, queryIndex: Long): Unit
+    // source: nitro_webgpu.native.dart:1125
+    fun encoderPushDebugGroup(encoder: Long, label: String): Unit
     // source: nitro_webgpu.native.dart:1126
-    suspend fun queueOnSubmittedWorkDone(queue: Long): Unit
+    fun encoderPopDebugGroup(encoder: Long): Unit
+    // source: nitro_webgpu.native.dart:1127
+    fun encoderInsertDebugMarker(encoder: Long, label: String): Unit
+    // source: nitro_webgpu.native.dart:1128
+    fun renderPassPushDebugGroup(pass: Long, label: String): Unit
+    // source: nitro_webgpu.native.dart:1129
+    fun renderPassPopDebugGroup(pass: Long): Unit
     // source: nitro_webgpu.native.dart:1130
-    fun deviceCreateTexture(device: Long, descriptor: GpuTextureDescriptor): Long
-    // source: nitro_webgpu.native.dart:1134
-    fun textureDestroy(texture: Long): Unit
-    // source: nitro_webgpu.native.dart:1135
-    fun textureRelease(texture: Long): Unit
+    fun renderPassInsertDebugMarker(pass: Long, label: String): Unit
+    // source: nitro_webgpu.native.dart:1131
+    fun computePassPushDebugGroup(pass: Long, label: String): Unit
+    // source: nitro_webgpu.native.dart:1132
+    fun computePassPopDebugGroup(pass: Long): Unit
+    // source: nitro_webgpu.native.dart:1133
+    fun computePassInsertDebugMarker(pass: Long, label: String): Unit
     // source: nitro_webgpu.native.dart:1137
-    fun textureCreateView(texture: Long, descriptor: GpuTextureViewDescriptor): Long
+    fun encoderFinish(encoder: Long, label: String): Long
     // source: nitro_webgpu.native.dart:1138
-    fun textureViewRelease(view: Long): Unit
+    fun commandBufferRelease(commandBuffer: Long): Unit
     // source: nitro_webgpu.native.dart:1140
-    fun textureGetWidth(texture: Long): Long
-    // source: nitro_webgpu.native.dart:1141
-    fun textureGetHeight(texture: Long): Long
-    // source: nitro_webgpu.native.dart:1142
-    fun textureGetDepthOrArrayLayers(texture: Long): Long
-    // source: nitro_webgpu.native.dart:1145
-    fun textureGetFormat(texture: Long): Long
-    // source: nitro_webgpu.native.dart:1149
-    fun textureGetDimension(texture: Long): Long
-    // source: nitro_webgpu.native.dart:1150
-    fun textureGetMipLevelCount(texture: Long): Long
-    // source: nitro_webgpu.native.dart:1151
-    fun textureGetSampleCount(texture: Long): Long
+    fun queueSubmitOne(queue: Long, commandBuffer: Long): Unit
+    // source: nitro_webgpu.native.dart:1144
+    suspend fun queueOnSubmittedWorkDone(queue: Long): Unit
+    // source: nitro_webgpu.native.dart:1148
+    fun deviceCreateTexture(device: Long, descriptor: GpuTextureDescriptor): Long
     // source: nitro_webgpu.native.dart:1152
-    fun textureGetUsage(texture: Long): Long
+    fun textureDestroy(texture: Long): Unit
+    // source: nitro_webgpu.native.dart:1153
+    fun textureRelease(texture: Long): Unit
+    // source: nitro_webgpu.native.dart:1155
+    fun textureCreateView(texture: Long, descriptor: GpuTextureViewDescriptor): Long
+    // source: nitro_webgpu.native.dart:1156
+    fun textureViewRelease(view: Long): Unit
     // source: nitro_webgpu.native.dart:1158
-    fun queueWriteTexture(queue: Long, texture: Long, data: java.nio.ByteBuffer, bytesPerRow: Long, width: Long, height: Long, mipLevel: Long, arrayLayer: Long, originX: Long, originY: Long): Unit
-    // source: nitro_webgpu.native.dart:1162
-    fun deviceCreateSampler(device: Long, descriptor: GpuSamplerDescriptor): Long
+    fun textureGetWidth(texture: Long): Long
+    // source: nitro_webgpu.native.dart:1159
+    fun textureGetHeight(texture: Long): Long
+    // source: nitro_webgpu.native.dart:1160
+    fun textureGetDepthOrArrayLayers(texture: Long): Long
     // source: nitro_webgpu.native.dart:1163
-    fun samplerRelease(sampler: Long): Unit
-    // source: nitro_webgpu.native.dart:1165
-    fun deviceCreateRenderPipeline(device: Long, descriptor: GpuRenderPipelineDescriptor): Long
-    // source: nitro_webgpu.native.dart:1166
-    fun renderPipelineRelease(pipeline: Long): Unit
+    fun textureGetFormat(texture: Long): Long
+    // source: nitro_webgpu.native.dart:1167
+    fun textureGetDimension(texture: Long): Long
+    // source: nitro_webgpu.native.dart:1168
+    fun textureGetMipLevelCount(texture: Long): Long
+    // source: nitro_webgpu.native.dart:1169
+    fun textureGetSampleCount(texture: Long): Long
     // source: nitro_webgpu.native.dart:1170
-    fun renderPipelineGetBindGroupLayout(pipeline: Long, groupIndex: Long): Long
-    // source: nitro_webgpu.native.dart:1174
-    fun deviceCreateBindGroupLayout(device: Long, descriptor: GpuBindGroupLayoutDescriptor): Long
+    fun textureGetUsage(texture: Long): Long
     // source: nitro_webgpu.native.dart:1176
-    fun deviceCreatePipelineLayout(device: Long, descriptor: GpuPipelineLayoutDescriptor): Long
-    // source: nitro_webgpu.native.dart:1178
-    fun pipelineLayoutRelease(layout: Long): Unit
+    fun queueWriteTexture(queue: Long, texture: Long, data: java.nio.ByteBuffer, bytesPerRow: Long, width: Long, height: Long, mipLevel: Long, arrayLayer: Long, originX: Long, originY: Long): Unit
     // source: nitro_webgpu.native.dart:1180
-    fun encoderBeginRenderPass(encoder: Long, descriptor: GpuRenderPassDescriptor): Long
+    fun deviceCreateSampler(device: Long, descriptor: GpuSamplerDescriptor): Long
     // source: nitro_webgpu.native.dart:1181
-    fun renderPassSetPipeline(pass: Long, pipeline: Long): Unit
-    // source: nitro_webgpu.native.dart:1182
-    fun renderPassSetBindGroup(pass: Long, index: Long, bindGroup: Long): Unit
+    fun samplerRelease(sampler: Long): Unit
+    // source: nitro_webgpu.native.dart:1183
+    fun deviceCreateRenderPipeline(device: Long, descriptor: GpuRenderPipelineDescriptor): Long
     // source: nitro_webgpu.native.dart:1184
-    fun renderPassSetVertexBuffer(pass: Long, slot: Long, buffer: Long, offset: Long): Unit
-    // source: nitro_webgpu.native.dart:1187
-    fun renderPassSetIndexBuffer(pass: Long, buffer: Long, indexFormat: Long, offset: Long): Unit
-    // source: nitro_webgpu.native.dart:1190
-    fun renderPassDraw(pass: Long, vertexCount: Long, instanceCount: Long, firstVertex: Long, firstInstance: Long): Unit
+    fun renderPipelineRelease(pipeline: Long): Unit
+    // source: nitro_webgpu.native.dart:1188
+    fun renderPipelineGetBindGroupLayout(pipeline: Long, groupIndex: Long): Long
     // source: nitro_webgpu.native.dart:1192
-    fun renderPassDrawIndexed(pass: Long, indexCount: Long, instanceCount: Long, firstIndex: Long, baseVertex: Long, firstInstance: Long): Unit
+    fun deviceCreateBindGroupLayout(device: Long, descriptor: GpuBindGroupLayoutDescriptor): Long
     // source: nitro_webgpu.native.dart:1194
-    fun renderPassEnd(pass: Long): Unit
-    // source: nitro_webgpu.native.dart:1195
-    fun renderPassRelease(pass: Long): Unit
+    fun deviceCreatePipelineLayout(device: Long, descriptor: GpuPipelineLayoutDescriptor): Long
+    // source: nitro_webgpu.native.dart:1196
+    fun pipelineLayoutRelease(layout: Long): Unit
+    // source: nitro_webgpu.native.dart:1198
+    fun encoderBeginRenderPass(encoder: Long, descriptor: GpuRenderPassDescriptor): Long
+    // source: nitro_webgpu.native.dart:1199
+    fun renderPassSetPipeline(pass: Long, pipeline: Long): Unit
     // source: nitro_webgpu.native.dart:1200
-    fun encoderCopyTextureToBuffer(encoder: Long, texture: Long, buffer: Long, bytesPerRow: Long, width: Long, height: Long, mipLevel: Long, originX: Long, originY: Long, originZ: Long, bufferOffset: Long): Unit
-    // source: nitro_webgpu.native.dart:1206
-    fun encoderCopyBufferToTexture(encoder: Long, buffer: Long, bytesPerRow: Long, texture: Long, mipLevel: Long, width: Long, height: Long, bufferOffset: Long, originX: Long, originY: Long, originZ: Long): Unit
+    fun renderPassSetBindGroup(pass: Long, index: Long, bindGroup: Long): Unit
+    // source: nitro_webgpu.native.dart:1202
+    fun renderPassSetVertexBuffer(pass: Long, slot: Long, buffer: Long, offset: Long): Unit
+    // source: nitro_webgpu.native.dart:1205
+    fun renderPassSetIndexBuffer(pass: Long, buffer: Long, indexFormat: Long, offset: Long): Unit
+    // source: nitro_webgpu.native.dart:1208
+    fun renderPassDraw(pass: Long, vertexCount: Long, instanceCount: Long, firstVertex: Long, firstInstance: Long): Unit
+    // source: nitro_webgpu.native.dart:1210
+    fun renderPassDrawIndexed(pass: Long, indexCount: Long, instanceCount: Long, firstIndex: Long, baseVertex: Long, firstInstance: Long): Unit
     // source: nitro_webgpu.native.dart:1212
-    fun encoderCopyTextureToTexture(encoder: Long, srcTexture: Long, dstTexture: Long, width: Long, height: Long, depth: Long, srcMip: Long, srcX: Long, srcY: Long, srcZ: Long, dstMip: Long, dstX: Long, dstY: Long, dstZ: Long): Unit
+    fun renderPassEnd(pass: Long): Unit
+    // source: nitro_webgpu.native.dart:1213
+    fun renderPassRelease(pass: Long): Unit
     // source: nitro_webgpu.native.dart:1218
-    fun renderPassSetViewport(pass: Long, x: Double, y: Double, width: Double, height: Double, minDepth: Double, maxDepth: Double): Unit
-    // source: nitro_webgpu.native.dart:1220
-    fun renderPassSetScissorRect(pass: Long, x: Long, y: Long, width: Long, height: Long): Unit
-    // source: nitro_webgpu.native.dart:1222
-    fun renderPassSetBlendConstant(pass: Long, r: Double, g: Double, b: Double, a: Double): Unit
+    fun encoderCopyTextureToBuffer(encoder: Long, texture: Long, buffer: Long, bytesPerRow: Long, width: Long, height: Long, mipLevel: Long, originX: Long, originY: Long, originZ: Long, bufferOffset: Long): Unit
+    // source: nitro_webgpu.native.dart:1224
+    fun encoderCopyBufferToTexture(encoder: Long, buffer: Long, bytesPerRow: Long, texture: Long, mipLevel: Long, width: Long, height: Long, bufferOffset: Long, originX: Long, originY: Long, originZ: Long): Unit
     // source: nitro_webgpu.native.dart:1230
-    fun renderPassDrawIndirect(pass: Long, buffer: Long, offset: Long): Unit
-    // source: nitro_webgpu.native.dart:1234
-    fun renderPassDrawIndexedIndirect(pass: Long, buffer: Long, offset: Long): Unit
-    // source: nitro_webgpu.native.dart:1237
-    fun computePassDispatchWorkgroupsIndirect(pass: Long, buffer: Long, offset: Long): Unit
-    // source: nitro_webgpu.native.dart:1242
-    fun deviceCreateOcclusionQuerySet(device: Long, count: Long): Long
-    // source: nitro_webgpu.native.dart:1245
-    fun deviceGetLimits(device: Long): GpuLimits
-    // source: nitro_webgpu.native.dart:1247
-    fun renderPassBeginOcclusionQuery(pass: Long, queryIndex: Long): Unit
+    fun encoderCopyTextureToTexture(encoder: Long, srcTexture: Long, dstTexture: Long, width: Long, height: Long, depth: Long, srcMip: Long, srcX: Long, srcY: Long, srcZ: Long, dstMip: Long, dstX: Long, dstY: Long, dstZ: Long): Unit
+    // source: nitro_webgpu.native.dart:1236
+    fun renderPassSetViewport(pass: Long, x: Double, y: Double, width: Double, height: Double, minDepth: Double, maxDepth: Double): Unit
+    // source: nitro_webgpu.native.dart:1238
+    fun renderPassSetScissorRect(pass: Long, x: Long, y: Long, width: Long, height: Long): Unit
+    // source: nitro_webgpu.native.dart:1240
+    fun renderPassSetBlendConstant(pass: Long, r: Double, g: Double, b: Double, a: Double): Unit
     // source: nitro_webgpu.native.dart:1248
-    fun renderPassEndOcclusionQuery(pass: Long): Unit
-    // source: nitro_webgpu.native.dart:1249
-    fun renderPassSetStencilReference(pass: Long, reference: Long): Unit
+    fun renderPassDrawIndirect(pass: Long, buffer: Long, offset: Long): Unit
     // source: nitro_webgpu.native.dart:1252
-    fun renderPassSetBindGroupOffsets(pass: Long, index: Long, bindGroup: Long, offsetCount: Long, o0: Long, o1: Long, o2: Long, o3: Long, o4: Long, o5: Long, o6: Long, o7: Long): Unit
+    fun renderPassDrawIndexedIndirect(pass: Long, buffer: Long, offset: Long): Unit
     // source: nitro_webgpu.native.dart:1255
-    fun computePassSetBindGroupOffsets(pass: Long, index: Long, bindGroup: Long, offsetCount: Long, o0: Long, o1: Long, o2: Long, o3: Long, o4: Long, o5: Long, o6: Long, o7: Long): Unit
-    // source: nitro_webgpu.native.dart:1261
-    fun deviceCreateRenderBundleEncoder(device: Long, descriptor: GpuRenderBundleEncoderDescriptor): Long
+    fun computePassDispatchWorkgroupsIndirect(pass: Long, buffer: Long, offset: Long): Unit
+    // source: nitro_webgpu.native.dart:1260
+    fun deviceCreateOcclusionQuerySet(device: Long, count: Long): Long
     // source: nitro_webgpu.native.dart:1263
-    fun bundleSetPipeline(bundleEncoder: Long, pipeline: Long): Unit
-    // source: nitro_webgpu.native.dart:1264
-    fun bundleSetBindGroup(bundleEncoder: Long, index: Long, bindGroup: Long): Unit
+    fun deviceGetLimits(device: Long): GpuLimits
     // source: nitro_webgpu.native.dart:1265
-    fun bundleSetVertexBuffer(bundleEncoder: Long, slot: Long, buffer: Long, offset: Long): Unit
+    fun renderPassBeginOcclusionQuery(pass: Long, queryIndex: Long): Unit
+    // source: nitro_webgpu.native.dart:1266
+    fun renderPassEndOcclusionQuery(pass: Long): Unit
     // source: nitro_webgpu.native.dart:1267
-    fun bundleSetIndexBuffer(bundleEncoder: Long, buffer: Long, indexFormat: Long, offset: Long): Unit
-    // source: nitro_webgpu.native.dart:1269
-    fun bundleDraw(bundleEncoder: Long, vertexCount: Long, instanceCount: Long, firstVertex: Long, firstInstance: Long): Unit
-    // source: nitro_webgpu.native.dart:1271
-    fun bundleDrawIndexed(bundleEncoder: Long, indexCount: Long, instanceCount: Long, firstIndex: Long, baseVertex: Long, firstInstance: Long): Unit
-    // source: nitro_webgpu.native.dart:1275
-    fun bundleDrawIndirect(bundleEncoder: Long, buffer: Long, offset: Long): Unit
-    // source: nitro_webgpu.native.dart:1276
-    fun bundleDrawIndexedIndirect(bundleEncoder: Long, buffer: Long, offset: Long): Unit
+    fun renderPassSetStencilReference(pass: Long, reference: Long): Unit
+    // source: nitro_webgpu.native.dart:1270
+    fun renderPassSetBindGroupOffsets(pass: Long, index: Long, bindGroup: Long, offsetCount: Long, o0: Long, o1: Long, o2: Long, o3: Long, o4: Long, o5: Long, o6: Long, o7: Long): Unit
+    // source: nitro_webgpu.native.dart:1273
+    fun computePassSetBindGroupOffsets(pass: Long, index: Long, bindGroup: Long, offsetCount: Long, o0: Long, o1: Long, o2: Long, o3: Long, o4: Long, o5: Long, o6: Long, o7: Long): Unit
     // source: nitro_webgpu.native.dart:1279
-    fun bundleFinish(bundleEncoder: Long, label: String): Long
-    // source: nitro_webgpu.native.dart:1280
-    fun renderBundleEncoderRelease(bundleEncoder: Long): Unit
+    fun deviceCreateRenderBundleEncoder(device: Long, descriptor: GpuRenderBundleEncoderDescriptor): Long
     // source: nitro_webgpu.native.dart:1281
-    fun renderBundleRelease(bundle: Long): Unit
+    fun bundleSetPipeline(bundleEncoder: Long, pipeline: Long): Unit
     // source: nitro_webgpu.native.dart:1282
-    fun renderPassExecuteBundle(pass: Long, bundle: Long): Unit
-    // source: nitro_webgpu.native.dart:1288
-    fun deviceCreateTimestampQuerySet(device: Long, count: Long): Long
+    fun bundleSetBindGroup(bundleEncoder: Long, index: Long, bindGroup: Long): Unit
+    // source: nitro_webgpu.native.dart:1283
+    fun bundleSetVertexBuffer(bundleEncoder: Long, slot: Long, buffer: Long, offset: Long): Unit
+    // source: nitro_webgpu.native.dart:1285
+    fun bundleSetIndexBuffer(bundleEncoder: Long, buffer: Long, indexFormat: Long, offset: Long): Unit
+    // source: nitro_webgpu.native.dart:1287
+    fun bundleDraw(bundleEncoder: Long, vertexCount: Long, instanceCount: Long, firstVertex: Long, firstInstance: Long): Unit
     // source: nitro_webgpu.native.dart:1289
-    fun querySetRelease(querySet: Long): Unit
-    // source: nitro_webgpu.native.dart:1291
-    fun querySetGetCount(querySet: Long): Long
+    fun bundleDrawIndexed(bundleEncoder: Long, indexCount: Long, instanceCount: Long, firstIndex: Long, baseVertex: Long, firstInstance: Long): Unit
+    // source: nitro_webgpu.native.dart:1293
+    fun bundleDrawIndirect(bundleEncoder: Long, buffer: Long, offset: Long): Unit
     // source: nitro_webgpu.native.dart:1294
-    fun querySetGetType(querySet: Long): Long
+    fun bundleDrawIndexedIndirect(bundleEncoder: Long, buffer: Long, offset: Long): Unit
+    // source: nitro_webgpu.native.dart:1297
+    fun bundleFinish(bundleEncoder: Long, label: String): Long
     // source: nitro_webgpu.native.dart:1298
+    fun renderBundleEncoderRelease(bundleEncoder: Long): Unit
+    // source: nitro_webgpu.native.dart:1299
+    fun renderBundleRelease(bundle: Long): Unit
+    // source: nitro_webgpu.native.dart:1300
+    fun renderPassExecuteBundle(pass: Long, bundle: Long): Unit
+    // source: nitro_webgpu.native.dart:1306
+    fun deviceCreateTimestampQuerySet(device: Long, count: Long): Long
+    // source: nitro_webgpu.native.dart:1307
+    fun querySetRelease(querySet: Long): Unit
+    // source: nitro_webgpu.native.dart:1309
+    fun querySetGetCount(querySet: Long): Long
+    // source: nitro_webgpu.native.dart:1312
+    fun querySetGetType(querySet: Long): Long
+    // source: nitro_webgpu.native.dart:1316
     fun encoderResolveQuerySet(encoder: Long, querySet: Long, firstQuery: Long, queryCount: Long, destination: Long, destinationOffset: Long): Unit
-    // source: nitro_webgpu.native.dart:1302
+    // source: nitro_webgpu.native.dart:1320
     fun queueTimestampPeriod(queue: Long): Double
     val uncapturedErrors: Flow<GpuUncapturedError>
     val deviceLostEvents: Flow<GpuDeviceLost>
@@ -2840,7 +2846,64 @@ object NitroWebgpuJniBridge {
             }
         }
     }
-    // source: nitro_webgpu.native.dart:1072
+    // source: nitro_webgpu.native.dart:1079
+    @JvmStatic fun deviceCreateShaderModuleWgslAsync_call(instanceId: Long, device: Long, label: String, wgsl: String, errPtr: Long, dartPort: Long) {
+        val impl = _implementations[instanceId] ?: run {
+            reportNativeAsyncError(errPtr, "IllegalStateException", "No implementation registered for instance")
+            postNullToPort(dartPort)
+            return
+        }
+        _asyncExecutor.execute {
+            try {
+            val result = runBlocking { impl.deviceCreateShaderModuleWgslAsync(device, label, wgsl) }
+            postInt64ToPort(dartPort, result.toLong())
+            } catch (e: Throwable) {
+                reportNativeAsyncError(errPtr, e.javaClass.simpleName, e.message ?: "An unknown native exception occurred.")
+                postNullToPort(dartPort)
+            }
+        }
+    }
+    // source: nitro_webgpu.native.dart:1083
+    @JvmStatic fun deviceCreateRenderPipelineAsync_call(instanceId: Long, device: Long, descriptor: ByteArray, errPtr: Long, dartPort: Long) {
+        val impl = _implementations[instanceId] ?: run {
+            reportNativeAsyncError(errPtr, "IllegalStateException", "No implementation registered for instance")
+            postNullToPort(dartPort)
+            return
+        }
+        val descriptorBuf = java.nio.ByteBuffer.wrap(descriptor).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        descriptorBuf.getInt() // skip Dart 4-byte outer length prefix
+        val descriptorDecoded = GpuRenderPipelineDescriptor.decodeFrom(descriptorBuf)
+        _asyncExecutor.execute {
+            try {
+            val result = runBlocking { impl.deviceCreateRenderPipelineAsync(device, descriptorDecoded) }
+            postInt64ToPort(dartPort, result.toLong())
+            } catch (e: Throwable) {
+                reportNativeAsyncError(errPtr, e.javaClass.simpleName, e.message ?: "An unknown native exception occurred.")
+                postNullToPort(dartPort)
+            }
+        }
+    }
+    // source: nitro_webgpu.native.dart:1087
+    @JvmStatic fun deviceCreateComputePipelineAsync_call(instanceId: Long, device: Long, descriptor: ByteArray, errPtr: Long, dartPort: Long) {
+        val impl = _implementations[instanceId] ?: run {
+            reportNativeAsyncError(errPtr, "IllegalStateException", "No implementation registered for instance")
+            postNullToPort(dartPort)
+            return
+        }
+        val descriptorBuf = java.nio.ByteBuffer.wrap(descriptor).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        descriptorBuf.getInt() // skip Dart 4-byte outer length prefix
+        val descriptorDecoded = GpuComputePipelineDescriptor.decodeFrom(descriptorBuf)
+        _asyncExecutor.execute {
+            try {
+            val result = runBlocking { impl.deviceCreateComputePipelineAsync(device, descriptorDecoded) }
+            postInt64ToPort(dartPort, result.toLong())
+            } catch (e: Throwable) {
+                reportNativeAsyncError(errPtr, e.javaClass.simpleName, e.message ?: "An unknown native exception occurred.")
+                postNullToPort(dartPort)
+            }
+        }
+    }
+    // source: nitro_webgpu.native.dart:1090
     @JvmStatic fun deviceCreateComputePipeline_call(instanceId: Long, device: Long, descriptor: ByteArray): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         val descriptorBuf = java.nio.ByteBuffer.wrap(descriptor).order(java.nio.ByteOrder.LITTLE_ENDIAN)
@@ -2848,22 +2911,22 @@ object NitroWebgpuJniBridge {
         val descriptorDecoded = GpuComputePipelineDescriptor.decodeFrom(descriptorBuf)
         return impl.deviceCreateComputePipeline(device, descriptorDecoded)
     }
-    // source: nitro_webgpu.native.dart:1074
+    // source: nitro_webgpu.native.dart:1092
     @JvmStatic fun computePipelineRelease_call(instanceId: Long, pipeline: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.computePipelineRelease(pipeline)
     }
-    // source: nitro_webgpu.native.dart:1078
+    // source: nitro_webgpu.native.dart:1096
     @JvmStatic fun computePipelineGetBindGroupLayout_call(instanceId: Long, pipeline: Long, groupIndex: Long): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         return impl.computePipelineGetBindGroupLayout(pipeline, groupIndex)
     }
-    // source: nitro_webgpu.native.dart:1079
+    // source: nitro_webgpu.native.dart:1097
     @JvmStatic fun bindGroupLayoutRelease_call(instanceId: Long, layout: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.bindGroupLayoutRelease(layout)
     }
-    // source: nitro_webgpu.native.dart:1081
+    // source: nitro_webgpu.native.dart:1099
     @JvmStatic fun deviceCreateBindGroup_call(instanceId: Long, device: Long, descriptor: ByteArray): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         val descriptorBuf = java.nio.ByteBuffer.wrap(descriptor).order(java.nio.ByteOrder.LITTLE_ENDIAN)
@@ -2871,22 +2934,22 @@ object NitroWebgpuJniBridge {
         val descriptorDecoded = GpuBindGroupDescriptor.decodeFrom(descriptorBuf)
         return impl.deviceCreateBindGroup(device, descriptorDecoded)
     }
-    // source: nitro_webgpu.native.dart:1082
+    // source: nitro_webgpu.native.dart:1100
     @JvmStatic fun bindGroupRelease_call(instanceId: Long, bindGroup: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.bindGroupRelease(bindGroup)
     }
-    // source: nitro_webgpu.native.dart:1086
+    // source: nitro_webgpu.native.dart:1104
     @JvmStatic fun deviceCreateCommandEncoder_call(instanceId: Long, device: Long, label: String): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         return impl.deviceCreateCommandEncoder(device, label)
     }
-    // source: nitro_webgpu.native.dart:1087
+    // source: nitro_webgpu.native.dart:1105
     @JvmStatic fun commandEncoderRelease_call(instanceId: Long, encoder: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.commandEncoderRelease(encoder)
     }
-    // source: nitro_webgpu.native.dart:1089
+    // source: nitro_webgpu.native.dart:1107
     @JvmStatic fun encoderBeginComputePass_call(instanceId: Long, encoder: Long, descriptor: ByteArray): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         val descriptorBuf = java.nio.ByteBuffer.wrap(descriptor).order(java.nio.ByteOrder.LITTLE_ENDIAN)
@@ -2894,107 +2957,107 @@ object NitroWebgpuJniBridge {
         val descriptorDecoded = GpuComputePassDescriptor.decodeFrom(descriptorBuf)
         return impl.encoderBeginComputePass(encoder, descriptorDecoded)
     }
-    // source: nitro_webgpu.native.dart:1090
+    // source: nitro_webgpu.native.dart:1108
     @JvmStatic fun computePassSetPipeline_call(instanceId: Long, pass: Long, pipeline: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.computePassSetPipeline(pass, pipeline)
     }
-    // source: nitro_webgpu.native.dart:1091
+    // source: nitro_webgpu.native.dart:1109
     @JvmStatic fun computePassSetBindGroup_call(instanceId: Long, pass: Long, index: Long, bindGroup: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.computePassSetBindGroup(pass, index, bindGroup)
     }
-    // source: nitro_webgpu.native.dart:1092
+    // source: nitro_webgpu.native.dart:1110
     @JvmStatic fun computePassDispatchWorkgroups_call(instanceId: Long, pass: Long, x: Long, y: Long, z: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.computePassDispatchWorkgroups(pass, x, y, z)
     }
-    // source: nitro_webgpu.native.dart:1093
+    // source: nitro_webgpu.native.dart:1111
     @JvmStatic fun computePassEnd_call(instanceId: Long, pass: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.computePassEnd(pass)
     }
-    // source: nitro_webgpu.native.dart:1094
+    // source: nitro_webgpu.native.dart:1112
     @JvmStatic fun computePassRelease_call(instanceId: Long, pass: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.computePassRelease(pass)
     }
-    // source: nitro_webgpu.native.dart:1096
+    // source: nitro_webgpu.native.dart:1114
     @JvmStatic fun encoderCopyBufferToBuffer_call(instanceId: Long, encoder: Long, src: Long, srcOffset: Long, dst: Long, dstOffset: Long, size: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.encoderCopyBufferToBuffer(encoder, src, srcOffset, dst, dstOffset, size)
     }
-    // source: nitro_webgpu.native.dart:1100
+    // source: nitro_webgpu.native.dart:1118
     @JvmStatic fun encoderClearBuffer_call(instanceId: Long, encoder: Long, buffer: Long, offset: Long, size: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.encoderClearBuffer(encoder, buffer, offset, size)
     }
-    // source: nitro_webgpu.native.dart:1103
+    // source: nitro_webgpu.native.dart:1121
     @JvmStatic fun encoderWriteTimestamp_call(instanceId: Long, encoder: Long, querySet: Long, queryIndex: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.encoderWriteTimestamp(encoder, querySet, queryIndex)
     }
-    // source: nitro_webgpu.native.dart:1107
+    // source: nitro_webgpu.native.dart:1125
     @JvmStatic fun encoderPushDebugGroup_call(instanceId: Long, encoder: Long, label: String): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.encoderPushDebugGroup(encoder, label)
     }
-    // source: nitro_webgpu.native.dart:1108
+    // source: nitro_webgpu.native.dart:1126
     @JvmStatic fun encoderPopDebugGroup_call(instanceId: Long, encoder: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.encoderPopDebugGroup(encoder)
     }
-    // source: nitro_webgpu.native.dart:1109
+    // source: nitro_webgpu.native.dart:1127
     @JvmStatic fun encoderInsertDebugMarker_call(instanceId: Long, encoder: Long, label: String): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.encoderInsertDebugMarker(encoder, label)
     }
-    // source: nitro_webgpu.native.dart:1110
+    // source: nitro_webgpu.native.dart:1128
     @JvmStatic fun renderPassPushDebugGroup_call(instanceId: Long, pass: Long, label: String): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.renderPassPushDebugGroup(pass, label)
     }
-    // source: nitro_webgpu.native.dart:1111
+    // source: nitro_webgpu.native.dart:1129
     @JvmStatic fun renderPassPopDebugGroup_call(instanceId: Long, pass: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.renderPassPopDebugGroup(pass)
     }
-    // source: nitro_webgpu.native.dart:1112
+    // source: nitro_webgpu.native.dart:1130
     @JvmStatic fun renderPassInsertDebugMarker_call(instanceId: Long, pass: Long, label: String): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.renderPassInsertDebugMarker(pass, label)
     }
-    // source: nitro_webgpu.native.dart:1113
+    // source: nitro_webgpu.native.dart:1131
     @JvmStatic fun computePassPushDebugGroup_call(instanceId: Long, pass: Long, label: String): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.computePassPushDebugGroup(pass, label)
     }
-    // source: nitro_webgpu.native.dart:1114
+    // source: nitro_webgpu.native.dart:1132
     @JvmStatic fun computePassPopDebugGroup_call(instanceId: Long, pass: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.computePassPopDebugGroup(pass)
     }
-    // source: nitro_webgpu.native.dart:1115
+    // source: nitro_webgpu.native.dart:1133
     @JvmStatic fun computePassInsertDebugMarker_call(instanceId: Long, pass: Long, label: String): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.computePassInsertDebugMarker(pass, label)
     }
-    // source: nitro_webgpu.native.dart:1119
+    // source: nitro_webgpu.native.dart:1137
     @JvmStatic fun encoderFinish_call(instanceId: Long, encoder: Long, label: String): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         return impl.encoderFinish(encoder, label)
     }
-    // source: nitro_webgpu.native.dart:1120
+    // source: nitro_webgpu.native.dart:1138
     @JvmStatic fun commandBufferRelease_call(instanceId: Long, commandBuffer: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.commandBufferRelease(commandBuffer)
     }
-    // source: nitro_webgpu.native.dart:1122
+    // source: nitro_webgpu.native.dart:1140
     @JvmStatic fun queueSubmitOne_call(instanceId: Long, queue: Long, commandBuffer: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.queueSubmitOne(queue, commandBuffer)
     }
-    // source: nitro_webgpu.native.dart:1126
+    // source: nitro_webgpu.native.dart:1144
     @JvmStatic fun queueOnSubmittedWorkDone_call(instanceId: Long, queue: Long, errPtr: Long, dartPort: Long) {
         val impl = _implementations[instanceId] ?: run {
             reportNativeAsyncError(errPtr, "IllegalStateException", "No implementation registered for instance")
@@ -3011,7 +3074,7 @@ object NitroWebgpuJniBridge {
             }
         }
     }
-    // source: nitro_webgpu.native.dart:1130
+    // source: nitro_webgpu.native.dart:1148
     @JvmStatic fun deviceCreateTexture_call(instanceId: Long, device: Long, descriptor: ByteArray): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         val descriptorBuf = java.nio.ByteBuffer.wrap(descriptor).order(java.nio.ByteOrder.LITTLE_ENDIAN)
@@ -3019,17 +3082,17 @@ object NitroWebgpuJniBridge {
         val descriptorDecoded = GpuTextureDescriptor.decodeFrom(descriptorBuf)
         return impl.deviceCreateTexture(device, descriptorDecoded)
     }
-    // source: nitro_webgpu.native.dart:1134
+    // source: nitro_webgpu.native.dart:1152
     @JvmStatic fun textureDestroy_call(instanceId: Long, texture: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.textureDestroy(texture)
     }
-    // source: nitro_webgpu.native.dart:1135
+    // source: nitro_webgpu.native.dart:1153
     @JvmStatic fun textureRelease_call(instanceId: Long, texture: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.textureRelease(texture)
     }
-    // source: nitro_webgpu.native.dart:1137
+    // source: nitro_webgpu.native.dart:1155
     @JvmStatic fun textureCreateView_call(instanceId: Long, texture: Long, descriptor: ByteArray): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         val descriptorBuf = java.nio.ByteBuffer.wrap(descriptor).order(java.nio.ByteOrder.LITTLE_ENDIAN)
@@ -3037,57 +3100,57 @@ object NitroWebgpuJniBridge {
         val descriptorDecoded = GpuTextureViewDescriptor.decodeFrom(descriptorBuf)
         return impl.textureCreateView(texture, descriptorDecoded)
     }
-    // source: nitro_webgpu.native.dart:1138
+    // source: nitro_webgpu.native.dart:1156
     @JvmStatic fun textureViewRelease_call(instanceId: Long, view: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.textureViewRelease(view)
     }
-    // source: nitro_webgpu.native.dart:1140
+    // source: nitro_webgpu.native.dart:1158
     @JvmStatic fun textureGetWidth_call(instanceId: Long, texture: Long): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         return impl.textureGetWidth(texture)
     }
-    // source: nitro_webgpu.native.dart:1141
+    // source: nitro_webgpu.native.dart:1159
     @JvmStatic fun textureGetHeight_call(instanceId: Long, texture: Long): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         return impl.textureGetHeight(texture)
     }
-    // source: nitro_webgpu.native.dart:1142
+    // source: nitro_webgpu.native.dart:1160
     @JvmStatic fun textureGetDepthOrArrayLayers_call(instanceId: Long, texture: Long): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         return impl.textureGetDepthOrArrayLayers(texture)
     }
-    // source: nitro_webgpu.native.dart:1145
+    // source: nitro_webgpu.native.dart:1163
     @JvmStatic fun textureGetFormat_call(instanceId: Long, texture: Long): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         return impl.textureGetFormat(texture)
     }
-    // source: nitro_webgpu.native.dart:1149
+    // source: nitro_webgpu.native.dart:1167
     @JvmStatic fun textureGetDimension_call(instanceId: Long, texture: Long): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         return impl.textureGetDimension(texture)
     }
-    // source: nitro_webgpu.native.dart:1150
+    // source: nitro_webgpu.native.dart:1168
     @JvmStatic fun textureGetMipLevelCount_call(instanceId: Long, texture: Long): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         return impl.textureGetMipLevelCount(texture)
     }
-    // source: nitro_webgpu.native.dart:1151
+    // source: nitro_webgpu.native.dart:1169
     @JvmStatic fun textureGetSampleCount_call(instanceId: Long, texture: Long): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         return impl.textureGetSampleCount(texture)
     }
-    // source: nitro_webgpu.native.dart:1152
+    // source: nitro_webgpu.native.dart:1170
     @JvmStatic fun textureGetUsage_call(instanceId: Long, texture: Long): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         return impl.textureGetUsage(texture)
     }
-    // source: nitro_webgpu.native.dart:1158
+    // source: nitro_webgpu.native.dart:1176
     @JvmStatic fun queueWriteTexture_call(instanceId: Long, queue: Long, texture: Long, data: java.nio.ByteBuffer, bytesPerRow: Long, width: Long, height: Long, mipLevel: Long, arrayLayer: Long, originX: Long, originY: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.queueWriteTexture(queue, texture, data, bytesPerRow, width, height, mipLevel, arrayLayer, originX, originY)
     }
-    // source: nitro_webgpu.native.dart:1162
+    // source: nitro_webgpu.native.dart:1180
     @JvmStatic fun deviceCreateSampler_call(instanceId: Long, device: Long, descriptor: ByteArray): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         val descriptorBuf = java.nio.ByteBuffer.wrap(descriptor).order(java.nio.ByteOrder.LITTLE_ENDIAN)
@@ -3095,12 +3158,12 @@ object NitroWebgpuJniBridge {
         val descriptorDecoded = GpuSamplerDescriptor.decodeFrom(descriptorBuf)
         return impl.deviceCreateSampler(device, descriptorDecoded)
     }
-    // source: nitro_webgpu.native.dart:1163
+    // source: nitro_webgpu.native.dart:1181
     @JvmStatic fun samplerRelease_call(instanceId: Long, sampler: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.samplerRelease(sampler)
     }
-    // source: nitro_webgpu.native.dart:1165
+    // source: nitro_webgpu.native.dart:1183
     @JvmStatic fun deviceCreateRenderPipeline_call(instanceId: Long, device: Long, descriptor: ByteArray): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         val descriptorBuf = java.nio.ByteBuffer.wrap(descriptor).order(java.nio.ByteOrder.LITTLE_ENDIAN)
@@ -3108,17 +3171,17 @@ object NitroWebgpuJniBridge {
         val descriptorDecoded = GpuRenderPipelineDescriptor.decodeFrom(descriptorBuf)
         return impl.deviceCreateRenderPipeline(device, descriptorDecoded)
     }
-    // source: nitro_webgpu.native.dart:1166
+    // source: nitro_webgpu.native.dart:1184
     @JvmStatic fun renderPipelineRelease_call(instanceId: Long, pipeline: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.renderPipelineRelease(pipeline)
     }
-    // source: nitro_webgpu.native.dart:1170
+    // source: nitro_webgpu.native.dart:1188
     @JvmStatic fun renderPipelineGetBindGroupLayout_call(instanceId: Long, pipeline: Long, groupIndex: Long): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         return impl.renderPipelineGetBindGroupLayout(pipeline, groupIndex)
     }
-    // source: nitro_webgpu.native.dart:1174
+    // source: nitro_webgpu.native.dart:1192
     @JvmStatic fun deviceCreateBindGroupLayout_call(instanceId: Long, device: Long, descriptor: ByteArray): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         val descriptorBuf = java.nio.ByteBuffer.wrap(descriptor).order(java.nio.ByteOrder.LITTLE_ENDIAN)
@@ -3126,7 +3189,7 @@ object NitroWebgpuJniBridge {
         val descriptorDecoded = GpuBindGroupLayoutDescriptor.decodeFrom(descriptorBuf)
         return impl.deviceCreateBindGroupLayout(device, descriptorDecoded)
     }
-    // source: nitro_webgpu.native.dart:1176
+    // source: nitro_webgpu.native.dart:1194
     @JvmStatic fun deviceCreatePipelineLayout_call(instanceId: Long, device: Long, descriptor: ByteArray): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         val descriptorBuf = java.nio.ByteBuffer.wrap(descriptor).order(java.nio.ByteOrder.LITTLE_ENDIAN)
@@ -3134,12 +3197,12 @@ object NitroWebgpuJniBridge {
         val descriptorDecoded = GpuPipelineLayoutDescriptor.decodeFrom(descriptorBuf)
         return impl.deviceCreatePipelineLayout(device, descriptorDecoded)
     }
-    // source: nitro_webgpu.native.dart:1178
+    // source: nitro_webgpu.native.dart:1196
     @JvmStatic fun pipelineLayoutRelease_call(instanceId: Long, layout: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.pipelineLayoutRelease(layout)
     }
-    // source: nitro_webgpu.native.dart:1180
+    // source: nitro_webgpu.native.dart:1198
     @JvmStatic fun encoderBeginRenderPass_call(instanceId: Long, encoder: Long, descriptor: ByteArray): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         val descriptorBuf = java.nio.ByteBuffer.wrap(descriptor).order(java.nio.ByteOrder.LITTLE_ENDIAN)
@@ -3147,128 +3210,128 @@ object NitroWebgpuJniBridge {
         val descriptorDecoded = GpuRenderPassDescriptor.decodeFrom(descriptorBuf)
         return impl.encoderBeginRenderPass(encoder, descriptorDecoded)
     }
-    // source: nitro_webgpu.native.dart:1181
+    // source: nitro_webgpu.native.dart:1199
     @JvmStatic fun renderPassSetPipeline_call(instanceId: Long, pass: Long, pipeline: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.renderPassSetPipeline(pass, pipeline)
     }
-    // source: nitro_webgpu.native.dart:1182
+    // source: nitro_webgpu.native.dart:1200
     @JvmStatic fun renderPassSetBindGroup_call(instanceId: Long, pass: Long, index: Long, bindGroup: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.renderPassSetBindGroup(pass, index, bindGroup)
     }
-    // source: nitro_webgpu.native.dart:1184
+    // source: nitro_webgpu.native.dart:1202
     @JvmStatic fun renderPassSetVertexBuffer_call(instanceId: Long, pass: Long, slot: Long, buffer: Long, offset: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.renderPassSetVertexBuffer(pass, slot, buffer, offset)
     }
-    // source: nitro_webgpu.native.dart:1187
+    // source: nitro_webgpu.native.dart:1205
     @JvmStatic fun renderPassSetIndexBuffer_call(instanceId: Long, pass: Long, buffer: Long, indexFormat: Long, offset: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.renderPassSetIndexBuffer(pass, buffer, indexFormat, offset)
     }
-    // source: nitro_webgpu.native.dart:1190
+    // source: nitro_webgpu.native.dart:1208
     @JvmStatic fun renderPassDraw_call(instanceId: Long, pass: Long, vertexCount: Long, instanceCount: Long, firstVertex: Long, firstInstance: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.renderPassDraw(pass, vertexCount, instanceCount, firstVertex, firstInstance)
     }
-    // source: nitro_webgpu.native.dart:1192
+    // source: nitro_webgpu.native.dart:1210
     @JvmStatic fun renderPassDrawIndexed_call(instanceId: Long, pass: Long, indexCount: Long, instanceCount: Long, firstIndex: Long, baseVertex: Long, firstInstance: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.renderPassDrawIndexed(pass, indexCount, instanceCount, firstIndex, baseVertex, firstInstance)
     }
-    // source: nitro_webgpu.native.dart:1194
+    // source: nitro_webgpu.native.dart:1212
     @JvmStatic fun renderPassEnd_call(instanceId: Long, pass: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.renderPassEnd(pass)
     }
-    // source: nitro_webgpu.native.dart:1195
+    // source: nitro_webgpu.native.dart:1213
     @JvmStatic fun renderPassRelease_call(instanceId: Long, pass: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.renderPassRelease(pass)
     }
-    // source: nitro_webgpu.native.dart:1200
+    // source: nitro_webgpu.native.dart:1218
     @JvmStatic fun encoderCopyTextureToBuffer_call(instanceId: Long, encoder: Long, texture: Long, buffer: Long, bytesPerRow: Long, width: Long, height: Long, mipLevel: Long, originX: Long, originY: Long, originZ: Long, bufferOffset: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.encoderCopyTextureToBuffer(encoder, texture, buffer, bytesPerRow, width, height, mipLevel, originX, originY, originZ, bufferOffset)
     }
-    // source: nitro_webgpu.native.dart:1206
+    // source: nitro_webgpu.native.dart:1224
     @JvmStatic fun encoderCopyBufferToTexture_call(instanceId: Long, encoder: Long, buffer: Long, bytesPerRow: Long, texture: Long, mipLevel: Long, width: Long, height: Long, bufferOffset: Long, originX: Long, originY: Long, originZ: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.encoderCopyBufferToTexture(encoder, buffer, bytesPerRow, texture, mipLevel, width, height, bufferOffset, originX, originY, originZ)
     }
-    // source: nitro_webgpu.native.dart:1212
+    // source: nitro_webgpu.native.dart:1230
     @JvmStatic fun encoderCopyTextureToTexture_call(instanceId: Long, encoder: Long, srcTexture: Long, dstTexture: Long, width: Long, height: Long, depth: Long, srcMip: Long, srcX: Long, srcY: Long, srcZ: Long, dstMip: Long, dstX: Long, dstY: Long, dstZ: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.encoderCopyTextureToTexture(encoder, srcTexture, dstTexture, width, height, depth, srcMip, srcX, srcY, srcZ, dstMip, dstX, dstY, dstZ)
     }
-    // source: nitro_webgpu.native.dart:1218
+    // source: nitro_webgpu.native.dart:1236
     @JvmStatic fun renderPassSetViewport_call(instanceId: Long, pass: Long, x: Double, y: Double, width: Double, height: Double, minDepth: Double, maxDepth: Double): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.renderPassSetViewport(pass, x, y, width, height, minDepth, maxDepth)
     }
-    // source: nitro_webgpu.native.dart:1220
+    // source: nitro_webgpu.native.dart:1238
     @JvmStatic fun renderPassSetScissorRect_call(instanceId: Long, pass: Long, x: Long, y: Long, width: Long, height: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.renderPassSetScissorRect(pass, x, y, width, height)
     }
-    // source: nitro_webgpu.native.dart:1222
+    // source: nitro_webgpu.native.dart:1240
     @JvmStatic fun renderPassSetBlendConstant_call(instanceId: Long, pass: Long, r: Double, g: Double, b: Double, a: Double): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.renderPassSetBlendConstant(pass, r, g, b, a)
     }
-    // source: nitro_webgpu.native.dart:1230
+    // source: nitro_webgpu.native.dart:1248
     @JvmStatic fun renderPassDrawIndirect_call(instanceId: Long, pass: Long, buffer: Long, offset: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.renderPassDrawIndirect(pass, buffer, offset)
     }
-    // source: nitro_webgpu.native.dart:1234
+    // source: nitro_webgpu.native.dart:1252
     @JvmStatic fun renderPassDrawIndexedIndirect_call(instanceId: Long, pass: Long, buffer: Long, offset: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.renderPassDrawIndexedIndirect(pass, buffer, offset)
     }
-    // source: nitro_webgpu.native.dart:1237
+    // source: nitro_webgpu.native.dart:1255
     @JvmStatic fun computePassDispatchWorkgroupsIndirect_call(instanceId: Long, pass: Long, buffer: Long, offset: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.computePassDispatchWorkgroupsIndirect(pass, buffer, offset)
     }
-    // source: nitro_webgpu.native.dart:1242
+    // source: nitro_webgpu.native.dart:1260
     @JvmStatic fun deviceCreateOcclusionQuerySet_call(instanceId: Long, device: Long, count: Long): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         return impl.deviceCreateOcclusionQuerySet(device, count)
     }
-    // source: nitro_webgpu.native.dart:1245
+    // source: nitro_webgpu.native.dart:1263
     @JvmStatic fun deviceGetLimits_call(instanceId: Long, device: Long): ByteArray {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         val result = impl.deviceGetLimits(device)
         return result.encode()
     }
-    // source: nitro_webgpu.native.dart:1247
+    // source: nitro_webgpu.native.dart:1265
     @JvmStatic fun renderPassBeginOcclusionQuery_call(instanceId: Long, pass: Long, queryIndex: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.renderPassBeginOcclusionQuery(pass, queryIndex)
     }
-    // source: nitro_webgpu.native.dart:1248
+    // source: nitro_webgpu.native.dart:1266
     @JvmStatic fun renderPassEndOcclusionQuery_call(instanceId: Long, pass: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.renderPassEndOcclusionQuery(pass)
     }
-    // source: nitro_webgpu.native.dart:1249
+    // source: nitro_webgpu.native.dart:1267
     @JvmStatic fun renderPassSetStencilReference_call(instanceId: Long, pass: Long, reference: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.renderPassSetStencilReference(pass, reference)
     }
-    // source: nitro_webgpu.native.dart:1252
+    // source: nitro_webgpu.native.dart:1270
     @JvmStatic fun renderPassSetBindGroupOffsets_call(instanceId: Long, pass: Long, index: Long, bindGroup: Long, offsetCount: Long, o0: Long, o1: Long, o2: Long, o3: Long, o4: Long, o5: Long, o6: Long, o7: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.renderPassSetBindGroupOffsets(pass, index, bindGroup, offsetCount, o0, o1, o2, o3, o4, o5, o6, o7)
     }
-    // source: nitro_webgpu.native.dart:1255
+    // source: nitro_webgpu.native.dart:1273
     @JvmStatic fun computePassSetBindGroupOffsets_call(instanceId: Long, pass: Long, index: Long, bindGroup: Long, offsetCount: Long, o0: Long, o1: Long, o2: Long, o3: Long, o4: Long, o5: Long, o6: Long, o7: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.computePassSetBindGroupOffsets(pass, index, bindGroup, offsetCount, o0, o1, o2, o3, o4, o5, o6, o7)
     }
-    // source: nitro_webgpu.native.dart:1261
+    // source: nitro_webgpu.native.dart:1279
     @JvmStatic fun deviceCreateRenderBundleEncoder_call(instanceId: Long, device: Long, descriptor: ByteArray): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         val descriptorBuf = java.nio.ByteBuffer.wrap(descriptor).order(java.nio.ByteOrder.LITTLE_ENDIAN)
@@ -3276,92 +3339,92 @@ object NitroWebgpuJniBridge {
         val descriptorDecoded = GpuRenderBundleEncoderDescriptor.decodeFrom(descriptorBuf)
         return impl.deviceCreateRenderBundleEncoder(device, descriptorDecoded)
     }
-    // source: nitro_webgpu.native.dart:1263
+    // source: nitro_webgpu.native.dart:1281
     @JvmStatic fun bundleSetPipeline_call(instanceId: Long, bundleEncoder: Long, pipeline: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.bundleSetPipeline(bundleEncoder, pipeline)
     }
-    // source: nitro_webgpu.native.dart:1264
+    // source: nitro_webgpu.native.dart:1282
     @JvmStatic fun bundleSetBindGroup_call(instanceId: Long, bundleEncoder: Long, index: Long, bindGroup: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.bundleSetBindGroup(bundleEncoder, index, bindGroup)
     }
-    // source: nitro_webgpu.native.dart:1265
+    // source: nitro_webgpu.native.dart:1283
     @JvmStatic fun bundleSetVertexBuffer_call(instanceId: Long, bundleEncoder: Long, slot: Long, buffer: Long, offset: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.bundleSetVertexBuffer(bundleEncoder, slot, buffer, offset)
     }
-    // source: nitro_webgpu.native.dart:1267
+    // source: nitro_webgpu.native.dart:1285
     @JvmStatic fun bundleSetIndexBuffer_call(instanceId: Long, bundleEncoder: Long, buffer: Long, indexFormat: Long, offset: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.bundleSetIndexBuffer(bundleEncoder, buffer, indexFormat, offset)
     }
-    // source: nitro_webgpu.native.dart:1269
+    // source: nitro_webgpu.native.dart:1287
     @JvmStatic fun bundleDraw_call(instanceId: Long, bundleEncoder: Long, vertexCount: Long, instanceCount: Long, firstVertex: Long, firstInstance: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.bundleDraw(bundleEncoder, vertexCount, instanceCount, firstVertex, firstInstance)
     }
-    // source: nitro_webgpu.native.dart:1271
+    // source: nitro_webgpu.native.dart:1289
     @JvmStatic fun bundleDrawIndexed_call(instanceId: Long, bundleEncoder: Long, indexCount: Long, instanceCount: Long, firstIndex: Long, baseVertex: Long, firstInstance: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.bundleDrawIndexed(bundleEncoder, indexCount, instanceCount, firstIndex, baseVertex, firstInstance)
     }
-    // source: nitro_webgpu.native.dart:1275
+    // source: nitro_webgpu.native.dart:1293
     @JvmStatic fun bundleDrawIndirect_call(instanceId: Long, bundleEncoder: Long, buffer: Long, offset: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.bundleDrawIndirect(bundleEncoder, buffer, offset)
     }
-    // source: nitro_webgpu.native.dart:1276
+    // source: nitro_webgpu.native.dart:1294
     @JvmStatic fun bundleDrawIndexedIndirect_call(instanceId: Long, bundleEncoder: Long, buffer: Long, offset: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.bundleDrawIndexedIndirect(bundleEncoder, buffer, offset)
     }
-    // source: nitro_webgpu.native.dart:1279
+    // source: nitro_webgpu.native.dart:1297
     @JvmStatic fun bundleFinish_call(instanceId: Long, bundleEncoder: Long, label: String): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         return impl.bundleFinish(bundleEncoder, label)
     }
-    // source: nitro_webgpu.native.dart:1280
+    // source: nitro_webgpu.native.dart:1298
     @JvmStatic fun renderBundleEncoderRelease_call(instanceId: Long, bundleEncoder: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.renderBundleEncoderRelease(bundleEncoder)
     }
-    // source: nitro_webgpu.native.dart:1281
+    // source: nitro_webgpu.native.dart:1299
     @JvmStatic fun renderBundleRelease_call(instanceId: Long, bundle: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.renderBundleRelease(bundle)
     }
-    // source: nitro_webgpu.native.dart:1282
+    // source: nitro_webgpu.native.dart:1300
     @JvmStatic fun renderPassExecuteBundle_call(instanceId: Long, pass: Long, bundle: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.renderPassExecuteBundle(pass, bundle)
     }
-    // source: nitro_webgpu.native.dart:1288
+    // source: nitro_webgpu.native.dart:1306
     @JvmStatic fun deviceCreateTimestampQuerySet_call(instanceId: Long, device: Long, count: Long): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         return impl.deviceCreateTimestampQuerySet(device, count)
     }
-    // source: nitro_webgpu.native.dart:1289
+    // source: nitro_webgpu.native.dart:1307
     @JvmStatic fun querySetRelease_call(instanceId: Long, querySet: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.querySetRelease(querySet)
     }
-    // source: nitro_webgpu.native.dart:1291
+    // source: nitro_webgpu.native.dart:1309
     @JvmStatic fun querySetGetCount_call(instanceId: Long, querySet: Long): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         return impl.querySetGetCount(querySet)
     }
-    // source: nitro_webgpu.native.dart:1294
+    // source: nitro_webgpu.native.dart:1312
     @JvmStatic fun querySetGetType_call(instanceId: Long, querySet: Long): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         return impl.querySetGetType(querySet)
     }
-    // source: nitro_webgpu.native.dart:1298
+    // source: nitro_webgpu.native.dart:1316
     @JvmStatic fun encoderResolveQuerySet_call(instanceId: Long, encoder: Long, querySet: Long, firstQuery: Long, queryCount: Long, destination: Long, destinationOffset: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         impl.encoderResolveQuerySet(encoder, querySet, firstQuery, queryCount, destination, destinationOffset)
     }
-    // source: nitro_webgpu.native.dart:1302
+    // source: nitro_webgpu.native.dart:1320
     @JvmStatic fun queueTimestampPeriod_call(instanceId: Long, queue: Long): Double {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpu instance $instanceId not registered")
         return impl.queueTimestampPeriod(queue)

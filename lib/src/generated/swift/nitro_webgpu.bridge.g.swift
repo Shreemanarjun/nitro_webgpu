@@ -1738,6 +1738,9 @@ public protocol HybridNitroWebgpuProtocol: AnyObject {
     func deviceCreateShaderModuleWgsl(device: Int64, label: String, wgsl: String) -> Int64
     func shaderModuleRelease(module: Int64) -> Void
     func shaderModuleGetCompilationInfo(module: Int64) async throws -> GpuCompilationInfo
+    func deviceCreateShaderModuleWgslAsync(device: Int64, label: String, wgsl: String) async throws -> Int64
+    func deviceCreateRenderPipelineAsync(device: Int64, descriptor: GpuRenderPipelineDescriptor) async throws -> Int64
+    func deviceCreateComputePipelineAsync(device: Int64, descriptor: GpuComputePipelineDescriptor) async throws -> Int64
     func deviceCreateComputePipeline(device: Int64, descriptor: GpuComputePipelineDescriptor) -> Int64
     func computePipelineRelease(pipeline: Int64) -> Void
     func computePipelineGetBindGroupLayout(pipeline: Int64, groupIndex: Int64) -> Int64

@@ -818,8 +818,9 @@ class GpuDevice {
       {String label = ''}) async {
     _checkAlive();
     pushErrorScope(GpuErrorFilter.validation);
-    final address = NitroWebgpu.instance
-        .deviceCreateShaderModuleWgsl(_address, label, wgsl);
+    // Off-thread: naga runs on a background thread, not the UI isolate.
+    final address = await NitroWebgpu.instance
+        .deviceCreateShaderModuleWgslAsync(_address, label, wgsl);
     final error = await popErrorScope();
     if (error != null) {
       NitroWebgpu.instance.shaderModuleRelease(address);
@@ -838,7 +839,8 @@ class GpuDevice {
   }) async {
     _checkAlive();
     pushErrorScope(GpuErrorFilter.validation);
-    final address = NitroWebgpu.instance.deviceCreateComputePipeline(
+    // Off-thread: the driver's shader compile never blocks the UI isolate.
+    final address = await NitroWebgpu.instance.deviceCreateComputePipelineAsync(
       _address,
       GpuComputePipelineDescriptor(
         label: label,
@@ -1035,7 +1037,8 @@ class GpuDevice {
     }
     _checkAlive();
     pushErrorScope(GpuErrorFilter.validation);
-    final address = NitroWebgpu.instance.deviceCreateRenderPipeline(
+    // Off-thread: big pipelines take 100s of ms to compile on mobile GPUs.
+    final address = await NitroWebgpu.instance.deviceCreateRenderPipelineAsync(
       _address,
       GpuRenderPipelineDescriptor(
         label: label,

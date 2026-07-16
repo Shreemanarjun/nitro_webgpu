@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -104,7 +105,11 @@ class _GpuSceneViewState extends State<GpuSceneView> {
   /// as flicker.
   void _steerResolution(double gpuMs) {
     if (!widget.dynamicResolution || gpuMs <= 0) return;
-    const headroom = 0.85;
+    // Android presents through a vsync-quantized Fifo swapchain: a frame
+    // that lands at 95% of the vsync period halves the frame rate, so aim
+    // well inside it. The macOS/iOS ring pipelines 3 deep and tolerates
+    // running close to the line.
+    final headroom = Platform.isAndroid ? 0.70 : 0.85;
     final budgetMs = 1000.0 / _targetFps * headroom;
     final ratio = budgetMs / gpuMs;
     _sampleInterval = ratio < 0.85 ? 10 : 30;

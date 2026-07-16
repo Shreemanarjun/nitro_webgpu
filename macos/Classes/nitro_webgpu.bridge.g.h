@@ -81,6 +81,9 @@ NITRO_EXPORT int64_t nitro_webgpu_buffer_get_usage(int64_t instanceId, int64_t b
 NITRO_EXPORT int64_t nitro_webgpu_device_create_shader_module_wgsl(int64_t instanceId, int64_t device, const char* label, const char* wgsl, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_shader_module_release(int64_t instanceId, int64_t module, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_shader_module_get_compilation_info(int64_t instanceId, int64_t module, NitroError* _nitro_err, int64_t dart_port);
+NITRO_EXPORT void nitro_webgpu_device_create_shader_module_wgsl_async(int64_t instanceId, int64_t device, const char* label, const char* wgsl, NitroError* _nitro_err, int64_t dart_port);
+NITRO_EXPORT void nitro_webgpu_device_create_render_pipeline_async(int64_t instanceId, int64_t device, void* descriptor, NitroError* _nitro_err, int64_t dart_port);
+NITRO_EXPORT void nitro_webgpu_device_create_compute_pipeline_async(int64_t instanceId, int64_t device, void* descriptor, NitroError* _nitro_err, int64_t dart_port);
 NITRO_EXPORT int64_t nitro_webgpu_device_create_compute_pipeline(int64_t instanceId, int64_t device, void* descriptor, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_compute_pipeline_release(int64_t instanceId, int64_t pipeline, NitroError* _nitro_err);
 NITRO_EXPORT int64_t nitro_webgpu_compute_pipeline_get_bind_group_layout(int64_t instanceId, int64_t pipeline, int64_t groupIndex, NitroError* _nitro_err);

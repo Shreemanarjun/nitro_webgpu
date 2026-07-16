@@ -395,6 +395,172 @@ struct PendingOp {
     int64_t port;
 };
 
+int64_t nwCreateRenderPipelineSync(int64_t device,
+                                   const GpuRenderPipelineDescriptor& d) {
+
+    WGPUColorTargetState target = WGPU_COLOR_TARGET_STATE_INIT;
+    target.format = (WGPUTextureFormat)d.targetFormat;
+
+    // Blend: a custom state (colorBlendOp != 0) wins over the presets
+    // (1 = classic alpha, 2 = additive, 3 = premultiplied). The blend
+    // state and write mask apply to every color target.
+    WGPUBlendState blend = WGPU_BLEND_STATE_INIT;
+    bool hasBlend = true;
+    if (d.colorBlendOp != 0) {
+        blend.color = {(WGPUBlendOperation)d.colorBlendOp,
+                       (WGPUBlendFactor)d.colorBlendSrc,
+                       (WGPUBlendFactor)d.colorBlendDst};
+        blend.alpha = {(WGPUBlendOperation)d.alphaBlendOp,
+                       (WGPUBlendFactor)d.alphaBlendSrc,
+                       (WGPUBlendFactor)d.alphaBlendDst};
+    } else if (d.blendMode == 1) {
+        blend.color = {WGPUBlendOperation_Add, WGPUBlendFactor_SrcAlpha,
+                       WGPUBlendFactor_OneMinusSrcAlpha};
+        blend.alpha = {WGPUBlendOperation_Add, WGPUBlendFactor_One,
+                       WGPUBlendFactor_OneMinusSrcAlpha};
+    } else if (d.blendMode == 2) {
+        blend.color = {WGPUBlendOperation_Add, WGPUBlendFactor_One,
+                       WGPUBlendFactor_One};
+        blend.alpha = {WGPUBlendOperation_Add, WGPUBlendFactor_One,
+                       WGPUBlendFactor_One};
+    } else if (d.blendMode == 3) {
+        blend.color = {WGPUBlendOperation_Add, WGPUBlendFactor_One,
+                       WGPUBlendFactor_OneMinusSrcAlpha};
+        blend.alpha = {WGPUBlendOperation_Add, WGPUBlendFactor_One,
+                       WGPUBlendFactor_OneMinusSrcAlpha};
+    } else {
+        hasBlend = false;
+    }
+    if (hasBlend) target.blend = &blend;
+    if (d.writeMask >= 0) {
+        target.writeMask = (WGPUColorWriteMask)d.writeMask;
+    }
+
+    WGPUColorTargetState targets[8];
+    targets[0] = target;
+    size_t targetCount = 1;
+    const int64_t extraFormats[7] = {
+        d.targetFormat1, d.targetFormat2, d.targetFormat3,
+        d.targetFormat4, d.targetFormat5, d.targetFormat6,
+        d.targetFormat7};
+    for (int i = 0; i < 7 && extraFormats[i]; i++) {
+        WGPUColorTargetState extra = WGPU_COLOR_TARGET_STATE_INIT;
+        extra.format = (WGPUTextureFormat)extraFormats[i];
+        if (hasBlend) extra.blend = &blend;
+        if (d.writeMask >= 0) {
+            extra.writeMask = (WGPUColorWriteMask)d.writeMask;
+        }
+        targets[targetCount++] = extra;
+    }
+
+    WGPUFragmentState fragment = WGPU_FRAGMENT_STATE_INIT;
+    fragment.module = (WGPUShaderModule)(intptr_t)d.moduleAddress;
+    fragment.entryPoint = toView(d.fragmentEntryPoint);
+    fragment.targetCount = targetCount;
+    fragment.targets = targets;
+
+    // Vertex buffer layouts (attribute arrays must outlive the create).
+    std::vector<std::vector<WGPUVertexAttribute>> attrStorage;
+    std::vector<WGPUVertexBufferLayout> layouts;
+    attrStorage.reserve(d.vertexBuffers.size());
+    layouts.reserve(d.vertexBuffers.size());
+    for (const auto& vb : d.vertexBuffers) {
+        std::vector<WGPUVertexAttribute> attrs;
+        attrs.reserve(vb.attributes.size());
+        for (const auto& a : vb.attributes) {
+            WGPUVertexAttribute wa = WGPU_VERTEX_ATTRIBUTE_INIT;
+            wa.format = (WGPUVertexFormat)a.format;
+            wa.offset = (uint64_t)a.offset;
+            wa.shaderLocation = (uint32_t)a.shaderLocation;
+            attrs.push_back(wa);
+        }
+        attrStorage.push_back(std::move(attrs));
+        WGPUVertexBufferLayout wl = WGPU_VERTEX_BUFFER_LAYOUT_INIT;
+        wl.arrayStride = (uint64_t)vb.arrayStride;
+        wl.stepMode = (WGPUVertexStepMode)vb.stepMode;
+        wl.attributeCount = attrStorage.back().size();
+        wl.attributes = attrStorage.back().data();
+        layouts.push_back(wl);
+    }
+
+    WGPURenderPipelineDescriptor wd = WGPU_RENDER_PIPELINE_DESCRIPTOR_INIT;
+    wd.label = toView(d.label);
+    wd.layout = d.layoutAddress
+                    ? (WGPUPipelineLayout)(intptr_t)d.layoutAddress
+                    : nullptr;
+    wd.vertex.module = (WGPUShaderModule)(intptr_t)d.moduleAddress;
+    wd.vertex.entryPoint = toView(d.vertexEntryPoint);
+    wd.vertex.bufferCount = layouts.size();
+    wd.vertex.buffers = layouts.empty() ? nullptr : layouts.data();
+    wd.primitive.topology = (WGPUPrimitiveTopology)d.topology;
+    wd.primitive.cullMode = (WGPUCullMode)d.cullMode;
+    wd.primitive.frontFace = (WGPUFrontFace)d.frontFace;
+    wd.primitive.stripIndexFormat = (WGPUIndexFormat)d.stripIndexFormat;
+    wd.multisample.count = (uint32_t)d.sampleCount;
+    wd.multisample.mask = d.multisampleMask < 0
+                              ? 0xFFFFFFFFu
+                              : (uint32_t)d.multisampleMask;
+    wd.multisample.alphaToCoverageEnabled =
+        d.alphaToCoverageEnabled ? 1 : 0;
+    wd.fragment = &fragment;
+
+    WGPUDepthStencilState depth = WGPU_DEPTH_STENCIL_STATE_INIT;
+    if (d.depthFormat) {
+        depth.format = (WGPUTextureFormat)d.depthFormat;
+        depth.depthWriteEnabled = d.depthWriteEnabled
+                                      ? WGPUOptionalBool_True
+                                      : WGPUOptionalBool_False;
+        depth.depthCompare = (WGPUCompareFunction)d.depthCompare;
+        depth.depthBias = (int32_t)d.depthBias;
+        depth.depthBiasSlopeScale = (float)d.depthBiasSlopeScale;
+        depth.depthBiasClamp = (float)d.depthBiasClamp;
+        depth.stencilReadMask = d.stencilReadMask < 0
+                                    ? 0xFFFFFFFFu
+                                    : (uint32_t)d.stencilReadMask;
+        depth.stencilWriteMask = d.stencilWriteMask < 0
+                                     ? 0xFFFFFFFFu
+                                     : (uint32_t)d.stencilWriteMask;
+        WGPUStencilFaceState face = {};
+        face.compare = (WGPUCompareFunction)d.stencilCompare;
+        face.failOp = (WGPUStencilOperation)d.stencilFailOp;
+        face.depthFailOp = (WGPUStencilOperation)d.stencilDepthFailOp;
+        face.passOp = (WGPUStencilOperation)d.stencilPassOp;
+        depth.stencilFront = face;
+        WGPUStencilFaceState back = face;
+        if (d.stencilBackCompare != 0) {
+            back.compare = (WGPUCompareFunction)d.stencilBackCompare;
+            back.failOp = (WGPUStencilOperation)(
+                d.stencilBackFailOp ? d.stencilBackFailOp : 1);
+            back.depthFailOp = (WGPUStencilOperation)(
+                d.stencilBackDepthFailOp ? d.stencilBackDepthFailOp : 1);
+            back.passOp = (WGPUStencilOperation)(
+                d.stencilBackPassOp ? d.stencilBackPassOp : 1);
+        }
+        depth.stencilBack = back;
+        wd.depthStencil = &depth;
+    }
+
+    WGPURenderPipeline p =
+        wgpuDeviceCreateRenderPipeline((WGPUDevice)(intptr_t)device, &wd);
+    if (!p) throw std::runtime_error("wgpuDeviceCreateRenderPipeline failed");
+    return (int64_t)(intptr_t)p;
+}
+
+int64_t nwCreateComputePipelineSync(int64_t device,
+                                    const GpuComputePipelineDescriptor& d) {
+    WGPUComputePipelineDescriptor wd = WGPU_COMPUTE_PIPELINE_DESCRIPTOR_INIT;
+    wd.label = toView(d.label);
+    wd.layout = d.layoutAddress
+                    ? (WGPUPipelineLayout)(intptr_t)d.layoutAddress
+                    : nullptr;
+    wd.compute.module = (WGPUShaderModule)(intptr_t)d.moduleAddress;
+    wd.compute.entryPoint = toView(d.entryPoint);
+    WGPUComputePipeline p =
+        wgpuDeviceCreateComputePipeline((WGPUDevice)(intptr_t)device, &wd);
+    if (!p) throw std::runtime_error("wgpuDeviceCreateComputePipeline failed");
+    return (int64_t)(intptr_t)p;
+}
+
 class HybridNitroWebgpuImpl;
 HybridNitroWebgpuImpl* gImpl = nullptr;
 
@@ -828,6 +994,31 @@ public:
         return (int64_t)(intptr_t)mod;
     }
 
+    void deviceCreateShaderModuleWgslAsync(int64_t device,
+                                           const std::string& label,
+                                           const std::string& wgsl,
+                                           NitroError* _nitro_err,
+                                           int64_t dartPort) override {
+        // naga parses/validates the whole module — off the UI isolate.
+        std::thread([device, label, wgsl, _nitro_err, dartPort]() {
+            WGPUShaderSourceWGSL src = WGPU_SHADER_SOURCE_WGSL_INIT;
+            src.chain.sType = WGPUSType_ShaderSourceWGSL;
+            src.code = toView(wgsl);
+            WGPUShaderModuleDescriptor desc = WGPU_SHADER_MODULE_DESCRIPTOR_INIT;
+            desc.nextInChain = &src.chain;
+            desc.label = toView(label);
+            WGPUShaderModule mod = wgpuDeviceCreateShaderModule(
+                (WGPUDevice)(intptr_t)device, &desc);
+            if (!mod) {
+                fillError(_nitro_err, "GpuShaderError",
+                          "wgpuDeviceCreateShaderModule failed");
+                postNull(dartPort);
+                return;
+            }
+            postInt64(dartPort, (int64_t)(intptr_t)mod);
+        }).detach();
+    }
+
     void shaderModuleRelease(int64_t module) override {
         wgpuShaderModuleRelease((WGPUShaderModule)(intptr_t)module);
     }
@@ -848,17 +1039,22 @@ public:
     int64_t deviceCreateComputePipeline(int64_t device,
                                         NitroCppBuffer descriptor) override {
         const auto d = GpuComputePipelineDescriptor::fromNative(descriptor);
-        WGPUComputePipelineDescriptor wd = WGPU_COMPUTE_PIPELINE_DESCRIPTOR_INIT;
-        wd.label = toView(d.label);
-        wd.layout = d.layoutAddress
-                        ? (WGPUPipelineLayout)(intptr_t)d.layoutAddress
-                        : nullptr;
-        wd.compute.module = (WGPUShaderModule)(intptr_t)d.moduleAddress;
-        wd.compute.entryPoint = toView(d.entryPoint);
-        WGPUComputePipeline p =
-            wgpuDeviceCreateComputePipeline((WGPUDevice)(intptr_t)device, &wd);
-        if (!p) throw std::runtime_error("wgpuDeviceCreateComputePipeline failed");
-        return (int64_t)(intptr_t)p;
+        return nwCreateComputePipelineSync(device, d);
+    }
+
+    void deviceCreateComputePipelineAsync(int64_t device,
+                                          NitroCppBuffer descriptor,
+                                          NitroError* _nitro_err,
+                                          int64_t dartPort) override {
+        auto d = GpuComputePipelineDescriptor::fromNative(descriptor);
+        std::thread([device, d = std::move(d), _nitro_err, dartPort]() {
+            try {
+                postInt64(dartPort, nwCreateComputePipelineSync(device, d));
+            } catch (const std::exception& e) {
+                fillError(_nitro_err, "GpuPipelineError", e.what());
+                postNull(dartPort);
+            }
+        }).detach();
     }
 
     void computePipelineRelease(int64_t pipeline) override {
@@ -1218,153 +1414,25 @@ public:
     int64_t deviceCreateRenderPipeline(int64_t device,
                                        NitroCppBuffer descriptor) override {
         const auto d = GpuRenderPipelineDescriptor::fromNative(descriptor);
+        return nwCreateRenderPipelineSync(device, d);
+    }
 
-        WGPUColorTargetState target = WGPU_COLOR_TARGET_STATE_INIT;
-        target.format = (WGPUTextureFormat)d.targetFormat;
-
-        // Blend: a custom state (colorBlendOp != 0) wins over the presets
-        // (1 = classic alpha, 2 = additive, 3 = premultiplied). The blend
-        // state and write mask apply to every color target.
-        WGPUBlendState blend = WGPU_BLEND_STATE_INIT;
-        bool hasBlend = true;
-        if (d.colorBlendOp != 0) {
-            blend.color = {(WGPUBlendOperation)d.colorBlendOp,
-                           (WGPUBlendFactor)d.colorBlendSrc,
-                           (WGPUBlendFactor)d.colorBlendDst};
-            blend.alpha = {(WGPUBlendOperation)d.alphaBlendOp,
-                           (WGPUBlendFactor)d.alphaBlendSrc,
-                           (WGPUBlendFactor)d.alphaBlendDst};
-        } else if (d.blendMode == 1) {
-            blend.color = {WGPUBlendOperation_Add, WGPUBlendFactor_SrcAlpha,
-                           WGPUBlendFactor_OneMinusSrcAlpha};
-            blend.alpha = {WGPUBlendOperation_Add, WGPUBlendFactor_One,
-                           WGPUBlendFactor_OneMinusSrcAlpha};
-        } else if (d.blendMode == 2) {
-            blend.color = {WGPUBlendOperation_Add, WGPUBlendFactor_One,
-                           WGPUBlendFactor_One};
-            blend.alpha = {WGPUBlendOperation_Add, WGPUBlendFactor_One,
-                           WGPUBlendFactor_One};
-        } else if (d.blendMode == 3) {
-            blend.color = {WGPUBlendOperation_Add, WGPUBlendFactor_One,
-                           WGPUBlendFactor_OneMinusSrcAlpha};
-            blend.alpha = {WGPUBlendOperation_Add, WGPUBlendFactor_One,
-                           WGPUBlendFactor_OneMinusSrcAlpha};
-        } else {
-            hasBlend = false;
-        }
-        if (hasBlend) target.blend = &blend;
-        if (d.writeMask >= 0) {
-            target.writeMask = (WGPUColorWriteMask)d.writeMask;
-        }
-
-        WGPUColorTargetState targets[8];
-        targets[0] = target;
-        size_t targetCount = 1;
-        const int64_t extraFormats[7] = {
-            d.targetFormat1, d.targetFormat2, d.targetFormat3,
-            d.targetFormat4, d.targetFormat5, d.targetFormat6,
-            d.targetFormat7};
-        for (int i = 0; i < 7 && extraFormats[i]; i++) {
-            WGPUColorTargetState extra = WGPU_COLOR_TARGET_STATE_INIT;
-            extra.format = (WGPUTextureFormat)extraFormats[i];
-            if (hasBlend) extra.blend = &blend;
-            if (d.writeMask >= 0) {
-                extra.writeMask = (WGPUColorWriteMask)d.writeMask;
+    void deviceCreateRenderPipelineAsync(int64_t device,
+                                         NitroCppBuffer descriptor,
+                                         NitroError* _nitro_err,
+                                         int64_t dartPort) override {
+        // Decode on the Dart thread; run the driver's shader compile on a
+        // background thread (wgpu is internally synchronized) so big
+        // pipelines never freeze the UI isolate.
+        auto d = GpuRenderPipelineDescriptor::fromNative(descriptor);
+        std::thread([device, d = std::move(d), _nitro_err, dartPort]() {
+            try {
+                postInt64(dartPort, nwCreateRenderPipelineSync(device, d));
+            } catch (const std::exception& e) {
+                fillError(_nitro_err, "GpuPipelineError", e.what());
+                postNull(dartPort);
             }
-            targets[targetCount++] = extra;
-        }
-
-        WGPUFragmentState fragment = WGPU_FRAGMENT_STATE_INIT;
-        fragment.module = (WGPUShaderModule)(intptr_t)d.moduleAddress;
-        fragment.entryPoint = toView(d.fragmentEntryPoint);
-        fragment.targetCount = targetCount;
-        fragment.targets = targets;
-
-        // Vertex buffer layouts (attribute arrays must outlive the create).
-        std::vector<std::vector<WGPUVertexAttribute>> attrStorage;
-        std::vector<WGPUVertexBufferLayout> layouts;
-        attrStorage.reserve(d.vertexBuffers.size());
-        layouts.reserve(d.vertexBuffers.size());
-        for (const auto& vb : d.vertexBuffers) {
-            std::vector<WGPUVertexAttribute> attrs;
-            attrs.reserve(vb.attributes.size());
-            for (const auto& a : vb.attributes) {
-                WGPUVertexAttribute wa = WGPU_VERTEX_ATTRIBUTE_INIT;
-                wa.format = (WGPUVertexFormat)a.format;
-                wa.offset = (uint64_t)a.offset;
-                wa.shaderLocation = (uint32_t)a.shaderLocation;
-                attrs.push_back(wa);
-            }
-            attrStorage.push_back(std::move(attrs));
-            WGPUVertexBufferLayout wl = WGPU_VERTEX_BUFFER_LAYOUT_INIT;
-            wl.arrayStride = (uint64_t)vb.arrayStride;
-            wl.stepMode = (WGPUVertexStepMode)vb.stepMode;
-            wl.attributeCount = attrStorage.back().size();
-            wl.attributes = attrStorage.back().data();
-            layouts.push_back(wl);
-        }
-
-        WGPURenderPipelineDescriptor wd = WGPU_RENDER_PIPELINE_DESCRIPTOR_INIT;
-        wd.label = toView(d.label);
-        wd.layout = d.layoutAddress
-                        ? (WGPUPipelineLayout)(intptr_t)d.layoutAddress
-                        : nullptr;
-        wd.vertex.module = (WGPUShaderModule)(intptr_t)d.moduleAddress;
-        wd.vertex.entryPoint = toView(d.vertexEntryPoint);
-        wd.vertex.bufferCount = layouts.size();
-        wd.vertex.buffers = layouts.empty() ? nullptr : layouts.data();
-        wd.primitive.topology = (WGPUPrimitiveTopology)d.topology;
-        wd.primitive.cullMode = (WGPUCullMode)d.cullMode;
-        wd.primitive.frontFace = (WGPUFrontFace)d.frontFace;
-        wd.primitive.stripIndexFormat = (WGPUIndexFormat)d.stripIndexFormat;
-        wd.multisample.count = (uint32_t)d.sampleCount;
-        wd.multisample.mask = d.multisampleMask < 0
-                                  ? 0xFFFFFFFFu
-                                  : (uint32_t)d.multisampleMask;
-        wd.multisample.alphaToCoverageEnabled =
-            d.alphaToCoverageEnabled ? 1 : 0;
-        wd.fragment = &fragment;
-
-        WGPUDepthStencilState depth = WGPU_DEPTH_STENCIL_STATE_INIT;
-        if (d.depthFormat) {
-            depth.format = (WGPUTextureFormat)d.depthFormat;
-            depth.depthWriteEnabled = d.depthWriteEnabled
-                                          ? WGPUOptionalBool_True
-                                          : WGPUOptionalBool_False;
-            depth.depthCompare = (WGPUCompareFunction)d.depthCompare;
-            depth.depthBias = (int32_t)d.depthBias;
-            depth.depthBiasSlopeScale = (float)d.depthBiasSlopeScale;
-            depth.depthBiasClamp = (float)d.depthBiasClamp;
-            depth.stencilReadMask = d.stencilReadMask < 0
-                                        ? 0xFFFFFFFFu
-                                        : (uint32_t)d.stencilReadMask;
-            depth.stencilWriteMask = d.stencilWriteMask < 0
-                                         ? 0xFFFFFFFFu
-                                         : (uint32_t)d.stencilWriteMask;
-            WGPUStencilFaceState face = {};
-            face.compare = (WGPUCompareFunction)d.stencilCompare;
-            face.failOp = (WGPUStencilOperation)d.stencilFailOp;
-            face.depthFailOp = (WGPUStencilOperation)d.stencilDepthFailOp;
-            face.passOp = (WGPUStencilOperation)d.stencilPassOp;
-            depth.stencilFront = face;
-            WGPUStencilFaceState back = face;
-            if (d.stencilBackCompare != 0) {
-                back.compare = (WGPUCompareFunction)d.stencilBackCompare;
-                back.failOp = (WGPUStencilOperation)(
-                    d.stencilBackFailOp ? d.stencilBackFailOp : 1);
-                back.depthFailOp = (WGPUStencilOperation)(
-                    d.stencilBackDepthFailOp ? d.stencilBackDepthFailOp : 1);
-                back.passOp = (WGPUStencilOperation)(
-                    d.stencilBackPassOp ? d.stencilBackPassOp : 1);
-            }
-            depth.stencilBack = back;
-            wd.depthStencil = &depth;
-        }
-
-        WGPURenderPipeline p =
-            wgpuDeviceCreateRenderPipeline((WGPUDevice)(intptr_t)device, &wd);
-        if (!p) throw std::runtime_error("wgpuDeviceCreateRenderPipeline failed");
-        return (int64_t)(intptr_t)p;
+        }).detach();
     }
 
     void renderPipelineRelease(int64_t pipeline) override {

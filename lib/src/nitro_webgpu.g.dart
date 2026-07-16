@@ -1122,7 +1122,7 @@ class _NitroWebgpuImpl extends NitroWebgpu {
     }
     NitroRuntime.checkLinkChecksum(
       'nitro_webgpu',
-      '3373627a5106630d',
+      'b23032b3becebd5e',
       () => _dylib
           .lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
             'nitro_webgpu_nitro_bridge_checksum',
@@ -1448,6 +1448,69 @@ class _NitroWebgpuImpl extends NitroWebgpu {
         Void Function(Int64, Int64, Pointer<NitroErrorFfi>, Int64),
         void Function(int, int, Pointer<NitroErrorFfi>, int)
       >('nitro_webgpu_shader_module_get_compilation_info');
+  late final void Function(
+    int,
+    int,
+    Pointer<Utf8>,
+    Pointer<Utf8>,
+    Pointer<NitroErrorFfi>,
+    int,
+  )
+  _deviceCreateShaderModuleWgslAsyncPtr = _dylib
+      .lookupFunction<
+        Void Function(
+          Int64,
+          Int64,
+          Pointer<Utf8>,
+          Pointer<Utf8>,
+          Pointer<NitroErrorFfi>,
+          Int64,
+        ),
+        void Function(
+          int,
+          int,
+          Pointer<Utf8>,
+          Pointer<Utf8>,
+          Pointer<NitroErrorFfi>,
+          int,
+        )
+      >('nitro_webgpu_device_create_shader_module_wgsl_async');
+  late final void Function(
+    int,
+    int,
+    Pointer<Uint8>,
+    Pointer<NitroErrorFfi>,
+    int,
+  )
+  _deviceCreateRenderPipelineAsyncPtr = _dylib
+      .lookupFunction<
+        Void Function(
+          Int64,
+          Int64,
+          Pointer<Uint8>,
+          Pointer<NitroErrorFfi>,
+          Int64,
+        ),
+        void Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>, int)
+      >('nitro_webgpu_device_create_render_pipeline_async');
+  late final void Function(
+    int,
+    int,
+    Pointer<Uint8>,
+    Pointer<NitroErrorFfi>,
+    int,
+  )
+  _deviceCreateComputePipelineAsyncPtr = _dylib
+      .lookupFunction<
+        Void Function(
+          Int64,
+          Int64,
+          Pointer<Uint8>,
+          Pointer<NitroErrorFfi>,
+          Int64,
+        ),
+        void Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>, int)
+      >('nitro_webgpu_device_create_compute_pipeline_async');
   late final int Function(int, int, Pointer<Uint8>, Pointer<NitroErrorFfi>)
   _deviceCreateComputePipelinePtr = _dylib
       .lookupFunction<
@@ -3169,6 +3232,101 @@ class _NitroWebgpuImpl extends NitroWebgpu {
       },
       methodName: 'shaderModuleGetCompilationInfo',
     );
+  }
+
+  @override
+  Future<int> deviceCreateShaderModuleWgslAsync(
+    int device,
+    String label,
+    String wgsl,
+  ) {
+    checkDisposed();
+    final arena = Arena();
+    final _nitroErr = calloc<NitroErrorFfi>();
+    try {
+      return NitroRuntime.openNativeAsync<int>(
+        call: (port) => _deviceCreateShaderModuleWgslAsyncPtr(
+          _instanceId,
+          device,
+          label.toNativeUtf8(allocator: arena),
+          wgsl.toNativeUtf8(allocator: arena),
+          _nitroErr,
+          port,
+        ),
+        unpack: (raw) {
+          NitroRuntime.throwIfOutParamErrorAndFree(
+            _nitroErr,
+            nativeFree: _nitroFree,
+          );
+          return ((raw) => raw as int)(raw);
+        },
+        methodName: 'deviceCreateShaderModuleWgslAsync',
+      );
+    } finally {
+      arena.releaseAll();
+    }
+  }
+
+  @override
+  Future<int> deviceCreateRenderPipelineAsync(
+    int device,
+    GpuRenderPipelineDescriptor descriptor,
+  ) {
+    checkDisposed();
+    final arena = Arena();
+    final _nitroErr = calloc<NitroErrorFfi>();
+    try {
+      return NitroRuntime.openNativeAsync<int>(
+        call: (port) => _deviceCreateRenderPipelineAsyncPtr(
+          _instanceId,
+          device,
+          descriptor.toNative(arena),
+          _nitroErr,
+          port,
+        ),
+        unpack: (raw) {
+          NitroRuntime.throwIfOutParamErrorAndFree(
+            _nitroErr,
+            nativeFree: _nitroFree,
+          );
+          return ((raw) => raw as int)(raw);
+        },
+        methodName: 'deviceCreateRenderPipelineAsync',
+      );
+    } finally {
+      arena.releaseAll();
+    }
+  }
+
+  @override
+  Future<int> deviceCreateComputePipelineAsync(
+    int device,
+    GpuComputePipelineDescriptor descriptor,
+  ) {
+    checkDisposed();
+    final arena = Arena();
+    final _nitroErr = calloc<NitroErrorFfi>();
+    try {
+      return NitroRuntime.openNativeAsync<int>(
+        call: (port) => _deviceCreateComputePipelineAsyncPtr(
+          _instanceId,
+          device,
+          descriptor.toNative(arena),
+          _nitroErr,
+          port,
+        ),
+        unpack: (raw) {
+          NitroRuntime.throwIfOutParamErrorAndFree(
+            _nitroErr,
+            nativeFree: _nitroFree,
+          );
+          return ((raw) => raw as int)(raw);
+        },
+        methodName: 'deviceCreateComputePipelineAsync',
+      );
+    } finally {
+      arena.releaseAll();
+    }
   }
 
   @override

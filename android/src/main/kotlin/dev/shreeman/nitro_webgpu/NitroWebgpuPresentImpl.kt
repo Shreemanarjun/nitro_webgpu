@@ -1,6 +1,7 @@
 package dev.shreeman.nitro_webgpu
 
 import android.os.Build
+import android.view.Surface
 import android.os.Handler
 import android.os.Looper
 import android.os.PerformanceHintManager
@@ -95,8 +96,10 @@ class NitroWebgpuPresentImpl(
         val (producer, token) = onMain {
             val prod = textureRegistry.createSurfaceProducer()
             prod.setSize(widthPx.toInt(), heightPx.toInt())
+            val surface = prod.surface
+            requestSurfaceFrameRate(surface)
             val t = native.nativeCreate(
-                deviceAddress, prod.surface, widthPx.toInt(), heightPx.toInt())
+                deviceAddress, surface, widthPx.toInt(), heightPx.toInt())
             if (t == 0L) {
                 prod.release()
             } else {
@@ -105,7 +108,9 @@ class NitroWebgpuPresentImpl(
                 prod.setCallback(object : TextureRegistry.SurfaceProducer.Callback {
                     override fun onSurfaceAvailable() {
                         // 0×0 keeps the current surface size.
-                        native.nativeReplaceSurface(t, prod.surface, 0, 0)
+                        val s = prod.surface
+                        requestSurfaceFrameRate(s)
+                        native.nativeReplaceSurface(t, s, 0, 0)
                     }
 
                     override fun onSurfaceCleanup() {
@@ -160,7 +165,25 @@ class NitroWebgpuPresentImpl(
             // setSize hands out a NEW Surface on the next getSurface() —
             // re-fetch and rebuild the swapchain against it.
             entry.producer.setSize(w, h)
-            native.nativeReplaceSurface(token, entry.producer.surface, w, h)
+            val s = entry.producer.surface
+            requestSurfaceFrameRate(s)
+            native.nativeReplaceSurface(token, s, w, h)
+        }
+    }
+
+    // The display's fastest rate, remembered so every adopted Surface can
+    // re-assert it (vendor "game" governors override the window mode; an
+    // explicit per-surface setFrameRate is the strongest app-side signal).
+    private var targetFrameRate = 0f
+
+    private fun requestSurfaceFrameRate(surface: Surface) {
+        if (targetFrameRate <= 0f) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            surface.setFrameRate(
+                targetFrameRate,
+                Surface.FRAME_RATE_COMPATIBILITY_DEFAULT,
+                Surface.CHANGE_FRAME_RATE_ALWAYS,
+            )
         }
     }
 
@@ -176,7 +199,11 @@ class NitroWebgpuPresentImpl(
                 .maxByOrNull { it.refreshRate } ?: return@onMain 0.0
             val attrs = act.window.attributes
             attrs.preferredDisplayModeId = best.modeId
+            // Legacy float hint — some vendor refresh-rate governors only
+            // honor this one.
+            attrs.preferredRefreshRate = best.refreshRate
             act.window.attributes = attrs
+            targetFrameRate = best.refreshRate
             best.refreshRate.toDouble()
         }
     }

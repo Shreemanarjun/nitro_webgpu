@@ -40,6 +40,9 @@ class MockNitroWebgpu : public HybridNitroWebgpu {
     MOCK_METHOD(int64_t, deviceCreateShaderModuleWgsl, (int64_t device, const std::string& label, const std::string& wgsl), (override));
     MOCK_METHOD(void, shaderModuleRelease, (int64_t module), (override));
     MOCK_METHOD(NitroCppBuffer, shaderModuleGetCompilationInfo, (int64_t module), (override));
+    MOCK_METHOD(int64_t, deviceCreateShaderModuleWgslAsync, (int64_t device, const std::string& label, const std::string& wgsl), (override));
+    MOCK_METHOD(int64_t, deviceCreateRenderPipelineAsync, (int64_t device, NitroCppBuffer descriptor), (override));
+    MOCK_METHOD(int64_t, deviceCreateComputePipelineAsync, (int64_t device, NitroCppBuffer descriptor), (override));
     MOCK_METHOD(int64_t, deviceCreateComputePipeline, (int64_t device, NitroCppBuffer descriptor), (override));
     MOCK_METHOD(void, computePipelineRelease, (int64_t pipeline), (override));
     MOCK_METHOD(int64_t, computePipelineGetBindGroupLayout, (int64_t pipeline, int64_t groupIndex), (override));
