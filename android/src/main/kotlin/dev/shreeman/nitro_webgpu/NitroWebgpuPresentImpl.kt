@@ -21,7 +21,11 @@ class NitroWebgpuPresentImpl(
     private val textureRegistry: TextureRegistry,
 ) : HybridNitroWebgpuPresentSpec {
 
-    private class Entry(val producer: TextureRegistry.SurfaceProducer)
+    private class Entry(
+        val producer: TextureRegistry.SurfaceProducer,
+        var surfaceW: Int,
+        var surfaceH: Int,
+    )
 
     private val native = NwpSurfacePresenter()
     private val entries = ConcurrentHashMap<Long, Entry>()
@@ -67,11 +71,12 @@ class NitroWebgpuPresentImpl(
                 // SurfaceProducer contract.
                 prod.setCallback(object : TextureRegistry.SurfaceProducer.Callback {
                     override fun onSurfaceAvailable() {
-                        native.nativeReplaceSurface(t, prod.surface)
+                        // 0×0 keeps the current surface size.
+                        native.nativeReplaceSurface(t, prod.surface, 0, 0)
                     }
 
                     override fun onSurfaceCleanup() {
-                        native.nativeReplaceSurface(t, null)
+                        native.nativeReplaceSurface(t, null, 0, 0)
                     }
                 })
             }
@@ -82,7 +87,7 @@ class NitroWebgpuPresentImpl(
                 "nitro_webgpu: failed to create a surface presenter " +
                     "(WGPUSurface creation/configure failed)")
         }
-        entries[token] = Entry(producer)
+        entries[token] = Entry(producer, widthPx.toInt(), heightPx.toInt())
         return token
     }
 
@@ -104,9 +109,25 @@ class NitroWebgpuPresentImpl(
     override fun presenterUsesGpuPath(token: Long): Boolean = true
 
     override fun resizePresenter(token: Long, widthPx: Long, heightPx: Long) {
-        val entry = entries[token] ?: return
-        mainHandler.post { entry.producer.setSize(widthPx.toInt(), heightPx.toInt()) }
+        // Render-resolution only: the swapchain and SurfaceProducer stay
+        // untouched — frames render into an internal scaled target and are
+        // blit-upscaled at present, so this never flickers.
         native.nativeResize(token, widthPx.toInt(), heightPx.toInt())
+    }
+
+    override fun presenterSetSurfaceSize(token: Long, widthPx: Long, heightPx: Long) {
+        val entry = entries[token] ?: return
+        val w = widthPx.toInt()
+        val h = heightPx.toInt()
+        if (entry.surfaceW == w && entry.surfaceH == h) return
+        entry.surfaceW = w
+        entry.surfaceH = h
+        onMain {
+            // setSize hands out a NEW Surface on the next getSurface() —
+            // re-fetch and rebuild the swapchain against it.
+            entry.producer.setSize(w, h)
+            native.nativeReplaceSurface(token, entry.producer.surface, w, h)
+        }
     }
 
     override suspend fun destroyPresenter(token: Long) {

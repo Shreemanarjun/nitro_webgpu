@@ -11,7 +11,8 @@ internal class NwpSurfacePresenter {
     external fun nativeCreate(
         deviceAddress: Long, surface: Surface, width: Int, height: Int): Long
 
-    external fun nativeReplaceSurface(token: Long, surface: Surface?)
+    external fun nativeReplaceSurface(
+        token: Long, surface: Surface?, width: Int, height: Int)
     external fun nativeAcquire(token: Long): Long
     external fun nativePresent(token: Long)
     external fun nativeFormat(token: Long): Int

@@ -18,6 +18,7 @@ class MockNitroWebgpuPresent : public HybridNitroWebgpuPresent {
     MOCK_METHOD(int64_t, presenterFormat, (int64_t token), (override));
     MOCK_METHOD(bool, presenterUsesGpuPath, (int64_t token), (override));
     MOCK_METHOD(void, resizePresenter, (int64_t token, int64_t widthPx, int64_t heightPx), (override));
+    MOCK_METHOD(void, presenterSetSurfaceSize, (int64_t token, int64_t widthPx, int64_t heightPx), (override));
     MOCK_METHOD(void, destroyPresenter, (int64_t token), (override));
 };
 

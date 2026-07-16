@@ -326,9 +326,11 @@ interface HybridNitroWebgpuPresentSpec {
     fun presenterFormat(token: Long): Long
     // source: nitro_webgpu_present.native.dart:47
     fun presenterUsesGpuPath(token: Long): Boolean
-    // source: nitro_webgpu_present.native.dart:49
+    // source: nitro_webgpu_present.native.dart:52
     fun resizePresenter(token: Long, widthPx: Long, heightPx: Long): Unit
-    // source: nitro_webgpu_present.native.dart:54
+    // source: nitro_webgpu_present.native.dart:57
+    fun presenterSetSurfaceSize(token: Long, widthPx: Long, heightPx: Long): Unit
+    // source: nitro_webgpu_present.native.dart:62
     suspend fun destroyPresenter(token: Long): Unit
 }
 
@@ -443,12 +445,17 @@ object NitroWebgpuPresentJniBridge {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpuPresent instance $instanceId not registered")
         return impl.presenterUsesGpuPath(token)
     }
-    // source: nitro_webgpu_present.native.dart:49
+    // source: nitro_webgpu_present.native.dart:52
     @JvmStatic fun resizePresenter_call(instanceId: Long, token: Long, widthPx: Long, heightPx: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpuPresent instance $instanceId not registered")
         impl.resizePresenter(token, widthPx, heightPx)
     }
-    // source: nitro_webgpu_present.native.dart:54
+    // source: nitro_webgpu_present.native.dart:57
+    @JvmStatic fun presenterSetSurfaceSize_call(instanceId: Long, token: Long, widthPx: Long, heightPx: Long): Unit {
+        val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpuPresent instance $instanceId not registered")
+        impl.presenterSetSurfaceSize(token, widthPx, heightPx)
+    }
+    // source: nitro_webgpu_present.native.dart:62
     @JvmStatic fun destroyPresenter_call(instanceId: Long, token: Long, errPtr: Long, dartPort: Long) {
         val impl = _implementations[instanceId] ?: run {
             reportNativeAsyncError(errPtr, "IllegalStateException", "No implementation registered for instance")

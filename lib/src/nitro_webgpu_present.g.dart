@@ -84,7 +84,7 @@ class _NitroWebgpuPresentImpl extends NitroWebgpuPresent {
     }
     NitroRuntime.checkLinkChecksum(
       'nitro_webgpu_present',
-      '99e2dc065c4394f7',
+      '49a9ae8d8ab99f53',
       () => _dylib
           .lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
             'nitro_webgpu_present_nitro_bridge_checksum',
@@ -170,6 +170,16 @@ class _NitroWebgpuPresentImpl extends NitroWebgpuPresent {
           Void Function(Int64, Int64, Int64, Int64, Pointer<NitroErrorFfi>)
         >
       >('nitro_webgpu_present_resize_presenter')
+      .asFunction<void Function(int, int, int, int, Pointer<NitroErrorFfi>)>(
+        isLeaf: true,
+      );
+  late final void Function(int, int, int, int, Pointer<NitroErrorFfi>)
+  _presenterSetSurfaceSizePtr = _dylib
+      .lookup<
+        NativeFunction<
+          Void Function(Int64, Int64, Int64, Int64, Pointer<NitroErrorFfi>)
+        >
+      >('nitro_webgpu_present_presenter_set_surface_size')
       .asFunction<void Function(int, int, int, int, Pointer<NitroErrorFfi>)>(
         isLeaf: true,
       );
@@ -289,6 +299,21 @@ class _NitroWebgpuPresentImpl extends NitroWebgpuPresent {
       _resizePresenterPtr(_instanceId, token, widthPx, heightPx, _nitroErr);
       NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
     }, methodName: 'resizePresenter');
+  }
+
+  @override
+  void presenterSetSurfaceSize(int token, int widthPx, int heightPx) {
+    checkDisposed();
+    NitroRuntime.callSync<void>(() {
+      _presenterSetSurfaceSizePtr(
+        _instanceId,
+        token,
+        widthPx,
+        heightPx,
+        _nitroErr,
+      );
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+    }, methodName: 'presenterSetSurfaceSize');
   }
 
   @override

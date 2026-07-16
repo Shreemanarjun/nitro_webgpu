@@ -501,6 +501,67 @@ fn fs_main() -> @location(0) vec4<f32> {
       device.dispose();
       adapter.dispose();
     });
+
+    testWidgets('renderScale decouples render size from the surface',
+        (tester) async {
+      final binding = tester.binding as LiveTestWidgetsFlutterBinding;
+      binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+
+      var frames = 0;
+      var scale = 0.5;
+      Future<void> onFrame(GpuRenderTarget target, Duration elapsed) async {
+        final encoder = device.createCommandEncoder();
+        encoder
+            .beginRenderPass(colorAttachments: [
+              GpuColorAttachmentInfo(
+                  view: target.view, clearColor: const GpuColor(0, 0, 1))
+            ])
+            .end();
+        device.queue.submit([encoder.finish()]);
+        frames++;
+      }
+
+      Widget build() => MaterialApp(
+            home: Center(
+              child: SizedBox(
+                width: 256,
+                height: 256,
+                child: WebGpuView(
+                    device: device, onFrame: onFrame, renderScale: scale),
+              ),
+            ),
+          );
+
+      // Scaled from the start: on Android this renders into the internal
+      // target and upscale-blits into the swapchain every frame.
+      await tester.pumpWidget(build());
+      await tester
+          .runAsync(() => Future<void>.delayed(const Duration(seconds: 1)));
+      await tester.pump();
+      expect(frames, greaterThan(3),
+          reason: 'scaled rendering pumps frames');
+
+      // Dynamic-resolution style scale change: must keep pumping without a
+      // presenter/surface rebuild hiccup.
+      final before = frames;
+      scale = 0.8;
+      await tester.pumpWidget(build());
+      await tester
+          .runAsync(() => Future<void>.delayed(const Duration(seconds: 1)));
+      await tester.pump();
+      expect(frames, greaterThan(before + 3),
+          reason: 'render-size change keeps frames flowing');
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 500)));
+      device.dispose();
+      adapter.dispose();
+    });
   });
 
   group('textures + samplers', () {

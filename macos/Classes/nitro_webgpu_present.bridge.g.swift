@@ -437,9 +437,11 @@ public protocol HybridNitroWebgpuPresentProtocol: AnyObject {
     func presenterFormat(token: Int64) -> Int64
     // source: nitro_webgpu_present.native.dart:47
     func presenterUsesGpuPath(token: Int64) -> Bool
-    // source: nitro_webgpu_present.native.dart:49
+    // source: nitro_webgpu_present.native.dart:52
     func resizePresenter(token: Int64, widthPx: Int64, heightPx: Int64) -> Void
-    // source: nitro_webgpu_present.native.dart:54
+    // source: nitro_webgpu_present.native.dart:57
+    func presenterSetSurfaceSize(token: Int64, widthPx: Int64, heightPx: Int64) -> Void
+    // source: nitro_webgpu_present.native.dart:62
     func destroyPresenter(token: Int64) async throws -> Void
 }
 
@@ -517,13 +519,19 @@ public func _nitro_webgpu_present_call_presenterUsesGpuPath(_ token: Int64) -> I
     return Int8((NitroWebgpuPresentRegistry.impl?.presenterUsesGpuPath(token: token) ?? false) ? 1 : 0)
 }
 
-// source: nitro_webgpu_present.native.dart:49
+// source: nitro_webgpu_present.native.dart:52
 @_cdecl("_nitro_webgpu_present_call_resizePresenter")
 public func _nitro_webgpu_present_call_resizePresenter(_ token: Int64, _ widthPx: Int64, _ heightPx: Int64) -> Void {
     NitroWebgpuPresentRegistry.impl?.resizePresenter(token: token, widthPx: widthPx, heightPx: heightPx)
 }
 
-// source: nitro_webgpu_present.native.dart:54
+// source: nitro_webgpu_present.native.dart:57
+@_cdecl("_nitro_webgpu_present_call_presenterSetSurfaceSize")
+public func _nitro_webgpu_present_call_presenterSetSurfaceSize(_ token: Int64, _ widthPx: Int64, _ heightPx: Int64) -> Void {
+    NitroWebgpuPresentRegistry.impl?.presenterSetSurfaceSize(token: token, widthPx: widthPx, heightPx: heightPx)
+}
+
+// source: nitro_webgpu_present.native.dart:62
 @_cdecl("_nitro_webgpu_present_call_destroyPresenter")
 public func _nitro_webgpu_present_call_destroyPresenter(_ token: Int64, _ errPtr: Int64, _ dartPort: Int64) {
     let _errPtr = UnsafeMutablePointer<NitroError>(bitPattern: UInt(bitPattern: Int(errPtr)))

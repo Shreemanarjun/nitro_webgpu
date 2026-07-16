@@ -51,10 +51,16 @@ NWP_EXPORT int64_t nwp_presenter_create_surface(int64_t deviceAddress,
                                                 int32_t width, int32_t height);
 
 /// Swaps the presenter's backing window (Android `SurfaceProducer`
-/// re-created its Surface). NULL parks the presenter (acquire returns 0)
-/// until a window arrives.
+/// re-created its Surface — or the widget's on-screen box changed size).
+/// NULL parks the presenter (acquire returns 0) until a window arrives.
+/// [width]/[height] set the new surface size; pass <= 0 to keep the
+/// current one. The render resolution (nwp_presenter_resize) is
+/// independent — when it differs from the surface size, frames render to
+/// an internal target and are blit-upscaled at present, so render-size
+/// changes never touch the swapchain.
 NWP_EXPORT void nwp_presenter_replace_surface(int64_t token,
-                                              void* nativeWindow);
+                                              void* nativeWindow,
+                                              int32_t width, int32_t height);
 
 NWP_EXPORT void nwp_presenter_set_sink(int64_t token, NwpFrameSink sink,
                                        void* user);

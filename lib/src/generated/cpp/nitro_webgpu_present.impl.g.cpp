@@ -78,6 +78,11 @@ public:
         throw std::runtime_error("Not implemented: resizePresenter");
     }
 
+    void presenterSetSurfaceSize(int64_t token, int64_t widthPx, int64_t heightPx) override {
+        // TODO: implement presenterSetSurfaceSize
+        throw std::runtime_error("Not implemented: presenterSetSurfaceSize");
+    }
+
     void destroyPresenter(int64_t token, NitroError* _nitro_err, int64_t dartPort) override {
         // TODO: on error, populate _nitro_err (hasError/name/message via strdup) before posting.
         // TODO: post result via Dart_PostCObject_DL(dartPort, ...)

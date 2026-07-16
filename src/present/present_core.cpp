@@ -50,13 +50,28 @@ struct NwpPresenter {
     void* gpuSinkUser = nullptr;
 
     // Surface mode (nwp_presenter_create_surface): renders straight into a
-    // WGPUSurface swapchain instead of the offscreen ring.
+    // WGPUSurface swapchain instead of the offscreen ring. width/height stay
+    // the RENDER resolution; the swapchain itself is surfaceWidth/Height.
+    // When they differ, frames render into an internal target and are
+    // blit-upscaled into the swapchain at present — so render-resolution
+    // changes (dynamic resolution scaling) never recreate the swapchain.
     WGPUSurface surface = nullptr;
     void* nativeWindow = nullptr;  // owned (ANativeWindow* on Android)
     WGPUTextureFormat surfaceFormat = WGPUTextureFormat_RGBA8Unorm;
     WGPUTexture surfaceTexture = nullptr;  // current frame, between acquire/present
     WGPUTextureView surfaceView = nullptr;
     bool surfaceMode = false;
+    int32_t surfaceWidth = 0;
+    int32_t surfaceHeight = 0;
+    // Scaled offscreen render target (surface mode, render != surface size).
+    WGPUTexture offTex = nullptr;
+    WGPUTextureView offView = nullptr;
+    bool offscreenAcquired = false;
+    // Lazily-built upscale blit (fullscreen sampled triangle).
+    WGPUShaderModule blitModule = nullptr;
+    WGPURenderPipeline blitPipeline = nullptr;
+    WGPUSampler blitSampler = nullptr;
+    WGPUBindGroup blitBind = nullptr;  // rebuilt when offView changes
 };
 
 std::mutex gPresentersMutex;
@@ -167,6 +182,124 @@ void nwpReleaseSurfaceFrame(NwpPresenter* p) {
     }
 }
 
+void nwpReleaseOffscreen(NwpPresenter* p) {
+    if (p->blitBind) {
+        wgpuBindGroupRelease(p->blitBind);
+        p->blitBind = nullptr;
+    }
+    if (p->offView) {
+        wgpuTextureViewRelease(p->offView);
+        p->offView = nullptr;
+    }
+    if (p->offTex) {
+        wgpuTextureDestroy(p->offTex);
+        wgpuTextureRelease(p->offTex);
+        p->offTex = nullptr;
+    }
+}
+
+void nwpReleaseBlit(NwpPresenter* p) {
+    nwpReleaseOffscreen(p);
+    if (p->blitPipeline) {
+        wgpuRenderPipelineRelease(p->blitPipeline);
+        p->blitPipeline = nullptr;
+    }
+    if (p->blitSampler) {
+        wgpuSamplerRelease(p->blitSampler);
+        p->blitSampler = nullptr;
+    }
+    if (p->blitModule) {
+        wgpuShaderModuleRelease(p->blitModule);
+        p->blitModule = nullptr;
+    }
+}
+
+// Ensures the scaled offscreen target exists at the render size and the blit
+// pipeline + bind group are ready. Returns the target view or null.
+WGPUTextureView nwpEnsureOffscreen(NwpPresenter* p) {
+    if (p->offTex) return p->offView;
+
+    WGPUTextureDescriptor td = WGPU_TEXTURE_DESCRIPTOR_INIT;
+    td.label = {"nwp_scaled_target", WGPU_STRLEN};
+    td.usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding;
+    td.dimension = WGPUTextureDimension_2D;
+    td.size = {(uint32_t)p->width, (uint32_t)p->height, 1};
+    td.format = p->surfaceFormat;
+    td.mipLevelCount = 1;
+    td.sampleCount = 1;
+    p->offTex = wgpuDeviceCreateTexture(p->device, &td);
+    if (!p->offTex) return nullptr;
+    WGPUTextureViewDescriptor vd = WGPU_TEXTURE_VIEW_DESCRIPTOR_INIT;
+    p->offView = wgpuTextureCreateView(p->offTex, &vd);
+    if (!p->offView) return nullptr;
+
+    if (!p->blitPipeline) {
+        static const char* kBlitWgsl =
+            "struct VOut { @builtin(position) pos: vec4f, @location(0) uv: vec2f }\n"
+            "@vertex fn vs_main(@builtin(vertex_index) i: u32) -> VOut {\n"
+            "  var p = array<vec2f, 3>(\n"
+            "      vec2f(-1.0, -3.0), vec2f(3.0, 1.0), vec2f(-1.0, 1.0));\n"
+            "  var o: VOut;\n"
+            "  o.pos = vec4f(p[i], 0.0, 1.0);\n"
+            "  o.uv = vec2f((p[i].x + 1.0) * 0.5, 1.0 - (p[i].y + 1.0) * 0.5);\n"
+            "  return o;\n"
+            "}\n"
+            "@group(0) @binding(0) var s: sampler;\n"
+            "@group(0) @binding(1) var t: texture_2d<f32>;\n"
+            "@fragment fn fs_main(v: VOut) -> @location(0) vec4f {\n"
+            "  return textureSample(t, s, v.uv);\n"
+            "}\n";
+        WGPUShaderSourceWGSL src = WGPU_SHADER_SOURCE_WGSL_INIT;
+        src.chain.sType = WGPUSType_ShaderSourceWGSL;
+        src.code = {kBlitWgsl, WGPU_STRLEN};
+        WGPUShaderModuleDescriptor smd = WGPU_SHADER_MODULE_DESCRIPTOR_INIT;
+        smd.nextInChain = &src.chain;
+        smd.label = {"nwp_blit", WGPU_STRLEN};
+        p->blitModule = wgpuDeviceCreateShaderModule(p->device, &smd);
+        if (!p->blitModule) return nullptr;
+
+        WGPUSamplerDescriptor sd = WGPU_SAMPLER_DESCRIPTOR_INIT;
+        sd.magFilter = WGPUFilterMode_Linear;
+        sd.minFilter = WGPUFilterMode_Linear;
+        p->blitSampler = wgpuDeviceCreateSampler(p->device, &sd);
+
+        WGPUColorTargetState target = WGPU_COLOR_TARGET_STATE_INIT;
+        target.format = p->surfaceFormat;
+        WGPUFragmentState frag = WGPU_FRAGMENT_STATE_INIT;
+        frag.module = p->blitModule;
+        frag.entryPoint = {"fs_main", WGPU_STRLEN};
+        frag.targetCount = 1;
+        frag.targets = &target;
+        WGPURenderPipelineDescriptor rd = WGPU_RENDER_PIPELINE_DESCRIPTOR_INIT;
+        rd.label = {"nwp_blit_pipeline", WGPU_STRLEN};
+        rd.vertex.module = p->blitModule;
+        rd.vertex.entryPoint = {"vs_main", WGPU_STRLEN};
+        rd.primitive.topology = WGPUPrimitiveTopology_TriangleList;
+        rd.multisample.count = 1;
+        rd.fragment = &frag;
+        p->blitPipeline = wgpuDeviceCreateRenderPipeline(p->device, &rd);
+        if (!p->blitPipeline) return nullptr;
+    }
+
+    WGPUBindGroupLayout bgl =
+        wgpuRenderPipelineGetBindGroupLayout(p->blitPipeline, 0);
+    WGPUBindGroupEntry entries[2];
+    entries[0] = WGPU_BIND_GROUP_ENTRY_INIT;
+    entries[0].binding = 0;
+    entries[0].sampler = p->blitSampler;
+    entries[1] = WGPU_BIND_GROUP_ENTRY_INIT;
+    entries[1].binding = 1;
+    entries[1].textureView = p->offView;
+    WGPUBindGroupDescriptor bd = WGPU_BIND_GROUP_DESCRIPTOR_INIT;
+    bd.layout = bgl;
+    bd.entryCount = 2;
+    bd.entries = entries;
+    p->blitBind = wgpuDeviceCreateBindGroup(p->device, &bd);
+    wgpuBindGroupLayoutRelease(bgl);
+    if (!p->blitBind) return nullptr;
+    return p->offView;
+}
+
 void nwpConfigureSurface(NwpPresenter* p, int32_t width, int32_t height) {
     // Android Vulkan/GLES swapchains are RGBA8Unorm; capabilities need the
     // adapter (which the presenter doesn't hold), so configure directly.
@@ -179,12 +312,13 @@ void nwpConfigureSurface(NwpPresenter* p, int32_t width, int32_t height) {
     cfg.alphaMode = WGPUCompositeAlphaMode_Auto;
     cfg.presentMode = WGPUPresentMode_Fifo;
     wgpuSurfaceConfigure(p->surface, &cfg);
-    p->width = width;
-    p->height = height;
+    p->surfaceWidth = width;
+    p->surfaceHeight = height;
 }
 
 void nwpDestroySurface(NwpPresenter* p) {
     nwpReleaseSurfaceFrame(p);
+    nwpReleaseBlit(p);
     if (p->surface) {
         wgpuSurfaceUnconfigure(p->surface);
         wgpuSurfaceRelease(p->surface);
@@ -210,7 +344,7 @@ bool nwpAttachWindow(NwpPresenter* p, void* window) {
     if (!surface) return false;
     p->surface = surface;
     p->nativeWindow = window;
-    nwpConfigureSurface(p, p->width, p->height);
+    nwpConfigureSurface(p, p->surfaceWidth, p->surfaceHeight);
     return true;
 }
 
@@ -249,6 +383,8 @@ int64_t nwp_presenter_create_surface(int64_t deviceAddress,
     p->queue = wgpuDeviceGetQueue(p->device);
     p->width = width;
     p->height = height;
+    p->surfaceWidth = width;
+    p->surfaceHeight = height;
     if (!p->queue || !nwpAttachWindow(p, nativeWindow)) {
         if (p->queue) wgpuQueueRelease(p->queue);
         delete p;
@@ -261,10 +397,15 @@ int64_t nwp_presenter_create_surface(int64_t deviceAddress,
     return token;
 }
 
-void nwp_presenter_replace_surface(int64_t token, void* nativeWindow) {
+void nwp_presenter_replace_surface(int64_t token, void* nativeWindow,
+                                   int32_t width, int32_t height) {
     NwpPresenter* p = nwpFind(token);
     if (!p || !p->surfaceMode) return;
     nwpDestroySurface(p);
+    if (width > 0 && height > 0) {
+        p->surfaceWidth = width;
+        p->surfaceHeight = height;
+    }
     if (nativeWindow) nwpAttachWindow(p, nativeWindow);
 }
 
@@ -301,13 +442,24 @@ int64_t nwp_presenter_acquire(int64_t token) {
 
     if (p->surfaceMode) {
         if (!p->surface) return 0;  // parked (window lost)
-        if (p->surfaceView) return (int64_t)(intptr_t)p->surfaceView;
+        // Pending RENDER resize: only the internal target changes.
         if (p->pendingWidth > 0 &&
             (p->pendingWidth != p->width || p->pendingHeight != p->height)) {
-            nwpConfigureSurface(p, p->pendingWidth, p->pendingHeight);
+            p->width = p->pendingWidth;
+            p->height = p->pendingHeight;
             p->pendingWidth = 0;
             p->pendingHeight = 0;
+            nwpReleaseOffscreen(p);
         }
+        // Scaled path: render into the internal target; blit at present.
+        if (p->width != p->surfaceWidth || p->height != p->surfaceHeight) {
+            WGPUTextureView view = nwpEnsureOffscreen(p);
+            if (!view) return 0;
+            p->offscreenAcquired = true;
+            return (int64_t)(intptr_t)view;
+        }
+        p->offscreenAcquired = false;
+        if (p->surfaceView) return (int64_t)(intptr_t)p->surfaceView;
         for (int attempt = 0; attempt < 2; attempt++) {
             WGPUSurfaceTexture st = WGPU_SURFACE_TEXTURE_INIT;
             wgpuSurfaceGetCurrentTexture(p->surface, &st);
@@ -328,7 +480,7 @@ int64_t nwp_presenter_acquire(int64_t token) {
             if (st.texture) wgpuTextureRelease(st.texture);
             if (st.status == WGPUSurfaceGetCurrentTextureStatus_Outdated ||
                 st.status == WGPUSurfaceGetCurrentTextureStatus_Timeout) {
-                nwpConfigureSurface(p, p->width, p->height);
+                nwpConfigureSurface(p, p->surfaceWidth, p->surfaceHeight);
                 continue;  // one retry after reconfigure
             }
             return 0;  // lost / device error
@@ -374,7 +526,51 @@ void nwp_presenter_present(int64_t token) {
     if (!p) return;
 
     if (p->surfaceMode) {
-        if (!p->surface || !p->surfaceView) return;
+        if (!p->surface) return;
+        if (p->offscreenAcquired) {
+            // Scaled path: fetch the swapchain image now, upscale-blit the
+            // internal target into it, then present.
+            p->offscreenAcquired = false;
+            WGPUSurfaceTexture st = WGPU_SURFACE_TEXTURE_INIT;
+            wgpuSurfaceGetCurrentTexture(p->surface, &st);
+            if (st.status != WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal &&
+                st.status != WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal) {
+                if (st.texture) wgpuTextureRelease(st.texture);
+                return;  // drop this frame; next acquire may reconfigure
+            }
+            WGPUTextureViewDescriptor vd = WGPU_TEXTURE_VIEW_DESCRIPTOR_INIT;
+            WGPUTextureView dst = wgpuTextureCreateView(st.texture, &vd);
+            if (dst) {
+                WGPUCommandEncoderDescriptor ed = WGPU_COMMAND_ENCODER_DESCRIPTOR_INIT;
+                WGPUCommandEncoder enc =
+                    wgpuDeviceCreateCommandEncoder(p->device, &ed);
+                WGPURenderPassColorAttachment att =
+                    WGPU_RENDER_PASS_COLOR_ATTACHMENT_INIT;
+                att.view = dst;
+                att.loadOp = WGPULoadOp_Clear;
+                att.storeOp = WGPUStoreOp_Store;
+                WGPURenderPassDescriptor rp = WGPU_RENDER_PASS_DESCRIPTOR_INIT;
+                rp.colorAttachmentCount = 1;
+                rp.colorAttachments = &att;
+                WGPURenderPassEncoder pass =
+                    wgpuCommandEncoderBeginRenderPass(enc, &rp);
+                wgpuRenderPassEncoderSetPipeline(pass, p->blitPipeline);
+                wgpuRenderPassEncoderSetBindGroup(pass, 0, p->blitBind, 0,
+                                                  nullptr);
+                wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
+                wgpuRenderPassEncoderEnd(pass);
+                wgpuRenderPassEncoderRelease(pass);
+                WGPUCommandBuffer cmd = wgpuCommandEncoderFinish(enc, nullptr);
+                wgpuQueueSubmit(p->queue, 1, &cmd);
+                wgpuCommandBufferRelease(cmd);
+                wgpuCommandEncoderRelease(enc);
+                wgpuSurfacePresent(p->surface);
+                wgpuTextureViewRelease(dst);
+            }
+            wgpuTextureRelease(st.texture);
+            return;
+        }
+        if (!p->surfaceView) return;
         wgpuSurfacePresent(p->surface);
         nwpReleaseSurfaceFrame(p);
         return;

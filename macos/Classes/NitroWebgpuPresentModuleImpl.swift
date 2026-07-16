@@ -263,6 +263,11 @@ public class NitroWebgpuPresentModuleImpl: NSObject,
         return entry(token)?.usesGpuPath ?? false
     }
 
+    public func presenterSetSurfaceSize(token: Int64, widthPx: Int64, heightPx: Int64) {
+        // Ring presenters render offscreen — there is no window surface to
+        // resize; the render size (resizePresenter) is the only dimension.
+    }
+
     public func resizePresenter(token: Int64, widthPx: Int64, heightPx: Int64) {
         nwp_presenter_resize(token, Int32(widthPx), Int32(heightPx))
     }

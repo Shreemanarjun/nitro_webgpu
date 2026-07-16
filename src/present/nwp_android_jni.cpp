@@ -26,10 +26,11 @@ Java_dev_shreeman_nitro_1webgpu_NwpSurfacePresenter_nativeCreate(
 
 JNIEXPORT void JNICALL
 Java_dev_shreeman_nitro_1webgpu_NwpSurfacePresenter_nativeReplaceSurface(
-    JNIEnv* env, jobject, jlong token, jobject surface) {
+    JNIEnv* env, jobject, jlong token, jobject surface, jint width,
+    jint height) {
     ANativeWindow* window =
         surface ? ANativeWindow_fromSurface(env, surface) : nullptr;
-    nwp_presenter_replace_surface(token, window);
+    nwp_presenter_replace_surface(token, window, width, height);
     // On failure the core released nothing; the window ref is owned by the
     // presenter on success. nwp_presenter_replace_surface never partially
     // adopts, so nothing to clean up here.

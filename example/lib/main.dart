@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'src/demos/adapter_probe_page.dart';
@@ -7,10 +9,15 @@ import 'src/demos/live_scene_page.dart';
 import 'src/demos/multi_view_page.dart';
 import 'src/demos/offscreen_page.dart';
 import 'src/demos/shader_toy_page.dart';
+import 'src/gpu/gpu_context.dart';
 import 'src/gpu/scenes.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // Warm up the shared adapter/device while the gallery renders — first
+  // page-open then skips the adapter request, device creation, and shader
+  // compiler cold start.
+  unawaited(GpuContext.obtain());
   runApp(const NitroWebgpuExampleApp());
 }
 

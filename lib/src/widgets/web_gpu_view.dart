@@ -47,12 +47,23 @@ class _WebGpuViewState extends State<WebGpuView>
   int _token = 0;
   int _textureId = 0;
   GpuTextureFormat _format = GpuTextureFormat.bgra8Unorm;
-  int _widthPx = 0;
+  int _widthPx = 0;   // render resolution (scaled)
   int _heightPx = 0;
+  int _surfaceW = 0;  // on-screen physical size (unscaled)
+  int _surfaceH = 0;
   bool _frameInFlight = false;
 
-  void _ensurePresenter(int widthPx, int heightPx) {
+  void _ensurePresenter(
+      int widthPx, int heightPx, int surfaceW, int surfaceH) {
     if (_token != 0) {
+      // Surface (widget box) changes are rare; render-size changes (dynamic
+      // resolution) are cheap and never touch the platform surface.
+      if (surfaceW != _surfaceW || surfaceH != _surfaceH) {
+        _surfaceW = surfaceW;
+        _surfaceH = surfaceH;
+        NitroWebgpuPresent.instance
+            .presenterSetSurfaceSize(_token, surfaceW, surfaceH);
+      }
       if (widthPx != _widthPx || heightPx != _heightPx) {
         _widthPx = widthPx;
         _heightPx = heightPx;
@@ -63,10 +74,16 @@ class _WebGpuViewState extends State<WebGpuView>
     }
     _widthPx = widthPx;
     _heightPx = heightPx;
+    _surfaceW = surfaceW;
+    _surfaceH = surfaceH;
     final token = NitroWebgpuPresent.instance.createPresenter(
         widget.device.debugAddress, widthPx, heightPx);
     if (token == 0) return;
     _token = token;
+    if (surfaceW != widthPx || surfaceH != heightPx) {
+      NitroWebgpuPresent.instance
+          .presenterSetSurfaceSize(token, surfaceW, surfaceH);
+    }
     _textureId = NitroWebgpuPresent.instance.flutterTextureId(token);
     final raw = NitroWebgpuPresent.instance.presenterFormat(token);
     _format = GpuTextureFormat.values.firstWhere(
@@ -125,9 +142,11 @@ class _WebGpuViewState extends State<WebGpuView>
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final scale = widget.renderScale.clamp(0.1, 2.0);
     return LayoutBuilder(builder: (context, constraints) {
+      final surfaceW = (constraints.maxWidth * dpr).round();
+      final surfaceH = (constraints.maxHeight * dpr).round();
       final w = (constraints.maxWidth * dpr * scale).round();
       final h = (constraints.maxHeight * dpr * scale).round();
-      if (w > 0 && h > 0) _ensurePresenter(w, h);
+      if (w > 0 && h > 0) _ensurePresenter(w, h, surfaceW, surfaceH);
       if (_textureId == 0) return const SizedBox.expand();
       return Texture(
         textureId: _textureId,

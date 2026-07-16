@@ -46,7 +46,15 @@ abstract class NitroWebgpuPresent extends HybridObject {
   /// false for the CPU readback fallback.
   bool presenterUsesGpuPath(int token);
 
+  /// Changes the RENDER resolution (what `acquireFrame` targets). Cheap on
+  /// every platform — on Android the swapchain stays untouched and a scaled
+  /// offscreen target is blitted at present.
   void resizePresenter(int token, int widthPx, int heightPx);
+
+  /// Changes the on-screen SURFACE size (the widget's physical pixel box).
+  /// Only meaningful on platforms presenting through a real window surface
+  /// (Android swapchain — recreates it); a no-op on the ring presenters.
+  void presenterSetSurfaceSize(int token, int widthPx, int heightPx);
 
   /// Drains in-flight GPU work, then tears down the presenter and
   /// unregisters the Flutter texture.

@@ -61,6 +61,8 @@ public:
         throw std::runtime_error(kNotSupported);
     }
 
+    void presenterSetSurfaceSize(int64_t, int64_t, int64_t) override {}
+
     void resizePresenter(int64_t, int64_t, int64_t) override {
         throw std::runtime_error(kNotSupported);
     }
