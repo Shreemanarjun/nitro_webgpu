@@ -11,7 +11,8 @@ GC `Finalizer` safety net behind it.
 
 ## What works today
 
-Verified by **69 integration tests** on macOS (Metal) and the iOS simulator:
+Verified by **69 integration tests** on macOS (Metal), the iOS simulator,
+and the Android emulator:
 
 - **Core**: adapter/device acquisition with the full 31-field
   `requiredLimits`/`limits` set, feature enumeration + `requiredFeatures`
@@ -46,10 +47,12 @@ Verified by **69 integration tests** on macOS (Metal) and the iOS simulator:
   `writeTimestamp` (feature-gated), with `queue.timestampPeriod` for
   tick→ns conversion.
 - **Presentation**: the `WebGpuView` widget composites frames into the widget
-  tree via Flutter's texture registry, pipelined 3 frames deep with
-  backpressure. On Apple platforms each frame is a single GPU→GPU Metal blit
-  into an IOSurface-backed pixel buffer (no CPU readback); a portable
-  CPU-readback presenter is the automatic fallback elsewhere.
+  tree via Flutter's texture registry. On Apple platforms frames pipeline 3
+  deep through a render-target ring, each presented by a single GPU→GPU
+  Metal blit into an IOSurface-backed pixel buffer. On Android frames render
+  straight into a real `WGPUSurface` swapchain built from the
+  `SurfaceProducer`'s window — zero copies, no intermediate targets. A
+  portable CPU-readback presenter is the automatic fallback elsewhere.
 
 See [PARITY.md](PARITY.md) for the audit of this surface against the full
 WebGPU spec — what's covered and the probe-verified upstream gaps in
@@ -92,7 +95,7 @@ WebGpuView(
 |---|---|
 | macOS | ✅ Full suite green, Metal blit presenter active |
 | iOS | ✅ Full suite green on simulator (Metal blit active); physical device pending signing |
-| Android | 🔜 M2.3 — `SurfaceProducer` + real `WGPUSurface` planned |
+| Android | ✅ Full suite green on emulator — zero-copy `SurfaceProducer` → real `WGPUSurface` swapchain (M2.3); physical-device run pending |
 | Windows | 🔜 M2.4 — core API compiles, presenter = CPU readback first |
 | Linux | 🔜 M2.5 — core API compiles, presenter = CPU readback first |
 | Web | 📐 designed-for (`navigator.gpu` via JS interop), deferred |
@@ -171,6 +174,9 @@ scripts/gen.sh    # build_runner + swift-bridge workaround + nitrogen link/docto
   compute; offscreen render + readback.
 - **M2.0–2.2**: presentation seam + CPU-readback reference; Metal GPU blit
   fast path; iOS (simulator) verification.
+- **M2.3**: Android — core module compiled for all three ABIs, zero-copy
+  presentation via `SurfaceProducer` → `ANativeWindow` → `WGPUSurface`
+  swapchain; both suites green on the emulator.
 - **Feature batches**: textures/samplers → 3D rendering (vertex/index/depth/
   blend/explicit layouts) → timestamp queries → parity batch (copies,
   indirect, MSAA, storage textures, mips) → parity tail (bundles, occlusion,
@@ -180,4 +186,5 @@ scripts/gen.sh    # build_runner + swift-bridge workaround + nitrogen link/docto
   (comparison samplers, depth bias), feature enumeration, custom blend +
   write masks, copy origins, full limits, mapped writes, debug markers,
   and the P2 tail — implemented and tested.
-- **Next**: Android M2.3, Windows/Linux M2.4/2.5, first CI run.
+- **Next**: Android physical-device verification, Windows/Linux M2.4/2.5
+  presenters, first CI run.

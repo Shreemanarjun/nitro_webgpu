@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -325,6 +326,12 @@ fn fs_main() -> @location(0) vec4<f32> {
 
   group('M2.1 presenter ring', () {
     test('acquire hands out distinct slots and the ring recovers', () async {
+      if (Platform.isAndroid) {
+        // Android presents through a real WGPUSurface swapchain (M2.3), not
+        // the offscreen target ring this test exercises.
+        markTestSkipped('ring presenter is the non-Android path');
+        return;
+      }
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice();
@@ -409,13 +416,15 @@ fn fs_main() -> @location(0) vec4<f32> {
           () => Future<void>.delayed(const Duration(seconds: 2)));
       await tester.pump();
 
-      if (gpuPath) {
+      if (gpuPath && !Platform.isAndroid) {
         expect(frames, greaterThan(60),
             reason: 'a clear-only scene on the Metal blit path must sustain '
                 'well over 30 fps (pipelined ring)');
       } else {
+        // Android presents through a vsync-paced swapchain — on emulators
+        // (SwiftShader) that is legitimately slow, so only assert liveness.
         expect(frames, greaterThan(5),
-            reason: 'readback fallback still pumps frames');
+            reason: 'presenter still pumps frames');
       }
 
       await tester.pumpWidget(const MaterialApp(home: SizedBox()));

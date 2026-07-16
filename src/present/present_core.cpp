@@ -16,6 +16,10 @@
 
 #include "present_core.h"
 
+#ifdef __ANDROID__
+#include <android/native_window.h>
+#endif
+
 namespace {
 
 constexpr int kNwpSlots = 3;
@@ -44,11 +48,22 @@ struct NwpPresenter {
     void* sinkUser = nullptr;
     NwpGpuFrameSink gpuSink = nullptr;
     void* gpuSinkUser = nullptr;
+
+    // Surface mode (nwp_presenter_create_surface): renders straight into a
+    // WGPUSurface swapchain instead of the offscreen ring.
+    WGPUSurface surface = nullptr;
+    void* nativeWindow = nullptr;  // owned (ANativeWindow* on Android)
+    WGPUTextureFormat surfaceFormat = WGPUTextureFormat_RGBA8Unorm;
+    WGPUTexture surfaceTexture = nullptr;  // current frame, between acquire/present
+    WGPUTextureView surfaceView = nullptr;
+    bool surfaceMode = false;
 };
 
 std::mutex gPresentersMutex;
 std::unordered_map<int64_t, NwpPresenter*> gPresenters;
 int64_t gNextPresenterToken = 1;
+
+void nwpDestroySurface(NwpPresenter* p);  // defined below
 
 NwpPresenter* nwpFind(int64_t token) {
     std::lock_guard<std::mutex> lock(gPresentersMutex);
@@ -80,6 +95,7 @@ void nwpFinalize(int64_t token, NwpPresenter* p) {
         gPresenters.erase(token);
     }
     WgpuContext::get().unregisterDevice(p->device);
+    if (p->surfaceMode) nwpDestroySurface(p);
     nwpReleaseTargets(p);
     wgpuQueueRelease(p->queue);
     delete p;
@@ -140,6 +156,64 @@ bool nwpCreateTargets(NwpPresenter* p, int32_t width, int32_t height) {
     return true;
 }
 
+void nwpReleaseSurfaceFrame(NwpPresenter* p) {
+    if (p->surfaceView) {
+        wgpuTextureViewRelease(p->surfaceView);
+        p->surfaceView = nullptr;
+    }
+    if (p->surfaceTexture) {
+        wgpuTextureRelease(p->surfaceTexture);
+        p->surfaceTexture = nullptr;
+    }
+}
+
+void nwpConfigureSurface(NwpPresenter* p, int32_t width, int32_t height) {
+    // Android Vulkan/GLES swapchains are RGBA8Unorm; capabilities need the
+    // adapter (which the presenter doesn't hold), so configure directly.
+    WGPUSurfaceConfiguration cfg = WGPU_SURFACE_CONFIGURATION_INIT;
+    cfg.device = p->device;
+    cfg.format = p->surfaceFormat;
+    cfg.usage = WGPUTextureUsage_RenderAttachment;
+    cfg.width = (uint32_t)width;
+    cfg.height = (uint32_t)height;
+    cfg.alphaMode = WGPUCompositeAlphaMode_Auto;
+    cfg.presentMode = WGPUPresentMode_Fifo;
+    wgpuSurfaceConfigure(p->surface, &cfg);
+    p->width = width;
+    p->height = height;
+}
+
+void nwpDestroySurface(NwpPresenter* p) {
+    nwpReleaseSurfaceFrame(p);
+    if (p->surface) {
+        wgpuSurfaceUnconfigure(p->surface);
+        wgpuSurfaceRelease(p->surface);
+        p->surface = nullptr;
+    }
+#ifdef __ANDROID__
+    if (p->nativeWindow) {
+        ANativeWindow_release((ANativeWindow*)p->nativeWindow);
+    }
+#endif
+    p->nativeWindow = nullptr;
+}
+
+// Builds a WGPUSurface for [window] and configures it at the current size.
+bool nwpAttachWindow(NwpPresenter* p, void* window) {
+    WGPUSurfaceSourceAndroidNativeWindow src = {};
+    src.chain.sType = WGPUSType_SurfaceSourceAndroidNativeWindow;
+    src.window = window;
+    WGPUSurfaceDescriptor sd = WGPU_SURFACE_DESCRIPTOR_INIT;
+    sd.nextInChain = &src.chain;
+    WGPUSurface surface =
+        wgpuInstanceCreateSurface(WgpuContext::get().instance(), &sd);
+    if (!surface) return false;
+    p->surface = surface;
+    p->nativeWindow = window;
+    nwpConfigureSurface(p, p->width, p->height);
+    return true;
+}
+
 }  // namespace
 
 extern "C" {
@@ -163,6 +237,35 @@ int64_t nwp_presenter_create(int64_t deviceAddress, int32_t width,
     const int64_t token = gNextPresenterToken++;
     gPresenters[token] = p;
     return token;
+}
+
+int64_t nwp_presenter_create_surface(int64_t deviceAddress,
+                                     void* nativeWindow, int32_t width,
+                                     int32_t height) {
+    if (!deviceAddress || !nativeWindow || width <= 0 || height <= 0) return 0;
+    auto* p = new NwpPresenter();
+    p->surfaceMode = true;
+    p->device = (WGPUDevice)(intptr_t)deviceAddress;
+    p->queue = wgpuDeviceGetQueue(p->device);
+    p->width = width;
+    p->height = height;
+    if (!p->queue || !nwpAttachWindow(p, nativeWindow)) {
+        if (p->queue) wgpuQueueRelease(p->queue);
+        delete p;
+        return 0;
+    }
+    WgpuContext::get().registerDevice(p->device);
+    std::lock_guard<std::mutex> lock(gPresentersMutex);
+    const int64_t token = gNextPresenterToken++;
+    gPresenters[token] = p;
+    return token;
+}
+
+void nwp_presenter_replace_surface(int64_t token, void* nativeWindow) {
+    NwpPresenter* p = nwpFind(token);
+    if (!p || !p->surfaceMode) return;
+    nwpDestroySurface(p);
+    if (nativeWindow) nwpAttachWindow(p, nativeWindow);
 }
 
 void nwp_presenter_set_sink(int64_t token, NwpFrameSink sink, void* user) {
@@ -195,6 +298,43 @@ void* nwp_presenter_metal_device(int64_t token) {
 int64_t nwp_presenter_acquire(int64_t token) {
     NwpPresenter* p = nwpFind(token);
     if (!p || p->destroyPending) return 0;
+
+    if (p->surfaceMode) {
+        if (!p->surface) return 0;  // parked (window lost)
+        if (p->surfaceView) return (int64_t)(intptr_t)p->surfaceView;
+        if (p->pendingWidth > 0 &&
+            (p->pendingWidth != p->width || p->pendingHeight != p->height)) {
+            nwpConfigureSurface(p, p->pendingWidth, p->pendingHeight);
+            p->pendingWidth = 0;
+            p->pendingHeight = 0;
+        }
+        for (int attempt = 0; attempt < 2; attempt++) {
+            WGPUSurfaceTexture st = WGPU_SURFACE_TEXTURE_INIT;
+            wgpuSurfaceGetCurrentTexture(p->surface, &st);
+            if (st.status == WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal ||
+                st.status ==
+                    WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal) {
+                p->surfaceTexture = st.texture;
+                WGPUTextureViewDescriptor vd = WGPU_TEXTURE_VIEW_DESCRIPTOR_INIT;
+                vd.label = {"nwp_surface_view", WGPU_STRLEN};
+                p->surfaceView = wgpuTextureCreateView(st.texture, &vd);
+                if (!p->surfaceView) {
+                    wgpuTextureRelease(st.texture);
+                    p->surfaceTexture = nullptr;
+                    return 0;
+                }
+                return (int64_t)(intptr_t)p->surfaceView;
+            }
+            if (st.texture) wgpuTextureRelease(st.texture);
+            if (st.status == WGPUSurfaceGetCurrentTextureStatus_Outdated ||
+                st.status == WGPUSurfaceGetCurrentTextureStatus_Timeout) {
+                nwpConfigureSurface(p, p->width, p->height);
+                continue;  // one retry after reconfigure
+            }
+            return 0;  // lost / device error
+        }
+        return 0;
+    }
 
     // Backpressure: allow overlap (render N+1 while N presents) but never
     // queue more than 2 unfinished presents — without this cap, several
@@ -232,6 +372,14 @@ int64_t nwp_presenter_acquire(int64_t token) {
 void nwp_presenter_present(int64_t token) {
     NwpPresenter* p = nwpFind(token);
     if (!p) return;
+
+    if (p->surfaceMode) {
+        if (!p->surface || !p->surfaceView) return;
+        wgpuSurfacePresent(p->surface);
+        nwpReleaseSurfaceFrame(p);
+        return;
+    }
+
     const int slot = p->acquiredSlot;
     if (slot < 0 || slot >= kNwpSlots) return;
     int expected = 1;
@@ -325,7 +473,8 @@ void nwp_presenter_present(int64_t token) {
 }
 
 int32_t nwp_presenter_format(int64_t token) {
-    (void)token;
+    NwpPresenter* p = nwpFind(token);
+    if (p && p->surfaceMode) return (int32_t)p->surfaceFormat;
     return (int32_t)WGPUTextureFormat_BGRA8Unorm;
 }
 

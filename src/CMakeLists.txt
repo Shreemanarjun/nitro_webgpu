@@ -13,9 +13,7 @@ add_library(nitro_webgpu SHARED
   "dart_api_dl.c"
 )
 
-if(NOT ANDROID)
-  target_sources(nitro_webgpu PRIVATE "HybridNitroWebgpu.cpp")
-endif()
+target_sources(nitro_webgpu PRIVATE "HybridNitroWebgpu.cpp")
 target_include_directories(nitro_webgpu PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}"
   "${GENERATED_CPP}"
@@ -25,6 +23,8 @@ target_include_directories(nitro_webgpu PRIVATE
 target_compile_definitions(nitro_webgpu PUBLIC DART_SHARED_LIB)
 
 if(ANDROID)
+  # JNI shim for the surface-mode presenter (SurfaceProducer → WGPUSurface).
+  target_sources(nitro_webgpu PRIVATE "present/nwp_android_jni.cpp")
   target_link_libraries(nitro_webgpu PRIVATE android log)
   target_link_options(nitro_webgpu PRIVATE "-Wl,-z,max-page-size=16384")
 endif()

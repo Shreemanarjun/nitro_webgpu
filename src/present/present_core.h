@@ -41,6 +41,21 @@ typedef void (*NwpGpuFrameSink)(int64_t token, int32_t width, int32_t height,
 NWP_EXPORT int64_t nwp_presenter_create(int64_t deviceAddress, int32_t width,
                                         int32_t height);
 
+/// Creates a presenter that renders into a real `WGPUSurface` built from a
+/// platform native window (Android: `ANativeWindow*`) — the zero-copy path:
+/// acquire returns the swapchain texture's view, present calls
+/// `wgpuSurfacePresent`. The presenter takes ownership of the window
+/// reference. Returns a non-zero token, or 0 on failure.
+NWP_EXPORT int64_t nwp_presenter_create_surface(int64_t deviceAddress,
+                                                void* nativeWindow,
+                                                int32_t width, int32_t height);
+
+/// Swaps the presenter's backing window (Android `SurfaceProducer`
+/// re-created its Surface). NULL parks the presenter (acquire returns 0)
+/// until a window arrives.
+NWP_EXPORT void nwp_presenter_replace_surface(int64_t token,
+                                              void* nativeWindow);
+
 NWP_EXPORT void nwp_presenter_set_sink(int64_t token, NwpFrameSink sink,
                                        void* user);
 
