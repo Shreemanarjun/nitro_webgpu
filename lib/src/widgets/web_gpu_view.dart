@@ -54,6 +54,19 @@ class _WebGpuViewState extends State<WebGpuView>
   int _surfaceW = 0;  // on-screen physical size (unscaled)
   int _surfaceH = 0;
   bool _frameInFlight = false;
+  bool _disposed = false;
+  // Surface changes requested while a frame is in flight — applied at the
+  // frame boundary. Swapping the platform surface mid-frame destroys the
+  // texture view the frame is rendering into (native crash on Android).
+  int? _pendingSurfaceW;
+  int? _pendingSurfaceH;
+
+  void _applySurfaceSize(int surfaceW, int surfaceH) {
+    _surfaceW = surfaceW;
+    _surfaceH = surfaceH;
+    NitroWebgpuPresent.instance
+        .presenterSetSurfaceSize(_token, surfaceW, surfaceH);
+  }
 
   void _ensurePresenter(
       int widthPx, int heightPx, int surfaceW, int surfaceH) {
@@ -61,10 +74,12 @@ class _WebGpuViewState extends State<WebGpuView>
       // Surface (widget box) changes are rare; render-size changes (dynamic
       // resolution) are cheap and never touch the platform surface.
       if (surfaceW != _surfaceW || surfaceH != _surfaceH) {
-        _surfaceW = surfaceW;
-        _surfaceH = surfaceH;
-        NitroWebgpuPresent.instance
-            .presenterSetSurfaceSize(_token, surfaceW, surfaceH);
+        if (_frameInFlight) {
+          _pendingSurfaceW = surfaceW;
+          _pendingSurfaceH = surfaceH;
+        } else {
+          _applySurfaceSize(surfaceW, surfaceH);
+        }
       }
       if (widthPx != _widthPx || heightPx != _heightPx) {
         _widthPx = widthPx;
@@ -124,18 +139,33 @@ class _WebGpuViewState extends State<WebGpuView>
       }
     } finally {
       _frameInFlight = false;
+      // Deferred work that must not run mid-frame: a surface swap requested
+      // during this frame, or a dispose that arrived while rendering.
+      if (_disposed) {
+        _destroyNow();
+      } else if (_pendingSurfaceW != null && _token != 0) {
+        _applySurfaceSize(_pendingSurfaceW!, _pendingSurfaceH!);
+        _pendingSurfaceW = null;
+        _pendingSurfaceH = null;
+      }
     }
+  }
+
+  void _destroyNow() {
+    if (_token == 0) return;
+    final token = _token;
+    _token = 0;
+    // Drains in-flight GPU work, then unregisters the Flutter texture.
+    unawaited(NitroWebgpuPresent.instance.destroyPresenter(token));
   }
 
   @override
   void dispose() {
     _ticker?.dispose();
-    if (_token != 0) {
-      final token = _token;
-      _token = 0;
-      // Drains in-flight GPU work, then unregisters the Flutter texture.
-      unawaited(NitroWebgpuPresent.instance.destroyPresenter(token));
-    }
+    _disposed = true;
+    // Mid-frame dispose defers to the frame boundary — tearing the
+    // presenter down while onFrame encodes into its view is a native crash.
+    if (!_frameInFlight) _destroyNow();
     super.dispose();
   }
 
