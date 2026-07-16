@@ -320,19 +320,21 @@ interface HybridNitroWebgpuPresentSpec {
     fun flutterTextureId(token: Long): Long
     // source: nitro_webgpu_present.native.dart:36
     suspend fun acquireFrame(token: Long): Long
-    // source: nitro_webgpu_present.native.dart:39
+    // source: nitro_webgpu_present.native.dart:42
+    fun acquireFrameSync(token: Long): Long
+    // source: nitro_webgpu_present.native.dart:45
     fun presentFrame(token: Long): Unit
-    // source: nitro_webgpu_present.native.dart:43
+    // source: nitro_webgpu_present.native.dart:49
     fun presenterFormat(token: Long): Long
-    // source: nitro_webgpu_present.native.dart:47
+    // source: nitro_webgpu_present.native.dart:53
     fun presenterUsesGpuPath(token: Long): Boolean
-    // source: nitro_webgpu_present.native.dart:52
+    // source: nitro_webgpu_present.native.dart:58
     fun resizePresenter(token: Long, widthPx: Long, heightPx: Long): Unit
-    // source: nitro_webgpu_present.native.dart:57
+    // source: nitro_webgpu_present.native.dart:63
     fun presenterSetSurfaceSize(token: Long, widthPx: Long, heightPx: Long): Unit
-    // source: nitro_webgpu_present.native.dart:64
+    // source: nitro_webgpu_present.native.dart:70
     fun requestMaxRefreshRate(): Double
-    // source: nitro_webgpu_present.native.dart:69
+    // source: nitro_webgpu_present.native.dart:75
     suspend fun destroyPresenter(token: Long): Unit
 }
 
@@ -432,37 +434,42 @@ object NitroWebgpuPresentJniBridge {
             }
         }
     }
-    // source: nitro_webgpu_present.native.dart:39
+    // source: nitro_webgpu_present.native.dart:42
+    @JvmStatic fun acquireFrameSync_call(instanceId: Long, token: Long): Long {
+        val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpuPresent instance $instanceId not registered")
+        return impl.acquireFrameSync(token)
+    }
+    // source: nitro_webgpu_present.native.dart:45
     @JvmStatic fun presentFrame_call(instanceId: Long, token: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpuPresent instance $instanceId not registered")
         impl.presentFrame(token)
     }
-    // source: nitro_webgpu_present.native.dart:43
+    // source: nitro_webgpu_present.native.dart:49
     @JvmStatic fun presenterFormat_call(instanceId: Long, token: Long): Long {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpuPresent instance $instanceId not registered")
         return impl.presenterFormat(token)
     }
-    // source: nitro_webgpu_present.native.dart:47
+    // source: nitro_webgpu_present.native.dart:53
     @JvmStatic fun presenterUsesGpuPath_call(instanceId: Long, token: Long): Boolean {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpuPresent instance $instanceId not registered")
         return impl.presenterUsesGpuPath(token)
     }
-    // source: nitro_webgpu_present.native.dart:52
+    // source: nitro_webgpu_present.native.dart:58
     @JvmStatic fun resizePresenter_call(instanceId: Long, token: Long, widthPx: Long, heightPx: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpuPresent instance $instanceId not registered")
         impl.resizePresenter(token, widthPx, heightPx)
     }
-    // source: nitro_webgpu_present.native.dart:57
+    // source: nitro_webgpu_present.native.dart:63
     @JvmStatic fun presenterSetSurfaceSize_call(instanceId: Long, token: Long, widthPx: Long, heightPx: Long): Unit {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpuPresent instance $instanceId not registered")
         impl.presenterSetSurfaceSize(token, widthPx, heightPx)
     }
-    // source: nitro_webgpu_present.native.dart:64
+    // source: nitro_webgpu_present.native.dart:70
     @JvmStatic fun requestMaxRefreshRate_call(instanceId: Long): Double {
         val impl = _implementations[instanceId] ?: throw IllegalStateException("NitroWebgpuPresent instance $instanceId not registered")
         return impl.requestMaxRefreshRate()
     }
-    // source: nitro_webgpu_present.native.dart:69
+    // source: nitro_webgpu_present.native.dart:75
     @JvmStatic fun destroyPresenter_call(instanceId: Long, token: Long, errPtr: Long, dartPort: Long) {
         val impl = _implementations[instanceId] ?: run {
             reportNativeAsyncError(errPtr, "IllegalStateException", "No implementation registered for instance")

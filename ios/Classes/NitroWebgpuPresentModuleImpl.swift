@@ -251,6 +251,11 @@ public class NitroWebgpuPresentModuleImpl: NSObject,
         return nwp_presenter_acquire(token)
     }
 
+    public func acquireFrameSync(token: Int64) -> Int64 {
+        // Lock-free ring acquire — safe on the calling (Dart) thread.
+        return nwp_presenter_acquire(token)
+    }
+
     public func presentFrame(token: Int64) {
         nwp_presenter_present(token)
     }

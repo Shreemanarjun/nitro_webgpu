@@ -55,6 +55,7 @@ NITRO_EXPORT void* nitro_webgpu_present_nitro_alloc(size_t size);
 NITRO_EXPORT int64_t nitro_webgpu_present_create_presenter(int64_t instanceId, int64_t deviceAddress, int64_t widthPx, int64_t heightPx, NitroError* _nitro_err);
 NITRO_EXPORT int64_t nitro_webgpu_present_flutter_texture_id(int64_t instanceId, int64_t token, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_present_acquire_frame(int64_t instanceId, int64_t token, NitroError* _nitro_err, int64_t dart_port);
+NITRO_EXPORT int64_t nitro_webgpu_present_acquire_frame_sync(int64_t instanceId, int64_t token, NitroError* _nitro_err);
 NITRO_EXPORT void nitro_webgpu_present_present_frame(int64_t instanceId, int64_t token, NitroError* _nitro_err);
 NITRO_EXPORT int64_t nitro_webgpu_present_presenter_format(int64_t instanceId, int64_t token, NitroError* _nitro_err);
 NITRO_EXPORT int8_t nitro_webgpu_present_presenter_uses_gpu_path(int64_t instanceId, int64_t token, NitroError* _nitro_err);

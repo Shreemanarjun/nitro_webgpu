@@ -35,6 +35,12 @@ abstract class NitroWebgpuPresent extends HybridObject {
   @nitroNativeAsync
   Future<int> acquireFrame(int token);
 
+  /// Synchronous [acquireFrame]: ring acquire is lock-free atomics and the
+  /// Android swapchain acquire is bounded by one vsync, so the per-frame
+  /// async round-trip through the pool thread is pure overhead — this is
+  /// the hot path `WebGpuView` uses every frame.
+  int acquireFrameSync(int token);
+
   /// Hands the frame rendered into the last acquired view to Flutter.
   void presentFrame(int token);
 

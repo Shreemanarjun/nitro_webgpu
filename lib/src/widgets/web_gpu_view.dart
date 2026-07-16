@@ -64,6 +64,7 @@ class _WebGpuViewState extends State<WebGpuView>
   void _applySurfaceSize(int surfaceW, int surfaceH) {
     _surfaceW = surfaceW;
     _surfaceH = surfaceH;
+    _targetCache.clear();  // swapchain views are about to be replaced
     NitroWebgpuPresent.instance
         .presenterSetSurfaceSize(_token, surfaceW, surfaceH);
   }
@@ -84,6 +85,7 @@ class _WebGpuViewState extends State<WebGpuView>
       if (widthPx != _widthPx || heightPx != _heightPx) {
         _widthPx = widthPx;
         _heightPx = heightPx;
+        _targetCache.clear();
         NitroWebgpuPresent.instance
             .resizePresenter(_token, widthPx, heightPx);
       }
@@ -107,21 +109,26 @@ class _WebGpuViewState extends State<WebGpuView>
       (f) => f.raw == raw,
       orElse: () => GpuTextureFormat.bgra8Unorm,
     );
-    _ticker = createTicker(_tick)..start();
+    _ticker ??= createTicker(_tick)..start();
     // The texture id became known during layout; schedule a rebuild.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) setState(() {});
     });
   }
 
+  // Render targets are tiny wrappers, but at 120 fps re-allocating them —
+  // and especially round-tripping acquire through the async pool — costs
+  // real pacing jitter. Acquire synchronously and reuse targets per view.
+  final Map<int, GpuRenderTarget> _targetCache = {};
+
   Future<void> _tick(Duration elapsed) async {
     if (_token == 0 || _frameInFlight) return;
     _frameInFlight = true;
     try {
       final viewAddress =
-          await NitroWebgpuPresent.instance.acquireFrame(_token);
+          NitroWebgpuPresent.instance.acquireFrameSync(_token);
       if (viewAddress == 0 || !mounted || _token == 0) return;
-      final target = GpuRenderTarget(
+      final target = _targetCache[viewAddress] ??= GpuRenderTarget(
         view: GpuTextureView.borrowed(viewAddress),
         width: _widthPx,
         height: _heightPx,
@@ -143,6 +150,12 @@ class _WebGpuViewState extends State<WebGpuView>
       // during this frame, or a dispose that arrived while rendering.
       if (_disposed) {
         _destroyNow();
+      } else if (_recreatePending) {
+        _recreatePending = false;
+        _destroyNow();
+        _textureId = -1;
+        _targetCache.clear();
+        if (mounted) setState(() {});
       } else if (_pendingSurfaceW != null && _token != 0) {
         _applySurfaceSize(_pendingSurfaceW!, _pendingSurfaceH!);
         _pendingSurfaceW = null;
@@ -158,6 +171,28 @@ class _WebGpuViewState extends State<WebGpuView>
     // Drains in-flight GPU work, then unregisters the Flutter texture.
     unawaited(NitroWebgpuPresent.instance.destroyPresenter(token));
   }
+
+  @override
+  void didUpdateWidget(WebGpuView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.device != widget.device && _token != 0) {
+      // The device changed under us: tear the old presenter down at a safe
+      // point; the next layout creates a fresh one on the new device.
+      if (_frameInFlight) {
+        _disposed = false;
+        _pendingSurfaceW = null;
+        _pendingSurfaceH = null;
+        // Reuse the frame-boundary path: mark for destroy-then-recreate.
+        _recreatePending = true;
+      } else {
+        _destroyNow();
+        _textureId = -1;
+        _targetCache.clear();
+      }
+    }
+  }
+
+  bool _recreatePending = false;
 
   @override
   void dispose() {
@@ -180,9 +215,17 @@ class _WebGpuViewState extends State<WebGpuView>
       final h = (constraints.maxHeight * dpr * scale).round();
       if (w > 0 && h > 0) _ensurePresenter(w, h, surfaceW, surfaceH);
       if (_textureId < 0) return const SizedBox.expand();
-      return Texture(
-        textureId: _textureId,
-        filterQuality: widget.filterQuality,
+      // 1:1 pixels need no texture filtering; scaled content does. The
+      // RepaintBoundary keeps parent repaints (overlays, animations) from
+      // re-recording this layer.
+      final quality = scale == 1.0 && widget.filterQuality == FilterQuality.low
+          ? FilterQuality.none
+          : widget.filterQuality;
+      return RepaintBoundary(
+        child: Texture(
+          textureId: _textureId,
+          filterQuality: quality,
+        ),
       );
     });
   }

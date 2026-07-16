@@ -135,6 +135,9 @@ class NitroWebgpuPresentImpl(
     override suspend fun acquireFrame(token: Long): Long =
         native.nativeAcquire(token)
 
+    override fun acquireFrameSync(token: Long): Long =
+        native.nativeAcquire(token)
+
     override fun presentFrame(token: Long) {
         native.nativePresent(token)
         entries[token]?.producer?.scheduleFrame()

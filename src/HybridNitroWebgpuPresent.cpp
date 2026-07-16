@@ -49,6 +49,10 @@ public:
         presentPostNull(dartPort);
     }
 
+    int64_t acquireFrameSync(int64_t) override {
+        throw std::runtime_error(kNotSupported);
+    }
+
     void presentFrame(int64_t) override {
         throw std::runtime_error(kNotSupported);
     }

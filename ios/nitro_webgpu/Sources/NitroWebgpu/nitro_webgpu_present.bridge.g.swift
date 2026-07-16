@@ -431,19 +431,21 @@ public protocol HybridNitroWebgpuPresentProtocol: AnyObject {
     func flutterTextureId(token: Int64) -> Int64
     // source: nitro_webgpu_present.native.dart:36
     func acquireFrame(token: Int64) async throws -> Int64
-    // source: nitro_webgpu_present.native.dart:39
+    // source: nitro_webgpu_present.native.dart:42
+    func acquireFrameSync(token: Int64) -> Int64
+    // source: nitro_webgpu_present.native.dart:45
     func presentFrame(token: Int64) -> Void
-    // source: nitro_webgpu_present.native.dart:43
+    // source: nitro_webgpu_present.native.dart:49
     func presenterFormat(token: Int64) -> Int64
-    // source: nitro_webgpu_present.native.dart:47
+    // source: nitro_webgpu_present.native.dart:53
     func presenterUsesGpuPath(token: Int64) -> Bool
-    // source: nitro_webgpu_present.native.dart:52
+    // source: nitro_webgpu_present.native.dart:58
     func resizePresenter(token: Int64, widthPx: Int64, heightPx: Int64) -> Void
-    // source: nitro_webgpu_present.native.dart:57
+    // source: nitro_webgpu_present.native.dart:63
     func presenterSetSurfaceSize(token: Int64, widthPx: Int64, heightPx: Int64) -> Void
-    // source: nitro_webgpu_present.native.dart:64
+    // source: nitro_webgpu_present.native.dart:70
     func requestMaxRefreshRate() -> Double
-    // source: nitro_webgpu_present.native.dart:69
+    // source: nitro_webgpu_present.native.dart:75
     func destroyPresenter(token: Int64) async throws -> Void
 }
 
@@ -502,45 +504,52 @@ public func _nitro_webgpu_present_call_acquireFrame(_ token: Int64, _ errPtr: In
     }
 }
 
-// source: nitro_webgpu_present.native.dart:39
+// source: nitro_webgpu_present.native.dart:42
+@_cdecl("_nitro_webgpu_present_call_acquireFrameSync")
+public func _nitro_webgpu_present_call_acquireFrameSync(_ token: Int64) -> Int64 {
+    guard let impl = NitroWebgpuPresentRegistry.impl else { return 0 }
+    return impl.acquireFrameSync(token: token)
+}
+
+// source: nitro_webgpu_present.native.dart:45
 @_cdecl("_nitro_webgpu_present_call_presentFrame")
 public func _nitro_webgpu_present_call_presentFrame(_ token: Int64) -> Void {
     NitroWebgpuPresentRegistry.impl?.presentFrame(token: token)
 }
 
-// source: nitro_webgpu_present.native.dart:43
+// source: nitro_webgpu_present.native.dart:49
 @_cdecl("_nitro_webgpu_present_call_presenterFormat")
 public func _nitro_webgpu_present_call_presenterFormat(_ token: Int64) -> Int64 {
     guard let impl = NitroWebgpuPresentRegistry.impl else { return 0 }
     return impl.presenterFormat(token: token)
 }
 
-// source: nitro_webgpu_present.native.dart:47
+// source: nitro_webgpu_present.native.dart:53
 @_cdecl("_nitro_webgpu_present_call_presenterUsesGpuPath")
 public func _nitro_webgpu_present_call_presenterUsesGpuPath(_ token: Int64) -> Int8 {
     return Int8((NitroWebgpuPresentRegistry.impl?.presenterUsesGpuPath(token: token) ?? false) ? 1 : 0)
 }
 
-// source: nitro_webgpu_present.native.dart:52
+// source: nitro_webgpu_present.native.dart:58
 @_cdecl("_nitro_webgpu_present_call_resizePresenter")
 public func _nitro_webgpu_present_call_resizePresenter(_ token: Int64, _ widthPx: Int64, _ heightPx: Int64) -> Void {
     NitroWebgpuPresentRegistry.impl?.resizePresenter(token: token, widthPx: widthPx, heightPx: heightPx)
 }
 
-// source: nitro_webgpu_present.native.dart:57
+// source: nitro_webgpu_present.native.dart:63
 @_cdecl("_nitro_webgpu_present_call_presenterSetSurfaceSize")
 public func _nitro_webgpu_present_call_presenterSetSurfaceSize(_ token: Int64, _ widthPx: Int64, _ heightPx: Int64) -> Void {
     NitroWebgpuPresentRegistry.impl?.presenterSetSurfaceSize(token: token, widthPx: widthPx, heightPx: heightPx)
 }
 
-// source: nitro_webgpu_present.native.dart:64
+// source: nitro_webgpu_present.native.dart:70
 @_cdecl("_nitro_webgpu_present_call_requestMaxRefreshRate")
 public func _nitro_webgpu_present_call_requestMaxRefreshRate() -> Double {
     guard let impl = NitroWebgpuPresentRegistry.impl else { return 0.0 }
     return impl.requestMaxRefreshRate()
 }
 
-// source: nitro_webgpu_present.native.dart:69
+// source: nitro_webgpu_present.native.dart:75
 @_cdecl("_nitro_webgpu_present_call_destroyPresenter")
 public func _nitro_webgpu_present_call_destroyPresenter(_ token: Int64, _ errPtr: Int64, _ dartPort: Int64) {
     let _errPtr = UnsafeMutablePointer<NitroError>(bitPattern: UInt(bitPattern: Int(errPtr)))

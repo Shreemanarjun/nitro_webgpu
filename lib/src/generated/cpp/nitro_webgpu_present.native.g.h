@@ -225,19 +225,21 @@ public:
     virtual int64_t flutterTextureId(int64_t token) = 0;
     // source: nitro_webgpu_present.native.dart:36
     virtual void acquireFrame(int64_t token, NitroError* _nitro_err, int64_t dartPort) = 0;
-    // source: nitro_webgpu_present.native.dart:39
+    // source: nitro_webgpu_present.native.dart:42
+    virtual int64_t acquireFrameSync(int64_t token) = 0;
+    // source: nitro_webgpu_present.native.dart:45
     virtual void presentFrame(int64_t token) = 0;
-    // source: nitro_webgpu_present.native.dart:43
+    // source: nitro_webgpu_present.native.dart:49
     virtual int64_t presenterFormat(int64_t token) = 0;
-    // source: nitro_webgpu_present.native.dart:47
+    // source: nitro_webgpu_present.native.dart:53
     virtual bool presenterUsesGpuPath(int64_t token) = 0;
-    // source: nitro_webgpu_present.native.dart:52
+    // source: nitro_webgpu_present.native.dart:58
     virtual void resizePresenter(int64_t token, int64_t widthPx, int64_t heightPx) = 0;
-    // source: nitro_webgpu_present.native.dart:57
+    // source: nitro_webgpu_present.native.dart:63
     virtual void presenterSetSurfaceSize(int64_t token, int64_t widthPx, int64_t heightPx) = 0;
-    // source: nitro_webgpu_present.native.dart:64
+    // source: nitro_webgpu_present.native.dart:70
     virtual double requestMaxRefreshRate() = 0;
-    // source: nitro_webgpu_present.native.dart:69
+    // source: nitro_webgpu_present.native.dart:75
     virtual void destroyPresenter(int64_t token, NitroError* _nitro_err, int64_t dartPort) = 0;
 
 protected:

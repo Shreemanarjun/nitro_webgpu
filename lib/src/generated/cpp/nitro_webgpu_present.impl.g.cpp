@@ -56,6 +56,12 @@ public:
         throw std::runtime_error("Not implemented: acquireFrame");
     }
 
+    int64_t acquireFrameSync(int64_t token) override {
+        // TODO: implement acquireFrameSync
+        throw std::runtime_error("Not implemented: acquireFrameSync");
+        // return 0;
+    }
+
     void presentFrame(int64_t token) override {
         // TODO: implement presentFrame
         throw std::runtime_error("Not implemented: presentFrame");

@@ -84,7 +84,7 @@ class _NitroWebgpuPresentImpl extends NitroWebgpuPresent {
     }
     NitroRuntime.checkLinkChecksum(
       'nitro_webgpu_present',
-      'a5e813d4df56b6a7',
+      'bf14d17dec7d2a0a',
       () => _dylib
           .lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
             'nitro_webgpu_present_nitro_bridge_checksum',
@@ -141,6 +141,12 @@ class _NitroWebgpuPresentImpl extends NitroWebgpuPresent {
         Void Function(Int64, Int64, Pointer<NitroErrorFfi>, Int64),
         void Function(int, int, Pointer<NitroErrorFfi>, int)
       >('nitro_webgpu_present_acquire_frame');
+  late final int Function(int, int, Pointer<NitroErrorFfi>)
+  _acquireFrameSyncPtr = _dylib
+      .lookup<
+        NativeFunction<Int64 Function(Int64, Int64, Pointer<NitroErrorFfi>)>
+      >('nitro_webgpu_present_acquire_frame_sync')
+      .asFunction<int Function(int, int, Pointer<NitroErrorFfi>)>(isLeaf: true);
   late final void Function(int, int, Pointer<NitroErrorFfi>) _presentFramePtr =
       _dylib
           .lookup<
@@ -267,6 +273,16 @@ class _NitroWebgpuPresentImpl extends NitroWebgpuPresent {
       },
       methodName: 'acquireFrame',
     );
+  }
+
+  @override
+  int acquireFrameSync(int token) {
+    checkDisposed();
+    return NitroRuntime.callSync(() {
+      final res = _acquireFrameSyncPtr(_instanceId, token, _nitroErr);
+      NitroRuntime.throwIfOutParamError(_nitroErr, nativeFree: _nitroFree);
+      return res;
+    }, methodName: 'acquireFrameSync');
   }
 
   @override

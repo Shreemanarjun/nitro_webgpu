@@ -23,7 +23,7 @@ NITRO_EXPORT uint32_t nitro_webgpu_present_nitro_abi_version(void) {
     return 1;
 }
 NITRO_EXPORT const char* nitro_webgpu_present_nitro_bridge_checksum(void) {
-    return "a5e813d4df56b6a7";
+    return "bf14d17dec7d2a0a";
 }
 NITRO_EXPORT intptr_t nitro_webgpu_present_init_dart_api_dl(void* data) {
     return Dart_InitializeApiDL(data);
@@ -90,6 +90,7 @@ static jmethodID g_mid_destroy_instance_call = nullptr;
 static jmethodID g_mid_createPresenter_call = nullptr;
 static jmethodID g_mid_flutterTextureId_call = nullptr;
 static jmethodID g_mid_acquireFrame_call = nullptr;
+static jmethodID g_mid_acquireFrameSync_call = nullptr;
 static jmethodID g_mid_presentFrame_call = nullptr;
 static jmethodID g_mid_presenterFormat_call = nullptr;
 static jmethodID g_mid_presenterUsesGpuPath_call = nullptr;
@@ -257,6 +258,25 @@ void nitro_webgpu_present_acquire_frame(int64_t instanceId, int64_t token, Nitro
     env->PopLocalFrame(nullptr);
 }
 
+int64_t nitro_webgpu_present_acquire_frame_sync(int64_t instanceId, int64_t token, NitroError* _nitro_err) {
+    if (_nitro_err) { _nitro_err->hasError = 0; }  // S8: clear slot
+    JNIEnv* env = GetEnv();
+    if (env == nullptr) { return 0; }
+    jmethodID methodId = g_mid_acquireFrameSync_call;
+    if (methodId == nullptr) { LOGE("Method not found: acquireFrameSync_call sig=(JJ)J"); return 0; }
+
+    nitro_webgpu_present_clear_error();
+    if (env->PushLocalFrame(16) != 0) { return 0; }
+    int64_t res = env->CallStaticLongMethod(g_bridgeClass, methodId, (jlong)instanceId, token);
+    if (env->ExceptionCheck()) {
+        nitro_report_jni_exception(env, env->ExceptionOccurred(), _nitro_err);
+        env->PopLocalFrame(nullptr);
+        return 0;
+    }
+    env->PopLocalFrame(nullptr);
+    return res;
+}
+
 void nitro_webgpu_present_present_frame(int64_t instanceId, int64_t token, NitroError* _nitro_err) {
     if (_nitro_err) { _nitro_err->hasError = 0; }  // S8: clear slot
     JNIEnv* env = GetEnv();
@@ -396,6 +416,8 @@ JNIEXPORT void JNICALL Java_nitro_nitro_1webgpu_1present_1module_NitroWebgpuPres
         if (!g_mid_flutterTextureId_call && env->ExceptionCheck()) { env->ExceptionClear(); LOGE("Method not found: flutterTextureId_call sig=(JJ)J"); }
         g_mid_acquireFrame_call = env->GetStaticMethodID(g_bridgeClass, "acquireFrame_call", "(JJJJ)V");
         if (!g_mid_acquireFrame_call && env->ExceptionCheck()) { env->ExceptionClear(); LOGE("Method not found: acquireFrame_call sig=(JJJJ)V"); }
+        g_mid_acquireFrameSync_call = env->GetStaticMethodID(g_bridgeClass, "acquireFrameSync_call", "(JJ)J");
+        if (!g_mid_acquireFrameSync_call && env->ExceptionCheck()) { env->ExceptionClear(); LOGE("Method not found: acquireFrameSync_call sig=(JJ)J"); }
         g_mid_presentFrame_call = env->GetStaticMethodID(g_bridgeClass, "presentFrame_call", "(JJ)V");
         if (!g_mid_presentFrame_call && env->ExceptionCheck()) { env->ExceptionClear(); LOGE("Method not found: presentFrame_call sig=(JJ)V"); }
         g_mid_presenterFormat_call = env->GetStaticMethodID(g_bridgeClass, "presenterFormat_call", "(JJ)J");
@@ -584,6 +606,31 @@ extern void _nitro_webgpu_present_call_acquireFrame(int64_t token, int64_t err_p
 void nitro_webgpu_present_acquire_frame(int64_t instanceId, int64_t token, NitroError* _nitro_err, int64_t dart_port) {
     nitro_webgpu_present_clear_error();
     _nitro_webgpu_present_call_acquireFrame(token, (int64_t)(uintptr_t)_nitro_err, dart_port);
+}
+
+extern int64_t _nitro_webgpu_present_call_acquireFrameSync(int64_t token);
+int64_t nitro_webgpu_present_acquire_frame_sync(int64_t instanceId, int64_t token, NitroError* _nitro_err) {
+    if (_nitro_err) { _nitro_err->hasError = 0; }
+#ifdef __OBJC__
+    @try {
+        return _nitro_webgpu_present_call_acquireFrameSync(token);
+    } @catch (NSException* e) {
+        if (_nitro_err) {
+            // sync: write exception to out-param error slot.
+            _nitro_err->hasError = 1;
+            _nitro_err->name    = strdup([e.name UTF8String]);
+            _nitro_err->message = strdup([e.reason UTF8String]);
+            _nitro_err->code = nullptr;
+            _nitro_err->stackTrace = nullptr;
+        } else {
+            // async: _nitro_err is null — route exception to TLS slot.
+            nitro_report_error([e.name UTF8String], [e.reason UTF8String], nullptr, nullptr);
+        }
+        return 0;
+    }
+#else
+    return _nitro_webgpu_present_call_acquireFrameSync(token);
+#endif
 }
 
 extern void _nitro_webgpu_present_call_presentFrame(int64_t token);
@@ -819,6 +866,21 @@ void nitro_webgpu_present_acquire_frame(int64_t instanceId, int64_t token, Nitro
         _nitro_desktop_err(_nitro_err, "CppException", "Unknown C++ exception");
         Dart_CObject _err = { Dart_CObject_kNull };
         Dart_PostCObject_DL(dart_port, &_err);
+    }
+}
+
+int64_t nitro_webgpu_present_acquire_frame_sync(int64_t instanceId, int64_t token, NitroError* _nitro_err) {
+    nitro_webgpu_present_clear_error();
+    if (_nitro_err) { _nitro_err->hasError = 0; }  // S8: clear slot
+    if (!g_impl) { _nitro_desktop_err(_nitro_err, "NotInitialized", "No C++ implementation registered. Call nitro_webgpu_present_register_impl() first."); return 0; }
+    try {
+        return g_impl->acquireFrameSync(token);
+    } catch (const std::exception& e) {
+        _nitro_desktop_err(_nitro_err, "CppException", e.what());
+        return 0;
+    } catch (...) {
+        _nitro_desktop_err(_nitro_err, "CppException", "Unknown C++ exception");
+        return 0;
     }
 }
 
