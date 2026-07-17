@@ -60,7 +60,10 @@ shared C++ core on every native platform and a curated, Dart-idiomatic API
 
 * Verified by 73 integration tests on macOS (Metal), the iOS simulator, the
   Android emulator, and a physical 120 Hz Android device (OnePlus CPH2447,
-  Adreno 740). Windows/Linux: core API compiles; presenters planned (M2.4/
-  M2.5). Web: API designed for a future `navigator.gpu` backend.
+  Adreno 740). Windows/Linux: CPU-readback presenters implemented
+  (`FlutterDesktopPixelBuffer` / `FlPixelBufferTexture` behind desktop
+  plugin classes), compile-verified against the embedder headers — first
+  on-platform run pending. Web: API designed for a future `navigator.gpu`
+  backend.
 * Known upstream wgpu-native gaps are documented in
   [PARITY.md](PARITY.md).

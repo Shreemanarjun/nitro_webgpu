@@ -74,7 +74,9 @@ behavior: 69 green integration tests (`example/integration_test/`).
 ## Remaining
 
 - `Surface*` functions — deliberately replaced by the presenter seam
-  (Android M2.3 will consume them); `ExternalTexture` is web-only.
+  (Android M2.3 consumes them for the zero-copy swapchain; desktop
+  Windows/Linux present through the CPU-readback ring instead);
+  `ExternalTexture` is web-only.
 
 ## Upstream gaps in wgpu-native v29.0.1.1 (probe-verified)
 

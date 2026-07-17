@@ -308,16 +308,23 @@ fn fs_main() -> @location(0) vec4<f32> {
   });
 
   group('M2.1 presentation path', () {
-    test('macOS presenter uses the Metal blit path (not CPU readback)',
-        () async {
+    test('presenter picks the right path for the platform', () async {
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice();
       final token = NitroWebgpuPresent.instance
           .createPresenter(device.debugAddress, 64, 64);
       expect(token, isNonZero);
-      expect(NitroWebgpuPresent.instance.presenterUsesGpuPath(token), isTrue,
-          reason: 'macOS runs on Metal — the GPU blit path must be active');
+      final gpuPath = NitroWebgpuPresent.instance.presenterUsesGpuPath(token);
+      if (Platform.isWindows || Platform.isLinux) {
+        expect(gpuPath, isFalse,
+            reason: 'desktop Windows/Linux present via CPU readback '
+                '(M2.4/M2.5 phase A)');
+      } else {
+        expect(gpuPath, isTrue,
+            reason: 'Apple runs the Metal blit, Android the zero-copy '
+                'swapchain — the GPU path must be active');
+      }
       await NitroWebgpuPresent.instance.destroyPresenter(token);
       device.dispose();
       adapter.dispose();
