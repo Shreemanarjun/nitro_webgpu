@@ -80,15 +80,23 @@ jobs:
         # LIBGL_ALWAYS_SOFTWARE: the GTK embedder needs working GL for the
         # raster thread; under Xvfb that must be Mesa llvmpipe, not a GPU
         # probe that can abort the app at first frame.
+        # ulimit -n: every lavapipe VkDevice costs fds + a thread pool; the
+        # suite creates a device per test and the runner default (1024) runs
+        # out mid-suite — wgpuInstanceRequestAdapter then panics (core-dump
+        # verified).
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
-        run: xvfb-run -a -s "-screen 0 1280x800x24" flutter test integration_test/wgpu_instance_test.dart -d linux --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded
+        run: |
+          ulimit -n 8192
+          xvfb-run -a -s "-screen 0 1280x800x24" flutter test integration_test/wgpu_instance_test.dart -d linux --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded
       - name: Complex parity tests (fallback adapter)
         working-directory: example
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
-        run: xvfb-run -a -s "-screen 0 1280x800x24" flutter test integration_test/wgpu_parity_complex_test.dart -d linux --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded
-      - name: Crash diagnostics (core-dump backtrace)
+        run: |
+          ulimit -n 8192
+          xvfb-run -a -s "-screen 0 1280x800x24" flutter test integration_test/wgpu_parity_complex_test.dart -d linux --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded
+      - name: Crash diagnostics (core-dump backtrace + app stderr)
         if: failure()
         working-directory: example
         env:
@@ -97,8 +105,21 @@ jobs:
           sudo apt-get install -y gdb
           sudo sysctl -w kernel.core_pattern=/tmp/core.%p
           ulimit -c unlimited
+          # Wrap the app binary so its stderr (Rust panic messages — the
+          # flutter tool discards child stderr) lands in a file we can print.
+          BUNDLE=build/linux/x64/debug/bundle
+          if [ -f "$BUNDLE/nitro_webgpu_example" ] && [ ! -f "$BUNDLE/nitro_webgpu_example.real" ]; then
+            mv "$BUNDLE/nitro_webgpu_example" "$BUNDLE/nitro_webgpu_example.real"
+            cat > "$BUNDLE/nitro_webgpu_example" <<'WRAP'
+          #!/bin/bash
+          exec "$(dirname "$0")/nitro_webgpu_example.real" "$@" 2>>/tmp/app_stderr.log
+          WRAP
+            chmod +x "$BUNDLE/nitro_webgpu_example"
+          fi
           xvfb-run -a -s "-screen 0 1280x800x24" flutter test integration_test/wgpu_instance_test.dart -d linux \
             --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded || true
+          echo "=== app stderr ==="
+          tail -80 /tmp/app_stderr.log 2>/dev/null || echo "(no stderr captured)"
           shopt -s nullglob
           cores=(/tmp/core.*)
           if [ ${#cores[@]} -eq 0 ]; then echo "NO CORE PRODUCED"; exit 0; fi
