@@ -19,7 +19,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          # Pinned to the version the plugin is developed/verified against —
+          # newer stable's integration-test result drain undercounts on fast
+          # suites (all tests pass in-app, tool exits 1).
+          flutter-version: 3.44.4
           cache: true
       - name: Cache wgpu-native
         uses: actions/cache@v4
@@ -38,10 +41,10 @@ jobs:
           flutter build macos --release
       - name: Integration tests
         working-directory: example
-        run: flutter test integration_test/wgpu_instance_test.dart -d macos
+        run: flutter test integration_test/wgpu_instance_test.dart -d macos --reporter expanded
       - name: Complex parity tests
         working-directory: example
-        run: flutter test integration_test/wgpu_parity_complex_test.dart -d macos
+        run: flutter test integration_test/wgpu_parity_complex_test.dart -d macos --reporter expanded
 
   linux:
     name: Linux (lavapipe software Vulkan)
@@ -51,7 +54,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          # Pinned to the version the plugin is developed/verified against —
+          # newer stable's integration-test result drain undercounts on fast
+          # suites (all tests pass in-app, tool exits 1).
+          flutter-version: 3.44.4
           cache: true
       - name: Install dependencies
         run: |
@@ -71,10 +77,10 @@ jobs:
           flutter build linux --release
       - name: Integration tests (fallback adapter)
         working-directory: example
-        run: xvfb-run -a flutter test integration_test/wgpu_instance_test.dart -d linux --dart-define=WGPU_FORCE_FALLBACK=true
+        run: xvfb-run -a flutter test integration_test/wgpu_instance_test.dart -d linux --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded
       - name: Complex parity tests (fallback adapter)
         working-directory: example
-        run: xvfb-run -a flutter test integration_test/wgpu_parity_complex_test.dart -d linux --dart-define=WGPU_FORCE_FALLBACK=true
+        run: xvfb-run -a flutter test integration_test/wgpu_parity_complex_test.dart -d linux --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded
 
   windows:
     name: Windows (D3D12 WARP)
@@ -84,7 +90,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          # Pinned to the version the plugin is developed/verified against —
+          # newer stable's integration-test result drain undercounts on fast
+          # suites (all tests pass in-app, tool exits 1).
+          flutter-version: 3.44.4
           cache: true
       - name: Cache wgpu-native
         uses: actions/cache@v4
@@ -101,7 +110,7 @@ jobs:
           flutter build windows --release
       - name: Integration tests (fallback adapter)
         working-directory: example
-        run: flutter test integration_test/wgpu_instance_test.dart -d windows --dart-define=WGPU_FORCE_FALLBACK=true
+        run: flutter test integration_test/wgpu_instance_test.dart -d windows --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded
       - name: Complex parity tests (fallback adapter)
         working-directory: example
-        run: flutter test integration_test/wgpu_parity_complex_test.dart -d windows --dart-define=WGPU_FORCE_FALLBACK=true
+        run: flutter test integration_test/wgpu_parity_complex_test.dart -d windows --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded
