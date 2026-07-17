@@ -62,7 +62,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev mesa-vulkan-drivers vulkan-tools xvfb
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev mesa-vulkan-drivers mesa-utils libgl1-mesa-dri libegl1 vulkan-tools xvfb
       - name: Cache wgpu-native
         uses: actions/cache@v4
         with:
@@ -77,10 +77,26 @@ jobs:
           flutter build linux --release
       - name: Integration tests (fallback adapter)
         working-directory: example
-        run: xvfb-run -a flutter test integration_test/wgpu_instance_test.dart -d linux --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded
+        # LIBGL_ALWAYS_SOFTWARE: the GTK embedder needs working GL for the
+        # raster thread; under Xvfb that must be Mesa llvmpipe, not a GPU
+        # probe that can abort the app at first frame.
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: xvfb-run -a -s "-screen 0 1280x800x24" flutter test integration_test/wgpu_instance_test.dart -d linux --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded
       - name: Complex parity tests (fallback adapter)
         working-directory: example
-        run: xvfb-run -a flutter test integration_test/wgpu_parity_complex_test.dart -d linux --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: xvfb-run -a -s "-screen 0 1280x800x24" flutter test integration_test/wgpu_parity_complex_test.dart -d linux --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded
+      - name: Crash diagnostics (first widget test, verbose)
+        if: failure()
+        working-directory: example
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          xvfb-run -a -s "-screen 0 1280x800x24" flutter test integration_test/wgpu_instance_test.dart -d linux \
+            --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded --verbose \
+            --plain-name "pumps live frames through the presenter" 2>&1 | tail -150
 
   windows:
     name: Windows (D3D12 WARP)
@@ -114,3 +130,11 @@ jobs:
       - name: Complex parity tests (fallback adapter)
         working-directory: example
         run: flutter test integration_test/wgpu_parity_complex_test.dart -d windows --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded
+      - name: Crash diagnostics (stencil test, verbose)
+        if: failure()
+        working-directory: example
+        shell: bash
+        run: |
+          flutter test integration_test/wgpu_parity_complex_test.dart -d windows \
+            --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded --verbose \
+            --plain-name "stencil write mask and per-face state" 2>&1 | tail -150
