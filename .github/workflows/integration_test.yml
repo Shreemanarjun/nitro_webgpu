@@ -107,19 +107,36 @@ jobs:
           ulimit -c unlimited
           # Wrap the app binary so its stderr (Rust panic messages — the
           # flutter tool discards child stderr) lands in a file we can print.
+          # `flutter test` reinstalls the bundle at the start of every
+          # invocation, so a background watcher re-wraps the fresh binary in
+          # the build→launch gap.
           BUNDLE=build/linux/x64/debug/bundle
-          if [ -f "$BUNDLE/nitro_webgpu_example" ] && [ ! -f "$BUNDLE/nitro_webgpu_example.real" ]; then
-            mv "$BUNDLE/nitro_webgpu_example" "$BUNDLE/nitro_webgpu_example.real"
-            cat > "$BUNDLE/nitro_webgpu_example" <<'WRAP'
+          wrap_binary() {
+            if [ -f "$BUNDLE/nitro_webgpu_example" ] \
+              && ! head -c2 "$BUNDLE/nitro_webgpu_example" | grep -q '#!'; then
+              mv "$BUNDLE/nitro_webgpu_example" "$BUNDLE/nitro_webgpu_example.real"
+              cat > "$BUNDLE/nitro_webgpu_example" <<'WRAP'
           #!/bin/bash
           exec "$(dirname "$0")/nitro_webgpu_example.real" "$@" 2>>/tmp/app_stderr.log
           WRAP
-            chmod +x "$BUNDLE/nitro_webgpu_example"
-          fi
+              chmod +x "$BUNDLE/nitro_webgpu_example"
+              echo "(re)wrapped app binary"
+            fi
+          }
+          wrap_binary
+          ( while true; do wrap_binary; sleep 0.3; done ) &
+          WATCHER=$!
           xvfb-run -a -s "-screen 0 1280x800x24" flutter test integration_test/wgpu_instance_test.dart -d linux \
             --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded || true
+          kill $WATCHER 2>/dev/null || true
           echo "=== app stderr ==="
           tail -80 /tmp/app_stderr.log 2>/dev/null || echo "(no stderr captured)"
+          echo "=== standalone adapter-cycle probe (wgpu panic goes to visible stderr) ==="
+          cc ../scripts/ci/adapter_cycle_probe.c \
+            ../src/third_party/wgpu_native/linux-x86_64/lib/libwgpu_native.a \
+            -I../src/third_party/wgpu_native/include -lm -ldl -lpthread \
+            -o /tmp/adapter_cycle_probe
+          /tmp/adapter_cycle_probe 2>&1 | tail -8 || echo "PROBE CRASHED (exit $?)"
           shopt -s nullglob
           cores=(/tmp/core.*)
           if [ ${#cores[@]} -eq 0 ]; then echo "NO CORE PRODUCED"; exit 0; fi
