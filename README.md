@@ -66,6 +66,10 @@ the Android emulator, and a physical 120 Hz Android device:
 - **Buffers**: zero-copy `writeBuffer`/`writeTexture` uploads, `mapRead`,
   and the mapped-write path (`mappedAtCreation` / `mapWrite` +
   `writeMapped` straight into mapped GPU memory).
+- **GLSL shaders**: `createShaderModuleGlsl` ingests GLSL through naga's
+  glsl-in front end (per-stage modules, entry `main`), and
+  `createRenderPipeline(fragmentModule:)` pairs a GLSL fragment with a WGSL
+  vertex stage — Shadertoy content runs as-is.
 - **Introspection**: native-backed getters for buffer usage, texture
   properties, and query-set type; wrapper-tracked buffer map state.
 - **Timing**: GPU timestamp queries on both pass types plus encoder-level
@@ -256,8 +260,12 @@ validation-sensitive encodes. Details in [PARITY.md](PARITY.md).
 
 `example/` is a gallery: multi-view rendering with per-view FPS overlays, a
 live WGSL shader toy (editor, speed/param controls, inline naga errors,
-hot-swap that keeps the last good pipeline), heavy-scene benchmarks with
-`[gpu-perf]` console counters and real per-pass GPU milliseconds from
+hot-swap that keeps the last good pipeline), a **Shadertoy player** (paste
+GLSL straight from shadertoy.com or WGSL snippets — iMouse interaction,
+multi-pass Buffer A feedback, texture channels), a **compute shader toy**
+(Slang-playground `imageMain` kernels), **GPU particles** (live-editable
+compute kernel driving 100k instanced particles), heavy-scene benchmarks
+with `[gpu-perf]` console counters and real per-pass GPU milliseconds from
 timestamp queries, and dynamic resolution scaling that holds the display's
 max refresh rate under load.
 

@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 import 'src/demos/adapter_probe_page.dart';
 import 'src/demos/benchmark_page.dart';
 import 'src/demos/compute_page.dart';
+import 'src/demos/compute_toy_page.dart';
+import 'src/demos/particles_page.dart';
+import 'src/demos/shadertoy_player_page.dart';
 import 'src/demos/live_scene_page.dart';
 import 'src/demos/multi_view_page.dart';
 import 'src/demos/offscreen_page.dart';
@@ -64,6 +67,27 @@ class GalleryPage extends StatelessWidget {
           'controls, and the CC0 "Neon cubes" raymarcher by mrange',
       icon: Icons.auto_awesome,
       builder: (_) => const ShaderToyPage(),
+    ),
+    _DemoEntry(
+      title: 'Shadertoy player',
+      subtitle: 'Paste GLSL from shadertoy.com or WGSL snippets — mouse '
+          'input, Buffer A feedback, and texture channels',
+      icon: Icons.play_circle_outline,
+      builder: (_) => const ShadertoyPlayerPage(),
+    ),
+    _DemoEntry(
+      title: 'GPU particles',
+      subtitle: 'A compute kernel drives 100k instanced particles that never '
+          'leave the GPU — kernel is live-editable',
+      icon: Icons.scatter_plot,
+      builder: (_) => const ParticlesPage(),
+    ),
+    _DemoEntry(
+      title: 'Compute shader toy',
+      subtitle: 'Run Slang-playground compute kernels (imageMain → storage '
+          'texture) with live editing and inline compile errors',
+      icon: Icons.grain,
+      builder: (_) => const ComputeToyPage(),
     ),
     _DemoEntry(
       title: 'Performance benchmark',

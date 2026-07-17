@@ -465,7 +465,10 @@ int64_t nwCreateRenderPipelineSync(int64_t device,
     }
 
     WGPUFragmentState fragment = WGPU_FRAGMENT_STATE_INIT;
-    fragment.module = (WGPUShaderModule)(intptr_t)d.moduleAddress;
+    // Separate fragment module (e.g. single-stage GLSL) when set; otherwise
+    // both stages come from the same module.
+    fragment.module = (WGPUShaderModule)(intptr_t)(
+        d.fragmentModuleAddress ? d.fragmentModuleAddress : d.moduleAddress);
     fragment.entryPoint = toView(d.fragmentEntryPoint);
     fragment.targetCount = targetCount;
     fragment.targets = targets;
@@ -1023,6 +1026,34 @@ public:
             if (!mod) {
                 fillError(_nitro_err, "GpuShaderError",
                           "wgpuDeviceCreateShaderModule failed");
+                postNull(dartPort);
+                return;
+            }
+            postInt64(dartPort, (int64_t)(intptr_t)mod);
+        }).detach();
+    }
+
+    void deviceCreateShaderModuleGlslAsync(int64_t device,
+                                           const std::string& label,
+                                           const std::string& glsl,
+                                           int64_t stage,
+                                           NitroError* _nitro_err,
+                                           int64_t dartPort) override {
+        // naga's glsl-in front end (probe-verified in the release binaries);
+        // GLSL modules target exactly one stage and use entry point "main".
+        std::thread([device, label, glsl, stage, _nitro_err, dartPort]() {
+            WGPUShaderSourceGLSL src = {};
+            src.chain.sType = (WGPUSType)WGPUSType_ShaderSourceGLSL;
+            src.stage = (WGPUShaderStage)stage;
+            src.code = toView(glsl);
+            WGPUShaderModuleDescriptor desc = WGPU_SHADER_MODULE_DESCRIPTOR_INIT;
+            desc.nextInChain = &src.chain;
+            desc.label = toView(label);
+            WGPUShaderModule mod = wgpuDeviceCreateShaderModule(
+                (WGPUDevice)(intptr_t)device, &desc);
+            if (!mod) {
+                fillError(_nitro_err, "GpuShaderError",
+                          "wgpuDeviceCreateShaderModule (GLSL) failed");
                 postNull(dartPort);
                 return;
             }

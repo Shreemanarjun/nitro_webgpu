@@ -931,6 +931,7 @@ extension GpuRenderPipelineDescriptorRecordExt on GpuRenderPipelineDescriptor {
         writeMask: r.readInt(),
         multisampleMask: r.readInt(),
         alphaToCoverageEnabled: r.readBool(),
+        fragmentModuleAddress: r.readInt(),
       );
 
   void writeFields(RecordWriter writer) {
@@ -982,6 +983,7 @@ extension GpuRenderPipelineDescriptorRecordExt on GpuRenderPipelineDescriptor {
     writer.writeInt(writeMask);
     writer.writeInt(multisampleMask);
     writer.writeBool(alphaToCoverageEnabled);
+    writer.writeInt(fragmentModuleAddress);
   }
 
   Pointer<Uint8> toNative(Allocator alloc) {
@@ -1122,7 +1124,7 @@ class _NitroWebgpuImpl extends NitroWebgpu {
     }
     NitroRuntime.checkLinkChecksum(
       'nitro_webgpu',
-      '30d5b8d2b990e1f4',
+      '17eac33196bb09c1',
       () => _dylib
           .lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
             'nitro_webgpu_nitro_bridge_checksum',
@@ -1475,6 +1477,36 @@ class _NitroWebgpuImpl extends NitroWebgpu {
           int,
         )
       >('nitro_webgpu_device_create_shader_module_wgsl_async');
+  late final void Function(
+    int,
+    int,
+    Pointer<Utf8>,
+    Pointer<Utf8>,
+    int,
+    Pointer<NitroErrorFfi>,
+    int,
+  )
+  _deviceCreateShaderModuleGlslAsyncPtr = _dylib
+      .lookupFunction<
+        Void Function(
+          Int64,
+          Int64,
+          Pointer<Utf8>,
+          Pointer<Utf8>,
+          Int64,
+          Pointer<NitroErrorFfi>,
+          Int64,
+        ),
+        void Function(
+          int,
+          int,
+          Pointer<Utf8>,
+          Pointer<Utf8>,
+          int,
+          Pointer<NitroErrorFfi>,
+          int,
+        )
+      >('nitro_webgpu_device_create_shader_module_glsl_async');
   late final void Function(
     int,
     int,
@@ -3272,6 +3304,41 @@ class _NitroWebgpuImpl extends NitroWebgpu {
           return ((raw) => raw as int)(raw);
         },
         methodName: 'deviceCreateShaderModuleWgslAsync',
+      );
+    } finally {
+      arena.releaseAll();
+    }
+  }
+
+  @override
+  Future<int> deviceCreateShaderModuleGlslAsync(
+    int device,
+    String label,
+    String glsl,
+    int stage,
+  ) {
+    checkDisposed();
+    final arena = Arena();
+    final _nitroErr = calloc<NitroErrorFfi>();
+    try {
+      return NitroRuntime.openNativeAsync<int>(
+        call: (port) => _deviceCreateShaderModuleGlslAsyncPtr(
+          _instanceId,
+          device,
+          label.toNativeUtf8(allocator: arena),
+          glsl.toNativeUtf8(allocator: arena),
+          stage,
+          _nitroErr,
+          port,
+        ),
+        unpack: (raw) {
+          NitroRuntime.throwIfOutParamErrorAndFree(
+            _nitroErr,
+            nativeFree: _nitroFree,
+          );
+          return ((raw) => raw as int)(raw);
+        },
+        methodName: 'deviceCreateShaderModuleGlslAsync',
       );
     } finally {
       arena.releaseAll();

@@ -1471,8 +1471,9 @@ public struct GpuRenderPipelineDescriptor: NitroEncodable {
   public var writeMask: Int64
   public var multisampleMask: Int64
   public var alphaToCoverageEnabled: Bool
+  public var fragmentModuleAddress: Int64
 
-  public init(label: String, moduleAddress: Int64, vertexEntryPoint: String, fragmentEntryPoint: String, targetFormat: Int64, topology: Int64, vertexBuffers: [GpuVertexBufferLayout], layoutAddress: Int64, depthFormat: Int64, depthWriteEnabled: Bool, depthCompare: Int64, blendMode: Int64, sampleCount: Int64, targetFormat1: Int64, targetFormat2: Int64, targetFormat3: Int64, targetFormat4: Int64, targetFormat5: Int64, targetFormat6: Int64, targetFormat7: Int64, stencilCompare: Int64, stencilFailOp: Int64, stencilDepthFailOp: Int64, stencilPassOp: Int64, cullMode: Int64, frontFace: Int64, stripIndexFormat: Int64, depthBias: Int64, depthBiasSlopeScale: Double, depthBiasClamp: Double, stencilReadMask: Int64, stencilWriteMask: Int64, stencilBackCompare: Int64, stencilBackFailOp: Int64, stencilBackDepthFailOp: Int64, stencilBackPassOp: Int64, colorBlendOp: Int64, colorBlendSrc: Int64, colorBlendDst: Int64, alphaBlendOp: Int64, alphaBlendSrc: Int64, alphaBlendDst: Int64, writeMask: Int64, multisampleMask: Int64, alphaToCoverageEnabled: Bool) {
+  public init(label: String, moduleAddress: Int64, vertexEntryPoint: String, fragmentEntryPoint: String, targetFormat: Int64, topology: Int64, vertexBuffers: [GpuVertexBufferLayout], layoutAddress: Int64, depthFormat: Int64, depthWriteEnabled: Bool, depthCompare: Int64, blendMode: Int64, sampleCount: Int64, targetFormat1: Int64, targetFormat2: Int64, targetFormat3: Int64, targetFormat4: Int64, targetFormat5: Int64, targetFormat6: Int64, targetFormat7: Int64, stencilCompare: Int64, stencilFailOp: Int64, stencilDepthFailOp: Int64, stencilPassOp: Int64, cullMode: Int64, frontFace: Int64, stripIndexFormat: Int64, depthBias: Int64, depthBiasSlopeScale: Double, depthBiasClamp: Double, stencilReadMask: Int64, stencilWriteMask: Int64, stencilBackCompare: Int64, stencilBackFailOp: Int64, stencilBackDepthFailOp: Int64, stencilBackPassOp: Int64, colorBlendOp: Int64, colorBlendSrc: Int64, colorBlendDst: Int64, alphaBlendOp: Int64, alphaBlendSrc: Int64, alphaBlendDst: Int64, writeMask: Int64, multisampleMask: Int64, alphaToCoverageEnabled: Bool, fragmentModuleAddress: Int64) {
     self.label = label
     self.moduleAddress = moduleAddress
     self.vertexEntryPoint = vertexEntryPoint
@@ -1518,6 +1519,7 @@ public struct GpuRenderPipelineDescriptor: NitroEncodable {
     self.writeMask = writeMask
     self.multisampleMask = multisampleMask
     self.alphaToCoverageEnabled = alphaToCoverageEnabled
+    self.fragmentModuleAddress = fragmentModuleAddress
   }
 
   public static func fromNative(_ ptr: UnsafeMutablePointer<UInt8>) -> GpuRenderPipelineDescriptor {
@@ -1571,6 +1573,7 @@ public struct GpuRenderPipelineDescriptor: NitroEncodable {
       writeMask: r.readInt(),
       multisampleMask: r.readInt(),
       alphaToCoverageEnabled: r.readBool(),
+      fragmentModuleAddress: r.readInt(),
     )
   }
 
@@ -1621,6 +1624,7 @@ public struct GpuRenderPipelineDescriptor: NitroEncodable {
     writer.writeInt(writeMask)
     writer.writeInt(multisampleMask)
     writer.writeBool(alphaToCoverageEnabled)
+    writer.writeInt(fragmentModuleAddress)
   }
 
   public func toNative() -> UnsafeMutablePointer<UInt8>? {
@@ -2128,6 +2132,7 @@ public protocol HybridNitroWebgpuProtocol: AnyObject {
     func shaderModuleRelease(module: Int64) -> Void
     func shaderModuleGetCompilationInfo(module: Int64) async throws -> GpuCompilationInfo
     func deviceCreateShaderModuleWgslAsync(device: Int64, label: String, wgsl: String) async throws -> Int64
+    func deviceCreateShaderModuleGlslAsync(device: Int64, label: String, glsl: String, stage: Int64) async throws -> Int64
     func deviceCreateRenderPipelineAsync(device: Int64, descriptor: GpuRenderPipelineDescriptor) async throws -> Int64
     func deviceCreateComputePipelineAsync(device: Int64, descriptor: GpuComputePipelineDescriptor) async throws -> Int64
     func deviceCreateComputePipeline(device: Int64, descriptor: GpuComputePipelineDescriptor) -> Int64

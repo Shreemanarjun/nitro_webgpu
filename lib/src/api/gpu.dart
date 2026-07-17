@@ -961,6 +961,25 @@ class GpuDevice {
     return GpuShaderModule._(address);
   }
 
+  /// Checked create for a GLSL shader (naga's glsl-in front end). A GLSL
+  /// module targets exactly one [stage] ([GpuShaderStage.vertex] /
+  /// [GpuShaderStage.fragment] / [GpuShaderStage.compute]) and its entry
+  /// point is always `main`. Throws [GpuValidationException] with naga's
+  /// diagnostics on invalid GLSL.
+  Future<GpuShaderModule> createShaderModuleGlsl(String glsl,
+      {required int stage, String label = ''}) async {
+    _checkAlive();
+    pushErrorScope(GpuErrorFilter.validation);
+    final address = await NitroWebgpu.instance
+        .deviceCreateShaderModuleGlslAsync(_address, label, glsl, stage);
+    final error = await popErrorScope();
+    if (error != null) {
+      NitroWebgpu.instance.shaderModuleRelease(address);
+      throw GpuValidationException('createShaderModuleGlsl', error.message);
+    }
+    return GpuShaderModule._(address);
+  }
+
   /// Checked create with auto layout. Throws [GpuValidationException] if the
   /// pipeline is invalid (bad entry point, interface mismatch, …).
   Future<GpuComputePipeline> createComputePipeline({
@@ -1162,6 +1181,7 @@ class GpuDevice {
     double depthBiasClamp = 0.0,
     int? multisampleMask,
     bool alphaToCoverage = false,
+    GpuShaderModule? fragmentModule,
     String label = '',
   }) async {
     if (extraTargetFormats.length > 7) {
@@ -1175,6 +1195,9 @@ class GpuDevice {
       GpuRenderPipelineDescriptor(
         label: label,
         moduleAddress: module._address,
+        // A separate fragment-stage module (e.g. a single-stage GLSL module
+        // from createShaderModuleGlsl) paired with [module]'s vertex stage.
+        fragmentModuleAddress: fragmentModule?._address ?? 0,
         vertexEntryPoint: vertexEntryPoint,
         fragmentEntryPoint: fragmentEntryPoint,
         targetFormat: targetFormat.raw,

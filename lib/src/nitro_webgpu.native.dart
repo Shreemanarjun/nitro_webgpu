@@ -854,6 +854,11 @@ class GpuRenderPipelineDescriptor {
   /// Derive MSAA coverage from fragment alpha (needs sampleCount > 1).
   final bool alphaToCoverageEnabled;
 
+  /// Optional separate fragment-stage module address; 0 = use
+  /// [moduleAddress] for both stages. Lets a single-stage GLSL fragment
+  /// module pair with a WGSL vertex module.
+  final int fragmentModuleAddress;
+
   const GpuRenderPipelineDescriptor({
     this.label = '',
     required this.moduleAddress,
@@ -900,6 +905,7 @@ class GpuRenderPipelineDescriptor {
     this.writeMask = -1,
     this.multisampleMask = -1,
     this.alphaToCoverageEnabled = false,
+    this.fragmentModuleAddress = 0,
   });
 }
 
@@ -1078,6 +1084,14 @@ abstract class NitroWebgpu extends HybridObject {
   @nitroNativeAsync
   Future<int> deviceCreateShaderModuleWgslAsync(
       int device, String label, String wgsl);
+
+  /// GLSL ingestion via the wgpu-native `WGPUShaderSourceGLSL` extra
+  /// (naga glsl-in — probe-verified in the release binaries). GLSL modules
+  /// carry exactly one stage; [stage] is a `GpuShaderStage` bit and the
+  /// module's entry point is always `main`.
+  @nitroNativeAsync
+  Future<int> deviceCreateShaderModuleGlslAsync(
+      int device, String label, String glsl, int stage);
 
   @nitroNativeAsync
   Future<int> deviceCreateRenderPipelineAsync(

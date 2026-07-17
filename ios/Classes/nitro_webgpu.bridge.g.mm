@@ -17,7 +17,7 @@ NITRO_EXPORT uint32_t nitro_webgpu_nitro_abi_version(void) {
     return 1;
 }
 NITRO_EXPORT const char* nitro_webgpu_nitro_bridge_checksum(void) {
-    return "30d5b8d2b990e1f4";
+    return "17eac33196bb09c1";
 }
 NITRO_EXPORT intptr_t nitro_webgpu_init_dart_api_dl(void* data) {
     return Dart_InitializeApiDL(data);
@@ -656,6 +656,28 @@ void nitro_webgpu_device_create_shader_module_wgsl_async(int64_t instanceId, int
     }
     try {
         _impl->deviceCreateShaderModuleWgslAsync(device, std::string(label), std::string(wgsl), _nitro_err, dart_port);
+    } catch (const std::exception& e) {
+        _nitro_out_err(_nitro_err, "CppException", e.what());
+        Dart_CObject _err = { Dart_CObject_kNull };
+        Dart_PostCObject_DL(dart_port, &_err);
+    } catch (...) {
+        _nitro_out_err(_nitro_err, "CppException", "Unknown C++ exception");
+        Dart_CObject _err = { Dart_CObject_kNull };
+        Dart_PostCObject_DL(dart_port, &_err);
+    }
+}
+
+void nitro_webgpu_device_create_shader_module_glsl_async(int64_t instanceId, int64_t device, const char* label, const char* glsl, int64_t stage, NitroError* _nitro_err, int64_t dart_port) {
+    if (_nitro_err) { _nitro_err->hasError = 0; }
+    auto _impl = _nitro_get_instance(instanceId);
+    if (!_impl) {
+        _nitro_out_err(_nitro_err, "NotInitialized", "No C++ implementation registered.");
+        Dart_CObject _err = { Dart_CObject_kNull };
+        Dart_PostCObject_DL(dart_port, &_err);
+        return;
+    }
+    try {
+        _impl->deviceCreateShaderModuleGlslAsync(device, std::string(label), std::string(glsl), stage, _nitro_err, dart_port);
     } catch (const std::exception& e) {
         _nitro_out_err(_nitro_err, "CppException", e.what());
         Dart_CObject _err = { Dart_CObject_kNull };

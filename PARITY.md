@@ -53,6 +53,11 @@ behavior: 69 green integration tests (`example/integration_test/`).
 
 - **Compressed texture formats**: BC1–BC7, ETC2/EAC, ASTC 4×4/8×8 enum
   entries (feature-gated). BC1 upload + sampling verified on Apple silicon.
+- **GLSL ingestion**: `createShaderModuleGlsl` via the wgpu-native
+  `WGPUShaderSourceGLSL` extra (probe-verified in the release binaries;
+  invalid GLSL surfaces naga diagnostics through the checked create), plus
+  `createRenderPipeline(fragmentModule:)` for mixed WGSL-vertex /
+  GLSL-fragment pipelines.
 - **Compressed-format upload helpers**: `GpuTextureFormatInfo` exposes
   `blockWidth`/`blockHeight`/`bytesPerBlock` + `bytesPerRowFor`/
   `rowsForHeight`/`byteLengthFor` for every format, and `writeTexture`

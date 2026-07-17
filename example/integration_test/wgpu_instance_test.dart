@@ -6,6 +6,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:nitro_webgpu/nitro_webgpu.dart';
 import 'package:nitro_webgpu/src/nitro_webgpu_present.native.dart';
+import 'package:nitro_webgpu_example/src/demos/compute_toy_page.dart';
+import 'package:nitro_webgpu_example/src/demos/particles_page.dart';
+import 'package:nitro_webgpu_example/src/demos/shadertoy_player_page.dart';
+import 'package:nitro_webgpu_example/src/gpu/particle_scene.dart';
+import 'package:nitro_webgpu_example/src/gpu/shadertoy_engine.dart';
 import 'package:nitro_webgpu_example/src/demos/shader_toy_page.dart';
 import 'package:nitro_webgpu_example/src/gpu/benchmark_scenes.dart';
 import 'package:nitro_webgpu_example/src/gpu/scenes.dart';
@@ -2016,6 +2021,515 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
       binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
       await tester.pumpWidget(const MaterialApp(home: ShaderToyPage()));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(seconds: 2)));
+      await tester.pump();
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 600)));
+      await tester.pump();
+    });
+  });
+
+  group('GLSL shader modules', () {
+    test('GLSL fragment renders through a mixed-module pipeline', () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+
+      final vsModule = await device.createShaderModule('''
+@vertex
+fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
+  var p = array<vec2f, 3>(vec2f(-1.0, -3.0), vec2f(3.0, 1.0), vec2f(-1.0, 1.0));
+  return vec4f(p[i], 0.0, 1.0);
+}
+''');
+      final fsModule = await device.createShaderModuleGlsl('''
+#version 450
+layout(location = 0) out vec4 fragColor;
+void main() { fragColor = vec4(0.0, 1.0, 0.0, 1.0); }
+''', stage: GpuShaderStage.fragment);
+      final pipeline = await device.createRenderPipeline(
+        module: vsModule,
+        fragmentModule: fsModule,
+        fragmentEntryPoint: 'main',
+        targetFormat: GpuTextureFormat.rgba8Unorm,
+      );
+
+      const size = 64;
+      final texture = device.createTexture(
+        width: size,
+        height: size,
+        format: GpuTextureFormat.rgba8Unorm,
+        usage: GpuTextureUsage.renderAttachment | GpuTextureUsage.copySrc,
+      );
+      final view = texture.createView();
+      final readback = device.createBuffer(
+        size: size * size * 4,
+        usage: GpuBufferUsage.mapRead | GpuBufferUsage.copyDst,
+      );
+      final encoder = device.createCommandEncoder();
+      final pass = encoder.beginRenderPass(
+          colorAttachments: [GpuColorAttachmentInfo(view: view)]);
+      pass.setPipeline(pipeline);
+      pass.draw(3);
+      pass.end();
+      encoder.copyTextureToBuffer(texture, readback);
+      device.queue.submit([encoder.finish()]);
+
+      final pixels = await readback.mapRead();
+      const center = ((size ~/ 2) * size + size ~/ 2) * 4;
+      expect(pixels.sublist(center, center + 4), [0, 255, 0, 255],
+          reason: 'GLSL fragment painted green');
+
+      readback.dispose();
+      view.dispose();
+      texture.dispose();
+      pipeline.dispose();
+      fsModule.dispose();
+      vsModule.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+
+    test('invalid GLSL throws GpuValidationException with naga diagnostics',
+        () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+      await expectLater(
+        device.createShaderModuleGlsl('#version 450\nvoid main() { bogus }',
+            stage: GpuShaderStage.fragment),
+        throwsA(isA<GpuValidationException>().having(
+            (e) => e.message, 'message', contains('bogus'))),
+      );
+      device.dispose();
+      adapter.dispose();
+    });
+  });
+
+  group('shadertoy engine', () {
+    // Renders [engine] into a 64×64 offscreen target for [frames] frames and
+    // returns the final RGBA pixels (tight rows).
+    Future<Uint8List> run(GpuDevice device, ShadertoyEngine engine,
+        {int frames = 1}) async {
+      const size = 64;
+      final target = device.createTexture(
+        width: size,
+        height: size,
+        format: GpuTextureFormat.rgba8Unorm,
+        usage: GpuTextureUsage.renderAttachment | GpuTextureUsage.copySrc,
+      );
+      final view = target.createView();
+      final rt = GpuRenderTarget(
+          view: view,
+          width: size,
+          height: size,
+          targetFormat: GpuTextureFormat.rgba8Unorm);
+      for (var i = 0; i < frames; i++) {
+        await engine.render(device, rt, Duration(milliseconds: 16 * (i + 1)));
+      }
+      final readback = device.createBuffer(
+          size: size * size * 4,
+          usage: GpuBufferUsage.mapRead | GpuBufferUsage.copyDst);
+      final encoder = device.createCommandEncoder();
+      encoder.copyTextureToBuffer(target, readback);
+      device.queue.submit([encoder.finish()]);
+      final pixels = await readback.mapRead();
+      readback.dispose();
+      view.dispose();
+      target.dispose();
+      return pixels;
+    }
+
+    List<int> center(Uint8List pixels) {
+      const size = 64;
+      const at = ((size ~/ 2) * size + size ~/ 2) * 4;
+      return pixels.sublist(at, at + 4);
+    }
+
+    test('WGSL snippet wrap renders mainImage (item 2)', () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+      final engine = ShadertoyEngine(
+        image: const ShadertoyPassSpec(
+          language: ShadertoyLanguage.wgslSnippet,
+          source: '''
+fn mainImage(fragCoord: vec2f) -> vec4f {
+  return vec4f(0.0, 1.0, 0.0, 1.0);
+}''',
+        ),
+      );
+      expect(center(await run(device, engine)), [0, 255, 0, 255]);
+      engine.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+
+    test('GLSL mainImage pasted from shadertoy renders (items 1+2)',
+        () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+      final engine = ShadertoyEngine(
+        image: const ShadertoyPassSpec(
+          language: ShadertoyLanguage.glsl,
+          source: '''
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+  vec2 uv = fragCoord / iResolution.xy;
+  fragColor = vec4(0.0, 0.0, 1.0, 1.0) + vec4(uv, 0.0, 0.0) * 0.0;
+}''',
+        ),
+      );
+      expect(center(await run(device, engine)), [0, 0, 255, 255]);
+      engine.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+
+    test('iMouse uniform reaches the shader (item 3)', () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+      final engine = ShadertoyEngine(
+        image: const ShadertoyPassSpec(
+          language: ShadertoyLanguage.wgslSnippet,
+          source: '''
+fn mainImage(fragCoord: vec2f) -> vec4f {
+  return vec4f(iMouse.x / 255.0, iMouse.z / 255.0, 0.0, 1.0);
+}''',
+        ),
+      )
+        ..mouseX = 102
+        ..mouseClickX = 51;
+      expect(center(await run(device, engine)), [102, 51, 0, 255]);
+      engine.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+
+    test('multi-pass: Image samples Buffer A (item 5)', () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+      final engine = ShadertoyEngine(
+        buffers: const [
+          ShadertoyPassSpec(
+            language: ShadertoyLanguage.wgslSnippet,
+            source: '''
+fn mainImage(fragCoord: vec2f) -> vec4f {
+  return vec4f(1.0, 0.0, 0.0, 1.0);
+}''',
+          ),
+        ],
+        image: const ShadertoyPassSpec(
+          language: ShadertoyLanguage.wgslSnippet,
+          source: '''
+fn mainImage(fragCoord: vec2f) -> vec4f {
+  return textureSampleLevel(iChannel0, stSampler, vec2f(0.5), 0.0);
+}''',
+          channels: [
+            ShadertoyChannel.buffer(ShadertoyChannelKind.bufferA),
+            ShadertoyChannel.none(),
+            ShadertoyChannel.none(),
+            ShadertoyChannel.none(),
+          ],
+        ),
+      );
+      // Buffer reads lag one frame — frame 1 sees the zero-initialized
+      // front texture, frame 2 sees Buffer A's output.
+      expect(center(await run(device, engine, frames: 2)), [255, 0, 0, 255]);
+      engine.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+
+    test('feedback: buffer accumulates its previous frame (item 6)',
+        () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+      const selfFeedback = ShadertoyPassSpec(
+        language: ShadertoyLanguage.wgslSnippet,
+        source: '''
+fn mainImage(fragCoord: vec2f) -> vec4f {
+  let prev = textureSampleLevel(iChannel0, stSampler, vec2f(0.5), 0.0);
+  return vec4f(prev.r + 0.25, 0.0, 0.0, 1.0);
+}''',
+        channels: [
+          ShadertoyChannel.buffer(ShadertoyChannelKind.bufferA),
+          ShadertoyChannel.none(),
+          ShadertoyChannel.none(),
+          ShadertoyChannel.none(),
+        ],
+      );
+      final engine = ShadertoyEngine(
+        buffers: const [selfFeedback],
+        image: const ShadertoyPassSpec(
+          language: ShadertoyLanguage.wgslSnippet,
+          source: '''
+fn mainImage(fragCoord: vec2f) -> vec4f {
+  return textureSampleLevel(iChannel0, stSampler, vec2f(0.5), 0.0);
+}''',
+          channels: [
+            ShadertoyChannel.buffer(ShadertoyChannelKind.bufferA),
+            ShadertoyChannel.none(),
+            ShadertoyChannel.none(),
+            ShadertoyChannel.none(),
+          ],
+        ),
+      );
+      // Frame n: Buffer A writes n*0.25; Image shows (n-1)*0.25. After 4
+      // frames the Image pass shows 0.75 → 191.
+      final pixels = await run(device, engine, frames: 4);
+      expect(center(pixels)[0], closeTo(191, 2),
+          reason: 'three accumulated +0.25 steps visible on frame 4');
+      engine.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+
+    test('texture channel binds a provided texture (item 7)', () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+      final channelTex = device.createTexture(
+        width: 2,
+        height: 2,
+        format: GpuTextureFormat.rgba8Unorm,
+        usage: GpuTextureUsage.textureBinding | GpuTextureUsage.copyDst,
+      );
+      device.queue.writeTexture(
+          channelTex,
+          Uint8List.fromList([
+            10, 20, 30, 255, /* texel (0,0) */ 200, 0, 0, 255,
+            0, 200, 0, 255, 0, 0, 200, 255,
+          ]));
+      final engine = ShadertoyEngine(
+        image: ShadertoyPassSpec(
+          language: ShadertoyLanguage.wgslSnippet,
+          source: '''
+fn mainImage(fragCoord: vec2f) -> vec4f {
+  return textureSampleLevel(iChannel0, stSampler, vec2f(0.25, 0.25), 0.0);
+}''',
+          channels: [
+            ShadertoyChannel.image(channelTex),
+            const ShadertoyChannel.none(),
+            const ShadertoyChannel.none(),
+            const ShadertoyChannel.none(),
+          ],
+        ),
+      );
+      expect(center(await run(device, engine)), [10, 20, 30, 255],
+          reason: 'texel (0,0) of the provided channel texture');
+      engine.dispose();
+      channelTex.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+
+    test('bad snippet keeps last-good pipeline and reports the error',
+        () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+      final engine = ShadertoyEngine(
+        image: const ShadertoyPassSpec(
+          language: ShadertoyLanguage.wgslSnippet,
+          source: '''
+fn mainImage(fragCoord: vec2f) -> vec4f {
+  return vec4f(0.0, 1.0, 0.0, 1.0);
+}''',
+        ),
+      );
+      expect(center(await run(device, engine)), [0, 255, 0, 255]);
+      engine.setPass(
+          4,
+          const ShadertoyPassSpec(
+              language: ShadertoyLanguage.wgslSnippet,
+              source: 'fn mainImage(fragCoord: vec2f) -> vec4f { bogus }'));
+      expect(center(await run(device, engine)), [0, 255, 0, 255],
+          reason: 'previous pipeline keeps rendering');
+      expect(engine.compileError.value, isNotNull);
+      engine.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+  });
+
+  group('particle scene', () {
+    Future<Uint8List> frame(GpuDevice device, ParticleScene scene,
+        List<Duration> steps) async {
+      const size = 64;
+      final target = device.createTexture(
+        width: size,
+        height: size,
+        format: GpuTextureFormat.rgba8Unorm,
+        usage: GpuTextureUsage.renderAttachment | GpuTextureUsage.copySrc,
+      );
+      final view = target.createView();
+      final rt = GpuRenderTarget(
+          view: view,
+          width: size,
+          height: size,
+          targetFormat: GpuTextureFormat.rgba8Unorm);
+      for (final t in steps) {
+        await scene.render(device, rt, t);
+      }
+      final readback = device.createBuffer(
+          size: size * size * 4,
+          usage: GpuBufferUsage.mapRead | GpuBufferUsage.copyDst);
+      final encoder = device.createCommandEncoder();
+      encoder.copyTextureToBuffer(target, readback);
+      device.queue.submit([encoder.finish()]);
+      final pixels = await readback.mapRead();
+      readback.dispose();
+      view.dispose();
+      target.dispose();
+      return pixels;
+    }
+
+    test('compute kernel integrates positions on the GPU (item 8)',
+        () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+      final scene = ParticleScene(
+        count: 2,
+        initialParticles: Float32List.fromList([
+          0.0, 0.0, 0.5, 0.25, // particle 0: origin, vel (0.5, 0.25)
+          -0.5, 0.5, -0.25, 0.125, // particle 1
+        ]),
+      )..setKernel('''
+struct Particle { pos: vec2f, vel: vec2f };
+struct SimParams { dt: f32, time: f32, count: f32, size: f32 };
+@group(0) @binding(0) var<uniform> params: SimParams;
+@group(0) @binding(1) var<storage, read_write> particles: array<Particle>;
+@compute @workgroup_size(64)
+fn simulate(@builtin(global_invocation_id) gid: vec3<u32>) {
+  let i = gid.x;
+  if (i >= u32(params.count)) { return; }
+  particles[i].pos += particles[i].vel * params.dt;
+}''');
+      // First render establishes t0 (dt = 0), the next two step 16 ms each.
+      await frame(device, scene, [
+        Duration.zero,
+        const Duration(milliseconds: 16),
+        const Duration(milliseconds: 32),
+      ]);
+
+      final staging = device.createBuffer(
+          size: 2 * 16,
+          usage: GpuBufferUsage.mapRead | GpuBufferUsage.copyDst);
+      final encoder = device.createCommandEncoder();
+      encoder.copyBufferToBuffer(scene.particleBuffer!, staging);
+      device.queue.submit([encoder.finish()]);
+      final data = Float32List.view((await staging.mapRead()).buffer);
+
+      // Two 16 ms steps: pos += vel * 0.016, twice.
+      expect(data[0], closeTo(0.5 * 0.032, 1e-4), reason: 'p0.x');
+      expect(data[1], closeTo(0.25 * 0.032, 1e-4), reason: 'p0.y');
+      expect(data[4], closeTo(-0.5 + -0.25 * 0.032, 1e-4), reason: 'p1.x');
+      expect(data[5], closeTo(0.5 + 0.125 * 0.032, 1e-4), reason: 'p1.y');
+
+      staging.dispose();
+      scene.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+
+    test('instanced render draws particles from the storage buffer (item 8)',
+        () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+      // One stationary particle at the center with a big footprint.
+      final scene = ParticleScene(
+        count: 1,
+        pointSize: 0.5,
+        initialParticles: Float32List.fromList([0.0, 0.0, 0.0, 0.0]),
+      );
+      final pixels = await frame(device, scene, [Duration.zero]);
+      const size = 64;
+      const mid = ((size ~/ 2) * size + size ~/ 2) * 4;
+      expect(pixels[mid], greaterThan(240),
+          reason: 'particle glow red at center');
+      expect(pixels[mid + 2], greaterThan(200),
+          reason: 'particle glow blue at center');
+      const corner = 0;
+      expect(pixels.sublist(corner, corner + 3), [0, 0, 0],
+          reason: 'corner outside the particle stays clear');
+      scene.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+
+    test('bad kernel keeps last-good simulation and reports the error',
+        () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+      final scene = ParticleScene(
+          count: 1,
+          initialParticles: Float32List.fromList([0.0, 0.0, 0.0, 0.0]));
+      await frame(device, scene, [Duration.zero]);
+      expect(scene.compileError.value, isNull);
+      scene.setKernel('@compute fn simulate() { bogus }');
+      await frame(device, scene, [const Duration(milliseconds: 16)]);
+      expect(scene.compileError.value, isNotNull);
+      scene.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+  });
+
+  group('example compute toy page', () {
+    testWidgets('runs the Slang imageMain kernel live and unmounts cleanly',
+        (tester) async {
+      // The compute path: kernel dispatches into an offscreen storage
+      // texture; a fixed pass samples it into the view target.
+      final binding = tester.binding as LiveTestWidgetsFlutterBinding;
+      binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+
+      await tester.pumpWidget(const MaterialApp(home: ComputeToyPage()));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(seconds: 2)));
+      await tester.pump();
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 600)));
+      await tester.pump();
+    });
+  });
+
+  group('example shadertoy player page', () {
+    testWidgets('mounts with presets, renders live, and unmounts cleanly',
+        (tester) async {
+      final binding = tester.binding as LiveTestWidgetsFlutterBinding;
+      binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+
+      await tester.pumpWidget(const MaterialApp(home: ShadertoyPlayerPage()));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(seconds: 2)));
+      await tester.pump();
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 600)));
+      await tester.pump();
+    });
+  });
+
+  group('example particles page', () {
+    testWidgets('simulates and renders live, and unmounts cleanly',
+        (tester) async {
+      final binding = tester.binding as LiveTestWidgetsFlutterBinding;
+      binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+
+      await tester.pumpWidget(const MaterialApp(home: ParticlesPage()));
       await tester.runAsync(
           () => Future<void>.delayed(const Duration(seconds: 2)));
       await tester.pump();
