@@ -175,7 +175,18 @@ int64_t packFeatureBits(const WGPUSupportedFeatures& f) {
 // wgpu ABI values)
 
 WGPUInstanceBackend mapBackends(int64_t bits) {
+#if defined(__linux__) && !defined(__ANDROID__)
+    // Flutter's GTK embedder owns the process's EGL context; wgpu-hal's GL
+    // backend probe races it during adapter enumeration and panics
+    // (egl.rs unwraps Err(BadAccess) → abort across the C ABI —
+    // CI core-dump + stderr verified). Desktop Linux renders offscreen and
+    // presents via CPU readback, so wgpu's GL backend is never needed:
+    // default to Vulkan-only, and honor an explicit GL request only when
+    // the caller opted in by name.
+    if (bits == 0) return WGPUInstanceBackend_Vulkan;
+#else
     if (bits == 0) return WGPUInstanceBackend_All;
+#endif
     WGPUInstanceBackend out = 0;
     if (bits & (1 << 0)) out |= WGPUInstanceBackend_Vulkan;
     if (bits & (1 << 1)) out |= WGPUInstanceBackend_Metal;

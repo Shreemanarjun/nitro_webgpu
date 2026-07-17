@@ -748,6 +748,11 @@ abstract final class Gpu {
   /// Creates the process-wide WebGPU instance. Idempotent; called implicitly
   /// by [requestAdapter]. Pass [backends] ([GpuBackend] bits) to restrict
   /// which native APIs wgpu may use.
+  ///
+  /// On desktop Linux, [GpuBackend.all] resolves to Vulkan-only: wgpu's GL
+  /// backend probes EGL during adapter enumeration and races the Flutter
+  /// GTK engine's own EGL context (process abort). Pass [GpuBackend.gl]
+  /// explicitly if you really need it.
   static void ensureInitialized({int backends = GpuBackend.all}) {
     if (_initialized) return;
     NitroWebgpu.instance.initInstance(GpuInstanceOptions(backends: backends));
