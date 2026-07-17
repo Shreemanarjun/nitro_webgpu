@@ -217,7 +217,11 @@ class _ShadertoyPlayerPageState extends State<ShadertoyPlayerPage> {
           ],
         ),
         const SizedBox(height: 6),
-        Row(
+        // Wrap, not Row: these controls overflow narrow (phone) layouts.
+        Wrap(
+          spacing: 12,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             SegmentedButton<int>(
               segments: const [
@@ -227,7 +231,6 @@ class _ShadertoyPlayerPageState extends State<ShadertoyPlayerPage> {
               selected: {_passTab},
               onSelectionChanged: (s) => setState(() => _passTab = s.first),
             ),
-            const SizedBox(width: 12),
             SegmentedButton<ShadertoyLanguage>(
               segments: const [
                 ButtonSegment(
@@ -242,25 +245,29 @@ class _ShadertoyPlayerPageState extends State<ShadertoyPlayerPage> {
           ],
         ),
         const SizedBox(height: 6),
-        Row(
+        Wrap(
+          spacing: 6,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             const Text('channels ', style: TextStyle(fontSize: 12)),
             for (var c = 0; c < 4; c++)
-              Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: DropdownButton<_Chan>(
-                  value: _currentChannels[c],
-                  isDense: true,
-                  items: const [
-                    DropdownMenuItem(value: _Chan.none, child: Text('—')),
-                    DropdownMenuItem(value: _Chan.bufferA, child: Text('BufA')),
-                    DropdownMenuItem(value: _Chan.noise, child: Text('noise')),
-                  ],
-                  onChanged: (v) =>
-                      setState(() => _currentChannels[c] = v ?? _Chan.none),
-                ),
+              DropdownButton<_Chan>(
+                value: _currentChannels[c],
+                isDense: true,
+                items: const [
+                  DropdownMenuItem(value: _Chan.none, child: Text('—')),
+                  DropdownMenuItem(value: _Chan.bufferA, child: Text('BufA')),
+                  DropdownMenuItem(value: _Chan.noise, child: Text('noise')),
+                ],
+                onChanged: (v) =>
+                    setState(() => _currentChannels[c] = v ?? _Chan.none),
               ),
-            const Spacer(),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
             IconButton.filledTonal(
               icon: Icon(_paused ? Icons.play_arrow : Icons.pause),
               onPressed: () => setState(() {
@@ -268,7 +275,7 @@ class _ShadertoyPlayerPageState extends State<ShadertoyPlayerPage> {
                 _engine.paused = _paused;
               }),
             ),
-            const SizedBox(width: 8),
+            const Spacer(),
             FilledButton.icon(
               icon: const Icon(Icons.bolt),
               label: const Text('Run'),

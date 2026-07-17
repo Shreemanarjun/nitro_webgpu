@@ -48,21 +48,21 @@ class _ParticlesPageState extends State<ParticlesPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
+        // Wrap, not Row: chips + buttons overflow narrow (phone) layouts.
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             for (final c in _counts)
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: ChoiceChip(
-                  label: Text('${c ~/ 1000}k'),
-                  selected: _count == c,
-                  onSelected: (_) {
-                    _count = c;
-                    _rebuildScene();
-                  },
-                ),
+              ChoiceChip(
+                label: Text('${c ~/ 1000}k'),
+                selected: _count == c,
+                onSelected: (_) {
+                  _count = c;
+                  _rebuildScene();
+                },
               ),
-            const Spacer(),
             IconButton.filledTonal(
               icon: Icon(_paused ? Icons.play_arrow : Icons.pause),
               onPressed: () => setState(() {
@@ -70,7 +70,6 @@ class _ParticlesPageState extends State<ParticlesPage> {
                 scene.paused = _paused;
               }),
             ),
-            const SizedBox(width: 8),
             FilledButton.icon(
               icon: const Icon(Icons.bolt),
               label: const Text('Run kernel'),

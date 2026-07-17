@@ -3,11 +3,11 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  nitro_webgpu
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
   nitro
-  nitro_webgpu
 )
 
 set(PLUGIN_BUNDLED_LIBRARIES)

@@ -53,7 +53,7 @@ public struct NitroNullableInt: NitroEncodable {
   public static func fromReader(_ r: NitroRecordReader) -> NitroNullableInt {
     return NitroNullableInt(
       hasValue: r.readBool(),
-      value: r.readInt(),
+      value: r.readInt()
     )
   }
 
@@ -89,7 +89,7 @@ public struct NitroNullableDouble: NitroEncodable {
   public static func fromReader(_ r: NitroRecordReader) -> NitroNullableDouble {
     return NitroNullableDouble(
       hasValue: r.readBool(),
-      value: r.readDouble(),
+      value: r.readDouble()
     )
   }
 
@@ -125,7 +125,7 @@ public struct NitroNullableBool: NitroEncodable {
   public static func fromReader(_ r: NitroRecordReader) -> NitroNullableBool {
     return NitroNullableBool(
       hasValue: r.readBool(),
-      value: r.readBool(),
+      value: r.readBool()
     )
   }
 
@@ -161,7 +161,7 @@ public struct NitroOptInt64: NitroEncodable {
   public static func fromReader(_ r: NitroRecordReader) -> NitroOptInt64 {
     return NitroOptInt64(
       hasValue: r.readBool(),
-      value: r.readInt(),
+      value: r.readInt()
     )
   }
 
@@ -193,7 +193,7 @@ public struct NitroOptFloat64: NitroEncodable {
   public static func fromReader(_ r: NitroRecordReader) -> NitroOptFloat64 {
     return NitroOptFloat64(
       hasValue: r.readBool(),
-      value: r.readDouble(),
+      value: r.readDouble()
     )
   }
 
@@ -225,7 +225,7 @@ public struct NitroOptBool: NitroEncodable {
   public static func fromReader(_ r: NitroRecordReader) -> NitroOptBool {
     return NitroOptBool(
       hasValue: r.readBool(),
-      value: r.readBool(),
+      value: r.readBool()
     )
   }
 

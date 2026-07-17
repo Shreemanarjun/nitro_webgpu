@@ -33,7 +33,7 @@ public struct GpuInstanceOptions: NitroEncodable {
 
   public static func fromReader(_ r: NitroRecordReader) -> GpuInstanceOptions {
     return GpuInstanceOptions(
-      backends: r.readInt(),
+      backends: r.readInt()
     )
   }
 
@@ -64,7 +64,7 @@ public struct GpuRequestAdapterOptions: NitroEncodable {
   public static func fromReader(_ r: NitroRecordReader) -> GpuRequestAdapterOptions {
     return GpuRequestAdapterOptions(
       powerPreference: r.readInt(),
-      forceFallbackAdapter: r.readBool(),
+      forceFallbackAdapter: r.readBool()
     )
   }
 
@@ -108,7 +108,7 @@ public struct GpuAdapterInfo: NitroEncodable {
       device: r.readString(),
       description: r.readString(),
       backendType: r.readInt(),
-      adapterType: r.readInt(),
+      adapterType: r.readInt()
     )
   }
 
@@ -231,7 +231,7 @@ public struct GpuLimits: NitroEncodable {
       maxComputeWorkgroupSizeX: r.readInt(),
       maxComputeWorkgroupSizeY: r.readInt(),
       maxComputeWorkgroupSizeZ: r.readInt(),
-      maxComputeWorkgroupsPerDimension: r.readInt(),
+      maxComputeWorkgroupsPerDimension: r.readInt()
     )
   }
 
@@ -298,7 +298,7 @@ public struct GpuDeviceDescriptor: NitroEncodable {
       label: r.readString(),
       requireTimestampQueries: r.readBool(),
       requiredLimits: r.readNullTag() ? nil : GpuRequiredLimits.fromReader(r),
-      requiredFeatures: r.readInt(),
+      requiredFeatures: r.readInt()
     )
   }
 
@@ -339,7 +339,7 @@ public struct GpuComputePassDescriptor: NitroEncodable {
       label: r.readString(),
       timestampQuerySetAddress: r.readInt(),
       timestampBeginIndex: r.readInt(),
-      timestampEndIndex: r.readInt(),
+      timestampEndIndex: r.readInt()
     )
   }
 
@@ -373,7 +373,7 @@ public struct GpuError: NitroEncodable {
   public static func fromReader(_ r: NitroRecordReader) -> GpuError {
     return GpuError(
       type: r.readInt(),
-      message: r.readString(),
+      message: r.readString()
     )
   }
 
@@ -408,7 +408,7 @@ public struct GpuUncapturedError: NitroEncodable {
     return GpuUncapturedError(
       deviceAddress: r.readInt(),
       type: r.readInt(),
-      message: r.readString(),
+      message: r.readString()
     )
   }
 
@@ -444,7 +444,7 @@ public struct GpuDeviceLost: NitroEncodable {
     return GpuDeviceLost(
       deviceAddress: r.readInt(),
       reason: r.readInt(),
-      message: r.readString(),
+      message: r.readString()
     )
   }
 
@@ -483,7 +483,7 @@ public struct GpuBufferDescriptor: NitroEncodable {
       label: r.readString(),
       size: r.readInt(),
       usage: r.readInt(),
-      mappedAtCreation: r.readBool(),
+      mappedAtCreation: r.readBool()
     )
   }
 
@@ -529,7 +529,7 @@ public struct GpuBindGroupEntry: NitroEncodable {
       offset: r.readInt(),
       size: r.readInt(),
       samplerAddress: r.readInt(),
-      textureViewAddress: r.readInt(),
+      textureViewAddress: r.readInt()
     )
   }
 
@@ -592,7 +592,7 @@ public struct GpuSamplerDescriptor: NitroEncodable {
       compare: r.readInt(),
       lodMinClamp: r.readDouble(),
       lodMaxClamp: r.readDouble(),
-      maxAnisotropy: r.readInt(),
+      maxAnisotropy: r.readInt()
     )
   }
 
@@ -636,7 +636,7 @@ public struct GpuBindGroupDescriptor: NitroEncodable {
     return GpuBindGroupDescriptor(
       label: r.readString(),
       layoutAddress: r.readInt(),
-      entries: (0..<Int(r.readInt32())).map { _ in GpuBindGroupEntry.fromReader(r) },
+      entries: (0..<Int(r.readInt32())).map { _ in GpuBindGroupEntry.fromReader(r) }
     )
   }
 
@@ -676,7 +676,7 @@ public struct GpuComputePipelineDescriptor: NitroEncodable {
       label: r.readString(),
       layoutAddress: r.readInt(),
       moduleAddress: r.readInt(),
-      entryPoint: r.readString(),
+      entryPoint: r.readString()
     )
   }
 
@@ -707,7 +707,7 @@ public struct GpuMappedData: NitroEncodable {
 
   public static func fromReader(_ r: NitroRecordReader) -> GpuMappedData {
     return GpuMappedData(
-      data: r.readBlob(),
+      data: r.readBlob()
     )
   }
 
@@ -762,7 +762,7 @@ public struct GpuTextureDescriptor: NitroEncodable {
       sampleCount: r.readInt(),
       dimension: r.readInt(),
       depthOrArrayLayers: r.readInt(),
-      viewFormat: r.readInt(),
+      viewFormat: r.readInt()
     )
   }
 
@@ -817,7 +817,7 @@ public struct GpuTextureViewDescriptor: NitroEncodable {
       dimension: r.readInt(),
       baseArrayLayer: r.readInt(),
       arrayLayerCount: r.readInt(),
-      format: r.readInt(),
+      format: r.readInt()
     )
   }
 
@@ -941,7 +941,7 @@ public struct GpuRequiredLimits: NitroEncodable {
       maxComputeWorkgroupSizeX: r.readInt(),
       maxComputeWorkgroupSizeY: r.readInt(),
       maxComputeWorkgroupSizeZ: r.readInt(),
-      maxComputeWorkgroupsPerDimension: r.readInt(),
+      maxComputeWorkgroupsPerDimension: r.readInt()
     )
   }
 
@@ -1035,7 +1035,7 @@ public struct GpuRenderBundleEncoderDescriptor: NitroEncodable {
       depthFormat: r.readInt(),
       sampleCount: r.readInt(),
       depthReadOnly: r.readBool(),
-      stencilReadOnly: r.readBool(),
+      stencilReadOnly: r.readBool()
     )
   }
 
@@ -1096,7 +1096,7 @@ public struct GpuColorAttachment: NitroEncodable {
       clearG: r.readDouble(),
       clearB: r.readDouble(),
       clearA: r.readDouble(),
-      resolveTargetAddress: r.readInt(),
+      resolveTargetAddress: r.readInt()
     )
   }
 
@@ -1173,7 +1173,7 @@ public struct GpuRenderPassDescriptor: NitroEncodable {
       stencilClearValue: r.readInt(),
       occlusionQuerySetAddress: r.readInt(),
       depthReadOnly: r.readBool(),
-      stencilReadOnly: r.readBool(),
+      stencilReadOnly: r.readBool()
     )
   }
 
@@ -1222,7 +1222,7 @@ public struct GpuVertexAttribute: NitroEncodable {
     return GpuVertexAttribute(
       format: r.readInt(),
       offset: r.readInt(),
-      shaderLocation: r.readInt(),
+      shaderLocation: r.readInt()
     )
   }
 
@@ -1258,7 +1258,7 @@ public struct GpuVertexBufferLayout: NitroEncodable {
     return GpuVertexBufferLayout(
       arrayStride: r.readInt(),
       stepMode: r.readInt(),
-      attributes: (0..<Int(r.readInt32())).map { _ in GpuVertexAttribute.fromReader(r) },
+      attributes: (0..<Int(r.readInt32())).map { _ in GpuVertexAttribute.fromReader(r) }
     )
   }
 
@@ -1310,7 +1310,7 @@ public struct GpuBindGroupLayoutEntry: NitroEncodable {
       hasDynamicOffset: r.readBool(),
       sampleType: r.readInt(),
       multisampled: r.readBool(),
-      samplerType: r.readInt(),
+      samplerType: r.readInt()
     )
   }
 
@@ -1348,7 +1348,7 @@ public struct GpuBindGroupLayoutDescriptor: NitroEncodable {
   public static func fromReader(_ r: NitroRecordReader) -> GpuBindGroupLayoutDescriptor {
     return GpuBindGroupLayoutDescriptor(
       label: r.readString(),
-      entries: (0..<Int(r.readInt32())).map { _ in GpuBindGroupLayoutEntry.fromReader(r) },
+      entries: (0..<Int(r.readInt32())).map { _ in GpuBindGroupLayoutEntry.fromReader(r) }
     )
   }
 
@@ -1402,7 +1402,7 @@ public struct GpuPipelineLayoutDescriptor: NitroEncodable {
       layout4: r.readInt(),
       layout5: r.readInt(),
       layout6: r.readInt(),
-      layout7: r.readInt(),
+      layout7: r.readInt()
     )
   }
 
@@ -1573,7 +1573,7 @@ public struct GpuRenderPipelineDescriptor: NitroEncodable {
       writeMask: r.readInt(),
       multisampleMask: r.readInt(),
       alphaToCoverageEnabled: r.readBool(),
-      fragmentModuleAddress: r.readInt(),
+      fragmentModuleAddress: r.readInt()
     )
   }
 
@@ -1662,7 +1662,7 @@ public struct GpuCompilationMessage: NitroEncodable {
       lineNum: r.readInt(),
       linePos: r.readInt(),
       offset: r.readInt(),
-      length: r.readInt(),
+      length: r.readInt()
     )
   }
 
@@ -1695,7 +1695,7 @@ public struct GpuCompilationInfo: NitroEncodable {
 
   public static func fromReader(_ r: NitroRecordReader) -> GpuCompilationInfo {
     return GpuCompilationInfo(
-      messages: (0..<Int(r.readInt32())).map { _ in GpuCompilationMessage.fromReader(r) },
+      messages: (0..<Int(r.readInt32())).map { _ in GpuCompilationMessage.fromReader(r) }
     )
   }
 
@@ -1727,7 +1727,7 @@ public struct NitroNullableInt: NitroEncodable {
   public static func fromReader(_ r: NitroRecordReader) -> NitroNullableInt {
     return NitroNullableInt(
       hasValue: r.readBool(),
-      value: r.readInt(),
+      value: r.readInt()
     )
   }
 
@@ -1763,7 +1763,7 @@ public struct NitroNullableDouble: NitroEncodable {
   public static func fromReader(_ r: NitroRecordReader) -> NitroNullableDouble {
     return NitroNullableDouble(
       hasValue: r.readBool(),
-      value: r.readDouble(),
+      value: r.readDouble()
     )
   }
 
@@ -1799,7 +1799,7 @@ public struct NitroNullableBool: NitroEncodable {
   public static func fromReader(_ r: NitroRecordReader) -> NitroNullableBool {
     return NitroNullableBool(
       hasValue: r.readBool(),
-      value: r.readBool(),
+      value: r.readBool()
     )
   }
 
@@ -1835,7 +1835,7 @@ public struct NitroOptInt64: NitroEncodable {
   public static func fromReader(_ r: NitroRecordReader) -> NitroOptInt64 {
     return NitroOptInt64(
       hasValue: r.readBool(),
-      value: r.readInt(),
+      value: r.readInt()
     )
   }
 
@@ -1867,7 +1867,7 @@ public struct NitroOptFloat64: NitroEncodable {
   public static func fromReader(_ r: NitroRecordReader) -> NitroOptFloat64 {
     return NitroOptFloat64(
       hasValue: r.readBool(),
-      value: r.readDouble(),
+      value: r.readDouble()
     )
   }
 
@@ -1899,7 +1899,7 @@ public struct NitroOptBool: NitroEncodable {
   public static func fromReader(_ r: NitroRecordReader) -> NitroOptBool {
     return NitroOptBool(
       hasValue: r.readBool(),
-      value: r.readBool(),
+      value: r.readBool()
     )
   }
 
