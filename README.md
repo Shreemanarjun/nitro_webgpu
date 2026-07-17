@@ -238,8 +238,8 @@ net, not a strategy.
 | macOS | ✅ Full suite green — Metal GPU-blit presenter, dynamic resolution |
 | iOS | ✅ Full suite green on simulator (Metal blit active); physical device pending signing |
 | Android | ✅ Full suite green on the emulator **and** a physical OnePlus CPH2447 (Adreno 740, Android 16) — zero-copy `SurfaceProducer` → `WGPUSurface` swapchain, 120 Hz with ADPF performance hints |
-| Windows | 🧪 M2.4 implemented — CPU-readback presenter via `FlutterDesktopPixelBuffer` textures; compile-verified against the embedder headers, awaiting a first on-platform run (CI job ready) |
-| Linux | 🧪 M2.5 implemented — CPU-readback presenter via `FlPixelBufferTexture`; compile-verified against the embedder headers, awaiting a first on-platform run (CI job ready) |
+| Windows | ✅ CI-verified on D3D12 WARP — CPU-readback presenter via `FlutterDesktopPixelBuffer` textures; 42/42 main + 30/31 complex (one documented upstream skip: read-only depth aborts wgpu's D3D12 backend) |
+| Linux | ✅ CI-verified on lavapipe Vulkan — CPU-readback presenter via `FlPixelBufferTexture`; 42/42 main + 31/31 complex. The instance defaults to Vulkan-only on desktop Linux (wgpu's GL/EGL probe races the GTK engine's EGL context) |
 | Web | 📐 designed-for (`navigator.gpu` via JS interop), deferred |
 
 Known upstream gaps (wgpu-native v29.0.1.1, all probe-verified): the
@@ -334,11 +334,18 @@ scripts/gen.sh    # build_runner + swift-bridge workaround + nitrogen link/docto
 - **Compressed-upload helpers**: `GpuTextureFormatInfo` block metadata +
   layout math on every format; `writeTexture` derives strides and mip
   dimensions automatically and validates before any native call.
-- **M2.4/M2.5**: Windows + Linux presenters implemented — desktop plugin
-  classes (`pluginClass` registration) hand the texture registrar to the
-  present module through an `NwpTextureOps` table; the shared readback ring
-  renders RGBA on desktop to match Flutter's pixel-buffer textures.
-  Compile-verified against the real embedder headers; first on-platform run
-  pending (the CI workflow's Linux/Windows jobs cover it).
-- **Next**: on-platform Windows/Linux runs (CI), iOS physical-device
-  signing, GPU-path presenters for desktop (DXGI shared handle / dmabuf).
+- **M2.4/M2.5**: Windows + Linux presenters implemented and **CI-verified**
+  — desktop plugin classes (`pluginClass` registration) hand the texture
+  registrar to the present module through an `NwpTextureOps` table; the
+  shared readback ring renders RGBA on desktop to match Flutter's
+  pixel-buffer textures. CI debugging surfaced two real platform findings:
+  wgpu's GL/EGL backend probe races the GTK engine's EGL context on Linux
+  (fixed — desktop Linux instances default to Vulkan-only), and wgpu's
+  D3D12 backend aborts on read-only depth attachments under WARP (one
+  test skipped on Windows, upstream issue).
+- **CI**: all three desktop jobs green — macOS on real Metal, Windows on
+  D3D12 WARP, Linux on lavapipe under Xvfb; failure-only crash diagnostics
+  (core-dump backtraces, app-stderr capture, standalone adapter probe)
+  stay in the workflow for future regressions.
+- **Next**: iOS physical-device signing, GPU-path presenters for desktop
+  (DXGI shared handle / dmabuf).

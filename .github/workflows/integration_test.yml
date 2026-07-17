@@ -46,6 +46,93 @@ jobs:
         working-directory: example
         run: flutter test integration_test/wgpu_parity_complex_test.dart -d macos --reporter expanded
 
+  ios:
+    name: iOS (simulator, Metal)
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          # Pinned to the version the plugin is developed/verified against —
+          # newer stable's integration-test result drain undercounts on fast
+          # suites (all tests pass in-app, tool exits 1).
+          flutter-version: 3.44.4
+          cache: true
+      - name: Cache wgpu-native
+        uses: actions/cache@v4
+        with:
+          path: |
+            src/third_party/wgpu_native
+            macos/nitro_webgpu/Frameworks
+            ios/nitro_webgpu/Frameworks
+          key: wgpu-native-${{ runner.os }}-${{ hashFiles('scripts/wgpu_native.sha256') }}
+      - name: Fetch wgpu-native
+        run: ./scripts/fetch_wgpu_native.sh --targets macos-aarch64,macos-x86_64,ios-aarch64,ios-aarch64-simulator,ios-x86_64-simulator
+      - name: Boot iOS simulator
+        run: |
+          UDID=$(xcrun simctl list devices available --json \
+            | jq -r '[.devices | to_entries[] | select(.key | contains("iOS")) | .value[] | select(.name | test("^iPhone"))][0].udid')
+          if [ -z "$UDID" ] || [ "$UDID" = "null" ]; then
+            echo "no available iPhone simulator"; xcrun simctl list devices; exit 1
+          fi
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          echo "SIM_UDID=$UDID" >> "$GITHUB_ENV"
+      - name: Integration tests
+        working-directory: example
+        run: |
+          flutter pub get
+          flutter test integration_test/wgpu_instance_test.dart -d "$SIM_UDID" --reporter expanded
+      - name: Complex parity tests
+        working-directory: example
+        run: flutter test integration_test/wgpu_parity_complex_test.dart -d "$SIM_UDID" --reporter expanded
+
+  android:
+    name: Android (emulator, SwiftShader Vulkan)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          # Pinned to the version the plugin is developed/verified against —
+          # newer stable's integration-test result drain undercounts on fast
+          # suites (all tests pass in-app, tool exits 1).
+          flutter-version: 3.44.4
+          cache: true
+      - name: Cache wgpu-native
+        uses: actions/cache@v4
+        with:
+          path: src/third_party/wgpu_native
+          key: wgpu-native-android-${{ hashFiles('scripts/wgpu_native.sha256') }}
+      - name: Fetch wgpu-native
+        run: ./scripts/fetch_wgpu_native.sh --targets android-aarch64,android-armv7,android-x86_64
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Integration tests on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          working-directory: example
+          script: |
+            flutter pub get
+            flutter test integration_test/wgpu_instance_test.dart -d emulator-5554 --reporter expanded
+            flutter test integration_test/wgpu_parity_complex_test.dart -d emulator-5554 --reporter expanded
+
   linux:
     name: Linux (lavapipe software Vulkan)
     runs-on: ubuntu-latest

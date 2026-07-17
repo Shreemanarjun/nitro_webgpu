@@ -62,8 +62,10 @@ shared C++ core on every native platform and a curated, Dart-idiomatic API
   Android emulator, and a physical 120 Hz Android device (OnePlus CPH2447,
   Adreno 740). Windows/Linux: CPU-readback presenters implemented
   (`FlutterDesktopPixelBuffer` / `FlPixelBufferTexture` behind desktop
-  plugin classes), compile-verified against the embedder headers — first
-  on-platform run pending. Web: API designed for a future `navigator.gpu`
-  backend.
+  plugin classes) and **CI-verified** — Windows on D3D12 WARP (42/42 main +
+  30/31 complex; read-only depth skipped, upstream D3D12 abort), Linux on
+  lavapipe Vulkan (42/42 + 31/31; desktop Linux instances default to
+  Vulkan-only — wgpu's GL/EGL probe races the GTK engine's EGL context).
+  Web: API designed for a future `navigator.gpu` backend.
 * Known upstream wgpu-native gaps are documented in
   [PARITY.md](PARITY.md).

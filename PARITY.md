@@ -78,6 +78,18 @@ behavior: 69 green integration tests (`example/integration_test/`).
   Windows/Linux present through the CPU-readback ring instead);
   `ExternalTexture` is web-only.
 
+## Platform gotchas (CI-verified)
+
+- **Linux (GTK)**: wgpu's GL backend probes EGL during
+  `wgpuInstanceRequestAdapter` and races the Flutter engine's EGL context —
+  `egl.rs` unwraps `Err(BadAccess)` and aborts the process across the C
+  ABI. Desktop Linux instances therefore default to Vulkan-only
+  (`mapBackends`); pass `GpuBackend.gl` explicitly to opt back in.
+- **Windows (D3D12)**: a read-only depth attachment aborts wgpu's D3D12
+  backend under WARP (crashes in isolation; passes on Metal and
+  Vulkan/lavapipe). The complex-suite test is skipped on Windows pending
+  an upstream fix.
+
 ## Upstream gaps in wgpu-native v29.0.1.1 (probe-verified)
 
 - `wgpuBufferWriteMappedRange` / `wgpuBufferReadMappedRange` are
