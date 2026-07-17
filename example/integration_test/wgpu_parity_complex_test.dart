@@ -2,6 +2,7 @@
 // a real renderer would (GPU-driven draws, deferred shading, frame graphs),
 // so regressions in feature *interactions* surface even when the isolated
 // feature tests stay green.
+import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -1486,6 +1487,15 @@ fn fs_main() -> @location(0) vec4f { return vec4f(1.0, 1.0, 1.0, 0.0); }
     });
 
     test('read-only depth attachment still depth-tests draws', () async {
+      if (Platform.isWindows) {
+        // wgpu-native v29 D3D12 aborts the process on a read-only depth
+        // attachment under WARP — CI-verified to crash in isolation, while
+        // the same test passes on Metal and Vulkan/lavapipe. Upstream
+        // backend issue; revisit on a real-GPU Windows box or the next
+        // wgpu-native release.
+        markTestSkipped('read-only depth aborts wgpu D3D12/WARP (upstream)');
+        return;
+      }
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice();

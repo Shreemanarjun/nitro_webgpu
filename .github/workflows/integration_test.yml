@@ -103,9 +103,13 @@ jobs:
           cores=(/tmp/core.*)
           if [ ${#cores[@]} -eq 0 ]; then echo "NO CORE PRODUCED"; exit 0; fi
           for c in "${cores[@]}"; do
-            echo "=== backtrace for $c ==="
+            echo "=== crashing-thread backtrace for $c ==="
+            gdb -batch -ex "bt" \
+              build/linux/x64/debug/bundle/nitro_webgpu_example "$c" 2>/dev/null | tail -60
+            echo "=== all threads (nitro/wgpu frames only) for $c ==="
             gdb -batch -ex "thread apply all bt" \
-              build/linux/x64/debug/bundle/nitro_webgpu_example "$c" 2>/dev/null | head -250
+              build/linux/x64/debug/bundle/nitro_webgpu_example "$c" 2>/dev/null \
+              | grep -B2 -A8 -iE "nwp_|nitro|wgpu|HybridNitro" | head -200
           done
 
   windows:
