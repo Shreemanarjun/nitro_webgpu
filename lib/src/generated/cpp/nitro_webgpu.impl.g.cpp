@@ -52,6 +52,9 @@ public:
     void requestAdapter(NitroCppBuffer options, NitroError* _nitro_err, int64_t dartPort) override {
         // TODO: on error, populate _nitro_err (hasError/name/message via strdup) before posting.
         // TODO: post result via Dart_PostCObject_DL(dartPort, ...)
+        // Nullable result? Post EITHER Dart_CObject_kNull OR kInt64 with
+        // value 0 — both decode to Dart null. Non-nullable results must
+        // always post a real encoded value.
         throw std::runtime_error("Not implemented: requestAdapter");
     }
 
@@ -87,6 +90,9 @@ public:
     void requestDevice(int64_t adapter, NitroCppBuffer descriptor, NitroError* _nitro_err, int64_t dartPort) override {
         // TODO: on error, populate _nitro_err (hasError/name/message via strdup) before posting.
         // TODO: post result via Dart_PostCObject_DL(dartPort, ...)
+        // Nullable result? Post EITHER Dart_CObject_kNull OR kInt64 with
+        // value 0 — both decode to Dart null. Non-nullable results must
+        // always post a real encoded value.
         throw std::runtime_error("Not implemented: requestDevice");
     }
 
@@ -125,6 +131,9 @@ public:
     void devicePopErrorScope(int64_t device, NitroError* _nitro_err, int64_t dartPort) override {
         // TODO: on error, populate _nitro_err (hasError/name/message via strdup) before posting.
         // TODO: post result via Dart_PostCObject_DL(dartPort, ...)
+        // Nullable result? Post EITHER Dart_CObject_kNull OR kInt64 with
+        // value 0 — both decode to Dart null. Non-nullable results must
+        // always post a real encoded value.
         throw std::runtime_error("Not implemented: devicePopErrorScope");
     }
 
@@ -158,12 +167,18 @@ public:
     void bufferMapRead(int64_t buffer, int64_t offset, int64_t size, NitroError* _nitro_err, int64_t dartPort) override {
         // TODO: on error, populate _nitro_err (hasError/name/message via strdup) before posting.
         // TODO: post result via Dart_PostCObject_DL(dartPort, ...)
+        // Nullable result? Post EITHER Dart_CObject_kNull OR kInt64 with
+        // value 0 — both decode to Dart null. Non-nullable results must
+        // always post a real encoded value.
         throw std::runtime_error("Not implemented: bufferMapRead");
     }
 
     void bufferMapWrite(int64_t buffer, int64_t offset, int64_t size, NitroError* _nitro_err, int64_t dartPort) override {
         // TODO: on error, populate _nitro_err (hasError/name/message via strdup) before posting.
         // TODO: post result via Dart_PostCObject_DL(dartPort, ...)
+        // Nullable result? Post EITHER Dart_CObject_kNull OR kInt64 with
+        // value 0 — both decode to Dart null. Non-nullable results must
+        // always post a real encoded value.
         throw std::runtime_error("Not implemented: bufferMapWrite");
     }
 
@@ -197,24 +212,36 @@ public:
     void shaderModuleGetCompilationInfo(int64_t module, NitroError* _nitro_err, int64_t dartPort) override {
         // TODO: on error, populate _nitro_err (hasError/name/message via strdup) before posting.
         // TODO: post result via Dart_PostCObject_DL(dartPort, ...)
+        // Nullable result? Post EITHER Dart_CObject_kNull OR kInt64 with
+        // value 0 — both decode to Dart null. Non-nullable results must
+        // always post a real encoded value.
         throw std::runtime_error("Not implemented: shaderModuleGetCompilationInfo");
     }
 
     void deviceCreateShaderModuleWgslAsync(int64_t device, const std::string& label, const std::string& wgsl, NitroError* _nitro_err, int64_t dartPort) override {
         // TODO: on error, populate _nitro_err (hasError/name/message via strdup) before posting.
         // TODO: post result via Dart_PostCObject_DL(dartPort, ...)
+        // Nullable result? Post EITHER Dart_CObject_kNull OR kInt64 with
+        // value 0 — both decode to Dart null. Non-nullable results must
+        // always post a real encoded value.
         throw std::runtime_error("Not implemented: deviceCreateShaderModuleWgslAsync");
     }
 
     void deviceCreateRenderPipelineAsync(int64_t device, NitroCppBuffer descriptor, NitroError* _nitro_err, int64_t dartPort) override {
         // TODO: on error, populate _nitro_err (hasError/name/message via strdup) before posting.
         // TODO: post result via Dart_PostCObject_DL(dartPort, ...)
+        // Nullable result? Post EITHER Dart_CObject_kNull OR kInt64 with
+        // value 0 — both decode to Dart null. Non-nullable results must
+        // always post a real encoded value.
         throw std::runtime_error("Not implemented: deviceCreateRenderPipelineAsync");
     }
 
     void deviceCreateComputePipelineAsync(int64_t device, NitroCppBuffer descriptor, NitroError* _nitro_err, int64_t dartPort) override {
         // TODO: on error, populate _nitro_err (hasError/name/message via strdup) before posting.
         // TODO: post result via Dart_PostCObject_DL(dartPort, ...)
+        // Nullable result? Post EITHER Dart_CObject_kNull OR kInt64 with
+        // value 0 — both decode to Dart null. Non-nullable results must
+        // always post a real encoded value.
         throw std::runtime_error("Not implemented: deviceCreateComputePipelineAsync");
     }
 
@@ -372,6 +399,9 @@ public:
     void queueOnSubmittedWorkDone(int64_t queue, NitroError* _nitro_err, int64_t dartPort) override {
         // TODO: on error, populate _nitro_err (hasError/name/message via strdup) before posting.
         // TODO: post result via Dart_PostCObject_DL(dartPort, ...)
+        // Nullable result? Post EITHER Dart_CObject_kNull OR kInt64 with
+        // value 0 — both decode to Dart null. Non-nullable results must
+        // always post a real encoded value.
         throw std::runtime_error("Not implemented: queueOnSubmittedWorkDone");
     }
 

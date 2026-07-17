@@ -2,6 +2,15 @@
 # Restricts the generator to lib/src/**/*.native.dart for faster builds.
 targets:
   $default:
+    sources:
+      include:
+        - lib/**
+        - $package$
+        - pubspec.yaml
+      exclude:
+        - example/**
+        - "**/.symlinks/**"
+        - "**/ephemeral/**"
     builders:
       nitro_generator:
         generate_for:
