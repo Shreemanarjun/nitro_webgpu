@@ -78,15 +78,33 @@ jobs:
           fi
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
+          # simctl boot alone leaves launch services half-up on CI runners —
+          # the flutter tool then hangs forever installing/attaching after
+          # "Xcode build done". The Simulator app process brings them up.
+          open -a Simulator --args -CurrentDeviceUDID "$UDID"
+          sleep 20
           echo "SIM_UDID=$UDID" >> "$GITHUB_ENV"
       - name: Integration tests
         working-directory: example
+        timeout-minutes: 25
         run: |
           flutter pub get
           flutter test integration_test/wgpu_instance_test.dart -d "$SIM_UDID" --reporter expanded
       - name: Complex parity tests
         working-directory: example
+        timeout-minutes: 15
         run: flutter test integration_test/wgpu_parity_complex_test.dart -d "$SIM_UDID" --reporter expanded
+      - name: Hang diagnostics (simulator + app logs)
+        if: failure()
+        run: |
+          echo "=== installed apps ==="
+          xcrun simctl listapps "$SIM_UDID" 2>/dev/null | head -40 || true
+          echo "=== recent simulator log (errors/faults) ==="
+          xcrun simctl spawn "$SIM_UDID" log show --last 10m --predicate \
+            'messageType == error OR messageType == fault' 2>/dev/null | tail -80 || true
+          echo "=== recent app log lines ==="
+          xcrun simctl spawn "$SIM_UDID" log show --last 10m --predicate \
+            'process CONTAINS "Runner" OR process CONTAINS "nitro"' 2>/dev/null | tail -60 || true
 
   android:
     name: Android (emulator, SwiftShader Vulkan)
