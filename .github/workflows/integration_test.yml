@@ -88,14 +88,25 @@ jobs:
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: xvfb-run -a -s "-screen 0 1280x800x24" flutter test integration_test/wgpu_parity_complex_test.dart -d linux --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded
-      - name: Crash diagnostics (full suite, verbose — crashing test passes alone)
+      - name: Crash diagnostics (core-dump backtrace)
         if: failure()
         working-directory: example
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
+          sudo apt-get install -y gdb
+          sudo sysctl -w kernel.core_pattern=/tmp/core.%p
+          ulimit -c unlimited
           xvfb-run -a -s "-screen 0 1280x800x24" flutter test integration_test/wgpu_instance_test.dart -d linux \
-            --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded --verbose 2>&1 | tail -400
+            --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded || true
+          shopt -s nullglob
+          cores=(/tmp/core.*)
+          if [ ${#cores[@]} -eq 0 ]; then echo "NO CORE PRODUCED"; exit 0; fi
+          for c in "${cores[@]}"; do
+            echo "=== backtrace for $c ==="
+            gdb -batch -ex "thread apply all bt" \
+              build/linux/x64/debug/bundle/nitro_webgpu_example "$c" 2>/dev/null | head -250
+          done
 
   windows:
     name: Windows (D3D12 WARP)
@@ -129,10 +140,11 @@ jobs:
       - name: Complex parity tests (fallback adapter)
         working-directory: example
         run: flutter test integration_test/wgpu_parity_complex_test.dart -d windows --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded
-      - name: Crash diagnostics (full suite, verbose — crashing test passes alone)
+      - name: Crash diagnostics (isolate read-only depth test)
         if: failure()
         working-directory: example
         shell: bash
         run: |
           flutter test integration_test/wgpu_parity_complex_test.dart -d windows \
-            --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded --verbose 2>&1 | tail -400
+            --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded \
+            --plain-name "read-only depth attachment still depth-tests draws" 2>&1 | tail -60

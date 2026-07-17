@@ -30,6 +30,9 @@ struct _NwpTexture {
   int32_t visible_width;
   int32_t visible_height;
   bool has_pending;
+  // One frame-available notification outstanding at a time — marks are
+  // coalesced until the engine consumes the frame in copy_pixels.
+  bool mark_inflight;
 };
 
 #define NWP_TYPE_TEXTURE nwp_texture_get_type()
@@ -45,6 +48,7 @@ static gboolean nwp_texture_copy_pixels(FlPixelBufferTexture* texture,
                                         GError** error) {
   NwpTexture* self = NWP_TEXTURE(texture);
   std::lock_guard<std::mutex> lock(*self->mutex);
+  self->mark_inflight = false;
   if (self->has_pending) {
     self->visible->swap(*self->pending);
     self->visible_width = self->pending_width;
@@ -87,6 +91,7 @@ static void nwp_texture_init(NwpTexture* self) {
   self->visible_width = 0;
   self->visible_height = 0;
   self->has_pending = false;
+  self->mark_inflight = false;
 }
 
 // ── NwpTextureOps implementation ─────────────────────────────────────────
@@ -139,6 +144,7 @@ void ops_publish_frame(void* ctx, void* handle, const uint8_t* pixels,
                        int32_t width, int32_t height, int32_t bytes_per_row) {
   auto* context = static_cast<NwpLinuxContext*>(ctx);
   auto* texture = static_cast<NwpTexture*>(handle);
+  bool needs_mark;
   {
     std::lock_guard<std::mutex> lock(*texture->mutex);
     texture->pending->resize((size_t)width * height * 4);
@@ -149,11 +155,15 @@ void ops_publish_frame(void* ctx, void* handle, const uint8_t* pixels,
     texture->pending_width = width;
     texture->pending_height = height;
     texture->has_pending = true;
+    needs_mark = !texture->mark_inflight;
+    texture->mark_inflight = true;
   }
-  auto* request = new NwpTextureRequest{
-      FL_TEXTURE_REGISTRAR(g_object_ref(context->registrar)),
-      NWP_TEXTURE(g_object_ref(texture))};
-  g_idle_add(nwp_mark_frame_on_main, request);
+  if (needs_mark) {
+    auto* request = new NwpTextureRequest{
+        FL_TEXTURE_REGISTRAR(g_object_ref(context->registrar)),
+        NWP_TEXTURE(g_object_ref(texture))};
+    g_idle_add(nwp_mark_frame_on_main, request);
+  }
 }
 
 void ops_unregister_texture(void* ctx, void* handle) {
