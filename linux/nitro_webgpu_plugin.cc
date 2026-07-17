@@ -97,6 +97,35 @@ struct NwpLinuxContext {
   FlTextureRegistrar* registrar;  // owned (+1 ref)
 };
 
+// The registrar's thread contract is undocumented — mirror the macOS shim
+// and marshal frame-available and unregister onto the GTK main loop
+// (g_idle_add is thread-safe from any thread). Each request carries its own
+// references so the objects outlive the hop.
+struct NwpTextureRequest {
+  FlTextureRegistrar* registrar;  // +1 ref, released by the idle handler
+  NwpTexture* texture;            // +1 ref, released by the idle handler
+};
+
+gboolean nwp_mark_frame_on_main(gpointer data) {
+  auto* request = static_cast<NwpTextureRequest*>(data);
+  fl_texture_registrar_mark_texture_frame_available(
+      request->registrar, FL_TEXTURE(request->texture));
+  g_object_unref(request->texture);
+  g_object_unref(request->registrar);
+  delete request;
+  return G_SOURCE_REMOVE;
+}
+
+gboolean nwp_unregister_on_main(gpointer data) {
+  auto* request = static_cast<NwpTextureRequest*>(data);
+  fl_texture_registrar_unregister_texture(request->registrar,
+                                          FL_TEXTURE(request->texture));
+  g_object_unref(request->texture);  // drops the creation reference
+  g_object_unref(request->registrar);
+  delete request;
+  return G_SOURCE_REMOVE;
+}
+
 int64_t ops_register_texture(void* ctx, void** out_handle) {
   auto* context = static_cast<NwpLinuxContext*>(ctx);
   NwpTexture* texture = NWP_TEXTURE(g_object_new(NWP_TYPE_TEXTURE, nullptr));
@@ -121,16 +150,19 @@ void ops_publish_frame(void* ctx, void* handle, const uint8_t* pixels,
     texture->pending_height = height;
     texture->has_pending = true;
   }
-  fl_texture_registrar_mark_texture_frame_available(context->registrar,
-                                                    FL_TEXTURE(texture));
+  auto* request = new NwpTextureRequest{
+      FL_TEXTURE_REGISTRAR(g_object_ref(context->registrar)),
+      NWP_TEXTURE(g_object_ref(texture))};
+  g_idle_add(nwp_mark_frame_on_main, request);
 }
 
 void ops_unregister_texture(void* ctx, void* handle) {
   auto* context = static_cast<NwpLinuxContext*>(ctx);
   auto* texture = static_cast<NwpTexture*>(handle);
-  fl_texture_registrar_unregister_texture(context->registrar,
-                                          FL_TEXTURE(texture));
-  g_object_unref(texture);
+  // The request adopts the creation reference on `texture`.
+  auto* request = new NwpTextureRequest{
+      FL_TEXTURE_REGISTRAR(g_object_ref(context->registrar)), texture};
+  g_idle_add(nwp_unregister_on_main, request);
 }
 
 }  // namespace
