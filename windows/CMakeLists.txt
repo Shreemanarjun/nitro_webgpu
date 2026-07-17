@@ -14,6 +14,26 @@ project(${PROJECT_NAME} LANGUAGES CXX)
 # This can be changed to accommodate different builds.
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../src" "${CMAKE_CURRENT_BINARY_DIR}/shared")
 
+# ── Presentation plugin (M2.4) ───────────────────────────────────────────
+# Registered via pubspec pluginClass; owns the Flutter texture objects and
+# installs NwpTextureOps into nitro_webgpu_present.dll (nwp_set_texture_ops).
+set(PLUGIN_NAME "nitro_webgpu_plugin")
+
+add_library(${PLUGIN_NAME} SHARED
+  "nitro_webgpu_plugin.cpp"
+)
+
+apply_standard_settings(${PLUGIN_NAME})
+
+set_target_properties(${PLUGIN_NAME} PROPERTIES
+  CXX_VISIBILITY_PRESET hidden)
+target_compile_definitions(${PLUGIN_NAME} PRIVATE FLUTTER_PLUGIN_IMPL)
+
+target_include_directories(${PLUGIN_NAME} INTERFACE
+  "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_link_libraries(${PLUGIN_NAME} PRIVATE flutter flutter_wrapper_plugin)
+target_link_libraries(${PLUGIN_NAME} PRIVATE nitro_webgpu_present)
+
 # List of absolute paths to libraries that should be bundled with the plugin.
 # This list could contain prebuilt libraries, or libraries created by an
 # external build triggered from this build file.
@@ -21,6 +41,6 @@ set(nitro_webgpu_bundled_libraries
   # Defined in ../src/CMakeLists.txt.
   # This can be changed to accommodate different builds.
   $<TARGET_FILE:nitro_webgpu>
+  $<TARGET_FILE:nitro_webgpu_present>
   PARENT_SCOPE
 )
-

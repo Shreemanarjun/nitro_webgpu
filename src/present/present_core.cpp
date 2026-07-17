@@ -24,6 +24,15 @@ namespace {
 
 constexpr int kNwpSlots = 3;
 
+// Ring render-target format must match what the platform texture consumes:
+// Apple CVPixelBuffers are BGRA; Flutter's Windows (FlutterDesktopPixelBuffer)
+// and Linux (FlPixelBufferTexture) pixel-buffer textures are RGBA.
+#if defined(_WIN32) || (defined(__linux__) && !defined(__ANDROID__))
+constexpr WGPUTextureFormat kNwpRingFormat = WGPUTextureFormat_RGBA8Unorm;
+#else
+constexpr WGPUTextureFormat kNwpRingFormat = WGPUTextureFormat_BGRA8Unorm;
+#endif
+
 struct NwpSlot {
     WGPUTexture target = nullptr;
     WGPUTextureView view = nullptr;
@@ -196,7 +205,7 @@ bool nwpCreateTargets(NwpPresenter* p, int32_t width, int32_t height) {
         td.usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc;
         td.dimension = WGPUTextureDimension_2D;
         td.size = {(uint32_t)width, (uint32_t)height, 1};
-        td.format = WGPUTextureFormat_BGRA8Unorm;
+        td.format = kNwpRingFormat;
         td.mipLevelCount = 1;
         td.sampleCount = 1;
         s.target = wgpuDeviceCreateTexture(p->device, &td);
@@ -731,7 +740,7 @@ void nwp_presenter_present(int64_t token) {
 int32_t nwp_presenter_format(int64_t token) {
     NwpPresenter* p = nwpFind(token);
     if (p && p->surfaceMode) return (int32_t)p->surfaceFormat;
-    return (int32_t)WGPUTextureFormat_BGRA8Unorm;
+    return (int32_t)kNwpRingFormat;
 }
 
 void nwp_presenter_resize(int64_t token, int32_t width, int32_t height) {

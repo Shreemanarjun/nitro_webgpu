@@ -86,11 +86,15 @@ target_include_directories(nitro_webgpu_present PRIVATE
 )
 set_target_properties(nitro_webgpu_present PROPERTIES OUTPUT_NAME "nitro_webgpu_present")
 target_compile_definitions(nitro_webgpu_present PUBLIC DART_SHARED_LIB)
+# nwp_set_texture_ops is dllexport while building this library, dllimport
+# for the platform plugin that consumes it (src/present/nwp_texture_ops.h).
+target_compile_definitions(nitro_webgpu_present PRIVATE NWP_PRESENT_BUILD)
 if(ANDROID)
   target_link_libraries(nitro_webgpu_present PRIVATE android log)
   target_link_options(nitro_webgpu_present PRIVATE "-Wl,-z,max-page-size=16384")
 elseif(WIN32)
-  target_link_libraries(nitro_webgpu_present PRIVATE dbghelp)
+  # The desktop presenter drives the nwp_* ring exported by the core library.
+  target_link_libraries(nitro_webgpu_present PRIVATE dbghelp nitro_webgpu)
 elseif(UNIX AND NOT APPLE)
-  target_link_libraries(nitro_webgpu_present PRIVATE dl pthread)
+  target_link_libraries(nitro_webgpu_present PRIVATE dl pthread nitro_webgpu)
 endif()
