@@ -100,9 +100,10 @@ class ParticleScene implements GpuScene {
   GpuDevice? _device;
   GpuBuffer? _particles;
   GpuBuffer? _uniforms;
+  GpuBindGroupLayout? _computeBindLayout;
+  GpuPipelineLayout? _computePipelineLayout;
   GpuShaderModule? _computeModule;
   GpuComputePipeline? _computePipeline;
-  GpuBindGroupLayout? _computeLayout;
   GpuBindGroup? _computeBind;
   GpuShaderModule? _renderModule;
   GpuRenderPipeline? _renderPipeline;
@@ -151,6 +152,22 @@ class ParticleScene implements GpuScene {
         size: 16,
         usage: GpuBufferUsage.uniform | GpuBufferUsage.copyDst,
         label: '$name-uniforms');
+    // Explicit layout: a pasted kernel that ignores a binding would make the
+    // auto layout drop it — and getBindGroupLayout on a group the pipeline
+    // doesn't have panics natively. The fixed layout keeps any
+    // contract-shaped kernel bindable.
+    _computeBindLayout ??= device.createBindGroupLayout(entries: const [
+      GpuLayoutEntry(
+          binding: 0,
+          visibility: GpuShaderStage.compute,
+          type: GpuBindingType.uniformBuffer),
+      GpuLayoutEntry(
+          binding: 1,
+          visibility: GpuShaderStage.compute,
+          type: GpuBindingType.storageBuffer),
+    ]);
+    _computePipelineLayout ??=
+        device.createPipelineLayout(layouts: [_computeBindLayout!]);
     if (_renderPipeline == null || _renderFormat != format) {
       _renderModule ??= await device.createShaderModule(_renderWgsl);
       _renderBind?.dispose();
@@ -177,14 +194,14 @@ class ParticleScene implements GpuScene {
     if (source == null) return;
     GpuShaderModule? module;
     GpuComputePipeline? pipeline;
-    GpuBindGroupLayout? layout;
     try {
       module = await device.createShaderModule(source, label: '$name-sim');
       pipeline = await device.createComputePipeline(
-          module: module, entryPoint: 'simulate', label: '$name-sim');
-      layout = pipeline.getBindGroupLayout(0);
+          module: module,
+          entryPoint: 'simulate',
+          layout: _computePipelineLayout,
+          label: '$name-sim');
     } catch (e) {
-      layout?.dispose();
       pipeline?.dispose();
       module?.dispose();
       if (!_disposed) {
@@ -193,19 +210,14 @@ class ParticleScene implements GpuScene {
       return;
     }
     if (_disposed) {
-      layout.dispose();
       pipeline.dispose();
       module.dispose();
       return;
     }
-    _computeBind?.dispose();
-    _computeBind = null;
-    _computeLayout?.dispose();
     _computePipeline?.dispose();
     _computeModule?.dispose();
     _computeModule = module;
     _computePipeline = pipeline;
-    _computeLayout = layout;
     _activeKernel = source;
     compileError.value = null;
   }
@@ -237,7 +249,7 @@ class ParticleScene implements GpuScene {
     final encoder = device.createCommandEncoder(label: name);
     if (_computePipeline != null && dt > 0) {
       _computeBind ??=
-          device.createBindGroup(layout: _computeLayout!, entries: [
+          device.createBindGroup(layout: _computeBindLayout!, entries: [
         GpuBufferBinding(binding: 0, buffer: _uniforms!),
         GpuBufferBinding(binding: 1, buffer: _particles!),
       ]);
@@ -263,8 +275,9 @@ class ParticleScene implements GpuScene {
     _disposed = true;
     _computeBind?.dispose();
     _renderBind?.dispose();
-    _computeLayout?.dispose();
     _renderLayout?.dispose();
+    _computePipelineLayout?.dispose();
+    _computeBindLayout?.dispose();
     _computePipeline?.dispose();
     _renderPipeline?.dispose();
     _computeModule?.dispose();

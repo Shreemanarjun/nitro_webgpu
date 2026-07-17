@@ -1397,9 +1397,16 @@ class GpuQueue {
   }
 
   /// Copies [data] into [buffer] at [bufferOffset]. wgpu copies synchronously;
-  /// [data] may be reused immediately.
+  /// [data] may be reused immediately. Per the WebGPU spec, [bufferOffset]
+  /// and `data.length` must be multiples of 4 — violations throw
+  /// [ArgumentError] here instead of surfacing as an async device error.
   void writeBuffer(GpuBuffer buffer, Uint8List data, {int bufferOffset = 0}) {
     _checkAlive();
+    if (bufferOffset % 4 != 0 || data.length % 4 != 0) {
+      throw ArgumentError(
+          'writeBuffer offset ($bufferOffset) and size (${data.length}) must '
+          'be multiples of 4');
+    }
     NitroWebgpu.instance
         .queueWriteBuffer(_address, buffer._address, bufferOffset, data);
   }
@@ -1964,8 +1971,14 @@ class GpuCommandEncoder {
       int? width,
       int? height}) {
     _checkAlive();
-    final w = width ?? texture.width;
-    final h = height ?? texture.height;
+    // Mip-aware defaults — a mip-1 copy of an 8×8 texture is 4×4, and a
+    // wrong extent here is a validation failure that aborts at submit.
+    var mipW = texture.width >> mipLevel;
+    var mipH = texture.height >> mipLevel;
+    if (mipW == 0) mipW = 1;
+    if (mipH == 0) mipH = 1;
+    final w = width ?? mipW;
+    final h = height ?? mipH;
     NitroWebgpu.instance.encoderCopyTextureToBuffer(
       _address,
       texture._address,
