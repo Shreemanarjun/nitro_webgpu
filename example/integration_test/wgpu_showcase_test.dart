@@ -4,6 +4,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:nitro_webgpu/nitro_webgpu.dart';
@@ -251,6 +252,205 @@ void main() {
       game.dispose();
       device.dispose();
       adapter.dispose();
+    });
+
+    test('Racer: steering keys move the car across the track', () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+      final racer = showcases
+          .firstWhere((s) => s.title == '3D racer (keyboard)')
+          .build() as ShadertoyEngine;
+
+      // Player car row: carY uv 0.115 → memory row ≈ 63.5 - 7.36 ≈ 56.
+      // The body is magenta (r and b high) — nothing else on screen is.
+      double carColumn(Uint8List px) {
+        var sum = 0.0;
+        var n = 0;
+        for (var y = 54; y <= 58; y++) {
+          for (var x = 0; x < _size; x++) {
+            final p = pixelAt(px, x, y);
+            if (p[0] > 180 && p[2] > 160 && p[1] < 90) {
+              sum += x;
+              n++;
+            }
+          }
+        }
+        expect(n, greaterThan(0), reason: 'player car visible');
+        return sum / n;
+      }
+
+      final neutral = carColumn(await renderFrames(device, racer, steps(6)));
+      racer.setKey(ShadertoyKey.left, true);
+      final steered =
+          carColumn(await renderFrames(device, racer, steps(30, fromMs: 198)));
+      racer.setKey(ShadertoyKey.left, false);
+      expect(steered, lessThan(neutral - 2),
+          reason: 'holding left moves the car left '
+              '(neutral $neutral → steered $steered)');
+      racer.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+
+    test('Racer: throttle animates the road, braking stops it', () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+      final racer = showcases
+          .firstWhere((s) => s.title == '3D racer (keyboard)')
+          .build() as ShadertoyEngine;
+
+      int roadDiff(Uint8List a, Uint8List b) {
+        var diff = 0;
+        // Road region: memory rows 30..50, avoiding the car and the HUD.
+        for (var y = 30; y <= 50; y += 2) {
+          for (var x = 4; x < _size; x += 4) {
+            final p1 = pixelAt(a, x, y);
+            final p2 = pixelAt(b, x, y);
+            diff += (p1[0] - p2[0]).abs() +
+                (p1[1] - p2[1]).abs() +
+                (p1[2] - p2[2]).abs();
+          }
+        }
+        return diff;
+      }
+
+      racer.setKey(ShadertoyKey.up, true);
+      await renderFrames(device, racer, steps(30));
+      final fastA = await renderFrames(device, racer, steps(1, fromMs: 990));
+      final fastB = await renderFrames(device, racer, steps(1, fromMs: 1023));
+      final movingDiff = roadDiff(fastA, fastB);
+      racer.setKey(ShadertoyKey.up, false);
+      racer.setKey(ShadertoyKey.down, true);
+      await renderFrames(device, racer, steps(60, fromMs: 1056));
+      final stopA = await renderFrames(device, racer, steps(1, fromMs: 3036));
+      final stopB = await renderFrames(device, racer, steps(1, fromMs: 3069));
+      final stoppedDiff = roadDiff(stopA, stopB);
+      expect(movingDiff, greaterThan(stoppedDiff * 2 + 50),
+          reason: 'road animates under throttle ($movingDiff) and freezes '
+              'when braked to a stop ($stoppedDiff)');
+      racer.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+
+    test('Racer: endless score ticks and a collision ends the run',
+        () async {
+      final adapter =
+          await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
+      final device = await adapter.requestDevice();
+      final racer = showcases
+          .firstWhere((s) => s.title == '3D racer (keyboard)')
+          .build() as ShadertoyEngine;
+      var t = 0;
+      List<Duration> more(int frames) =>
+          [for (var i = 0; i < frames; i++) Duration(milliseconds: t += 33)];
+
+      // Score HUD (top-right digits, memory rows 3..5) ticks while driving.
+      racer.setKey(ShadertoyKey.up, true);
+      final hudA = await renderFrames(device, racer, more(20));
+      final hudB = await renderFrames(device, racer, more(6));
+      int hudDiff(Uint8List a, Uint8List b) {
+        var d = 0;
+        for (var y = 2; y <= 6; y++) {
+          for (var x = 40; x < 62; x++) {
+            d += (pixelAt(a, x, y)[0] - pixelAt(b, x, y)[0]).abs();
+          }
+        }
+        return d;
+      }
+
+      expect(hudDiff(hudA, hudB), greaterThan(30),
+          reason: 'score digits change while driving');
+
+      // Keep driving until a rival ends the run: GAME OVER title renders
+      // as red text around memory rows 18..25 (deterministic hash road).
+      bool dead(Uint8List px) {
+        var red = 0;
+        for (var y = 18; y <= 25; y++) {
+          for (var x = 8; x < 56; x += 2) {
+            final p = pixelAt(px, x, y);
+            if (p[0] > 140 && p[1] < 80 && p[2] < 80) red++;
+          }
+        }
+        return red >= 4;
+      }
+
+      var frame = hudB;
+      var chunks = 0;
+      while (!dead(frame) && chunks < 12) {
+        frame = await renderFrames(device, racer, more(60));
+        chunks++;
+      }
+      expect(dead(frame), isTrue,
+          reason: 'a collision must end the run within ~24 s of driving');
+
+      // Dead: the world freezes (road region static) even with throttle
+      // held, and a HELD key must NOT restart (fresh press required).
+      final frozenA = await renderFrames(device, racer, more(2));
+      final frozenB = await renderFrames(device, racer, more(2));
+      int roadDiff(Uint8List a, Uint8List b) {
+        var d = 0;
+        for (var y = 30; y <= 45; y += 2) {
+          for (var x = 4; x < 60; x += 4) {
+            final p1 = pixelAt(a, x, y);
+            final p2 = pixelAt(b, x, y);
+            d += (p1[0] - p2[0]).abs() + (p1[1] - p2[1]).abs();
+          }
+        }
+        return d;
+      }
+
+      expect(roadDiff(frozenA, frozenB), lessThan(40),
+          reason: 'world frozen after game over despite held throttle');
+
+      // Fresh press: release, settle the latch, press again → new run.
+      racer.setKey(ShadertoyKey.up, false);
+      await renderFrames(device, racer, more(4));
+      racer.setKey(ShadertoyKey.up, true);
+      final restartA = await renderFrames(device, racer, more(12));
+      expect(dead(restartA), isFalse, reason: 'restarted after fresh press');
+      final restartB = await renderFrames(device, racer, more(3));
+      expect(roadDiff(restartA, restartB), greaterThan(60),
+          reason: 'road animates again after restart');
+      racer.setKey(ShadertoyKey.up, false);
+      racer.dispose();
+      device.dispose();
+      adapter.dispose();
+    });
+
+    testWidgets('Racer viewer wires the keyboard to the engine',
+        (tester) async {
+      final binding = tester.binding as LiveTestWidgetsFlutterBinding;
+      binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+
+      await tester.pumpWidget(MaterialApp(
+        home: ShowcaseViewerPage(
+            showcase: showcases
+                .firstWhere((s) => s.title == '3D racer (keyboard)')),
+      ));
+      await tester.pump();
+      final state = tester.state<ShowcaseViewerPageState>(
+          find.byType(ShowcaseViewerPage));
+      final engine = state.sceneForTesting as ShadertoyEngine;
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      expect(engine.debugKeys[0], 1.0, reason: 'ArrowLeft pressed');
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      expect(engine.debugKeys[0], 0.0, reason: 'ArrowLeft released');
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyW);
+      await tester.pump();
+      expect(engine.debugKeys[2], 1.0, reason: 'W maps to throttle');
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyW);
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 600)));
+      await tester.pump();
     });
 
     testWidgets('gallery page lists every showcase and opens the viewer',

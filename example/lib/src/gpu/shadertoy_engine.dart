@@ -105,6 +105,16 @@ class ShadertoyEngine implements GpuScene {
 
   final ValueNotifier<String?> compileError = ValueNotifier(null);
 
+  // Keyboard state exposed to shaders as `iKeys` (x=left, y=right,
+  // z=up/throttle, w=down/brake). Update from a Focus/KeyboardListener.
+  final List<double> _keys = [0, 0, 0, 0];
+
+  void setKey(ShadertoyKey key, bool down) =>
+      _keys[key.index] = down ? 1 : 0;
+
+  /// Current key state, for tests and debugging.
+  List<double> get debugKeys => List.unmodifiable(_keys);
+
   // Slot 0-3 = Buffer A-D, slot 4 = Image.
   final Map<int, ShadertoyPassSpec> _pending = {};
   final Map<int, _Pass> _passes = {};
@@ -131,6 +141,7 @@ struct STUniforms {
   res: vec4f,
   time: vec4f,
   mouse: vec4f,
+  keys: vec4f,
 };
 @group(0) @binding(0) var<uniform> st_u: STUniforms;
 @group(0) @binding(1) var stSampler: sampler;
@@ -144,6 +155,7 @@ var<private> iTime: f32;
 var<private> iTimeDelta: f32;
 var<private> iFrame: f32;
 var<private> iMouse: vec4f;
+var<private> iKeys: vec4f;
 ''';
 
   static const _wgslEpilogue = '''
@@ -161,6 +173,7 @@ fn fs_main(@builtin(position) st_pos: vec4f) -> @location(0) vec4f {
   iTimeDelta = st_u.time.y;
   iFrame = st_u.time.z;
   iMouse = st_u.mouse;
+  iKeys = st_u.keys;
   // Keep every binding statically used so the auto layout stays stable no
   // matter which channels the snippet touches.
   var st_keep = textureSampleLevel(iChannel0, stSampler, vec2f(0.5), 0.0);
@@ -179,6 +192,7 @@ layout(set = 0, binding = 0) uniform STUniforms {
   vec4 st_res;
   vec4 st_time;
   vec4 st_mouse;
+  vec4 st_keys;
 };
 layout(set = 0, binding = 1) uniform sampler stSampler;
 layout(set = 0, binding = 2) uniform texture2D iChannel0T;
@@ -194,6 +208,7 @@ layout(set = 0, binding = 5) uniform texture2D iChannel3T;
 #define iTimeDelta (st_time.y)
 #define iFrame (st_time.z)
 #define iMouse (st_mouse)
+#define iKeys (st_keys)
 ''';
 
   static const _glslEpilogue = '''
@@ -227,7 +242,7 @@ fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
     _sampler ??= device.createSampler(
         magFilter: GpuFilterMode.linear, minFilter: GpuFilterMode.linear);
     _uniforms ??= device.createBuffer(
-        size: 48,
+        size: 64,
         usage: GpuBufferUsage.uniform | GpuBufferUsage.copyDst,
         label: '$name-uniforms');
     if (_blackTexture == null) {
@@ -375,6 +390,7 @@ fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
         _width.toDouble(), _height.toDouble(), 1, 0, // iResolution
         _accum, _delta, _frame.toDouble(), 0, // iTime/iTimeDelta/iFrame
         mouseX, mouseY, mouseClickX, mouseClickY, // iMouse
+        _keys[0], _keys[1], _keys[2], _keys[3], // iKeys
       ]).buffer.asUint8List(),
     );
 
@@ -515,3 +531,7 @@ class _Pass {
     _disposeTargets();
   }
 }
+
+
+/// Keyboard slots exposed to shaders through `iKeys`.
+enum ShadertoyKey { left, right, up, down }

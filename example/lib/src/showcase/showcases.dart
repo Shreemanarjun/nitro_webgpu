@@ -12,6 +12,7 @@ class Showcase {
     required this.category,
     required this.build,
     this.interactive = false,
+    this.keyboard = false,
   });
 
   final String title;
@@ -21,6 +22,9 @@ class Showcase {
 
   /// True when the scene reacts to pointer input (iMouse).
   final bool interactive;
+
+  /// True when the scene is driven by the keyboard (iKeys).
+  final bool keyboard;
 }
 
 ShadertoyEngine _image(String wgsl) => ShadertoyEngine(
@@ -668,6 +672,272 @@ fn mainImage(fragCoord: vec2f) -> vec4f {
   return vec4f(col, 1.0);
 }''';
 
+
+const _racerBuffer = '''
+// State cells — the whole game lives in two data texels:
+//   cell 0: (playerX, speed, distance, crashFlash)
+//   cell 1: (alive, score, bestScore, prevThrottleKey)
+fn data(i: i32) -> vec4f {
+  let px = 1.0 / iResolution.xy;
+  return textureSampleLevel(iChannel0, stSampler,
+      vec2f((f32(i) + 0.5) * px.x, 1.0 - 0.5 * px.y), 0.0);
+}
+fn hash1(x: f32) -> f32 { return fract(sin(x * 127.1) * 43758.5453); }
+fn obstacleLane(seg: f32) -> f32 {
+  // Obstacle-free starting corridor, then rivals on ~45% of segments.
+  if (seg < 40.0 || hash1(seg * 3.7) < 0.55) { return -2.0; }
+  return (floor(hash1(seg * 7.1) * 3.0) - 1.0) * 0.55;
+}
+fn mainImage(fragCoord: vec2f) -> vec4f {
+  if (fragCoord.y >= 1.0 || fragCoord.x >= 2.0) { return vec4f(0.0); }
+  let cell = i32(fragCoord.x);
+  let dt = clamp(iTimeDelta, 0.001, 0.033);
+  if (iFrame < 2.0) {
+    if (cell == 0) { return vec4f(0.0, 0.3, 0.0, 0.0); }
+    return vec4f(1.0, 0.0, 0.0, 0.0);
+  }
+  let s0 = data(0);
+  let s1 = data(1);
+  let alive = s1.x;
+  let up = iKeys.z;
+  // Restart needs a FRESH throttle press after death (edge, not level).
+  let restart = (alive < 0.5) && (up > 0.5) && (s1.w < 0.5);
+  if (restart) {
+    if (cell == 0) { return vec4f(0.0, 0.3, 0.0, 0.0); }
+    return vec4f(1.0, 0.0, s1.z, up);
+  }
+  if (alive < 0.5) {
+    // Dead: everything freezes except the crash flash and the key latch.
+    if (cell == 0) { return vec4f(s0.x, 0.0, s0.z, s0.w * exp(-dt * 3.0)); }
+    return vec4f(0.0, s1.y, s1.z, up);
+  }
+  var playerX = s0.x;
+  var speed = s0.y;
+  let dist = s0.z;
+  var crash = s0.w * exp(-dt * 3.0);
+  playerX += (iKeys.y - iKeys.x) * dt * (0.9 + speed);
+  playerX -= sin(dist * 0.05) * speed * dt * 0.55;
+  // Steering assist: with no left/right input the car pulls back toward
+  // the road, fighting the centrifugal drift (throttle-only is drivable —
+  // and swings across all three lanes instead of parking on the rail).
+  if (iKeys.x + iKeys.y < 0.5) {
+    playerX += (0.0 - playerX) * dt * 1.2;
+  }
+  playerX = clamp(playerX, -1.15, 1.15);
+  let offroad = step(0.95, abs(playerX));
+  speed += up * (1.0 - speed) * dt * 0.9;
+  speed -= iKeys.w * dt * 1.4;
+  if (iKeys.x + iKeys.y + iKeys.z + iKeys.w < 0.5) {
+    speed += (0.45 - speed) * dt * 0.5;
+  }
+  speed -= speed * dt * (0.12 + offroad * 1.8);
+  speed = clamp(speed, 0.0, 1.0);
+  let newDist = dist + speed * dt * 9.0;
+  // A rival reaches the player's bumper 3 segments after it appears on
+  // screen — crossing that segment in its lane is fatal.
+  var died = false;
+  if (floor(newDist) > floor(dist)) {
+    let lane = obstacleLane(floor(newDist) + 3.0);
+    if (lane > -1.5 && abs(playerX - lane) < 0.28) { died = true; }
+  }
+  if (cell == 0) {
+    if (died) { return vec4f(playerX, 0.0, newDist, 1.0); }
+    return vec4f(playerX, speed, newDist, crash);
+  }
+  // Cell 1: endless score ticks with speed; best survives death.
+  var score = s1.y + speed * dt * 30.0;
+  if (died) {
+    return vec4f(0.0, score, max(s1.z, score), up);
+  }
+  return vec4f(1.0, score, s1.z, up);
+}''';
+
+const _racerImage = '''
+fn data(i: i32) -> vec4f {
+  let px = 1.0 / iResolution.xy;
+  return textureSampleLevel(iChannel0, stSampler,
+      vec2f((f32(i) + 0.5) * px.x, 1.0 - 0.5 * px.y), 0.0);
+}
+fn hash1(x: f32) -> f32 { return fract(sin(x * 127.1) * 43758.5453); }
+fn obstacleLane(seg: f32) -> f32 {
+  if (seg < 40.0 || hash1(seg * 3.7) < 0.55) { return -2.0; }
+  return (floor(hash1(seg * 7.1) * 3.0) - 1.0) * 0.55;
+}
+fn roadCenter(playerX: f32, dist: f32, z: f32, p: f32) -> f32 {
+  return 0.5 - playerX * 0.10 * p
+       + sin((dist + z * 3.0) * 0.05) * (1.0 - p) * (1.0 - p) * 0.45;
+}
+fn segBox(p: vec2f, c: vec2f, b: vec2f) -> f32 {
+  let q = abs(p - c) - b;
+  return step(max(q.x, q.y), 0.0);
+}
+// Seven-segment digit in a unit box (y up).
+fn digitPix(p: vec2f, d: i32) -> f32 {
+  var masks = array<i32, 10>(0x3F, 0x06, 0x5B, 0x4F, 0x66,
+                             0x6D, 0x7D, 0x07, 0x7F, 0x6F);
+  let m = masks[clamp(d, 0, 9)];
+  var v = 0.0;
+  if ((m & 1) != 0) { v = max(v, segBox(p, vec2f(0.5, 0.93), vec2f(0.30, 0.07))); }
+  if ((m & 2) != 0) { v = max(v, segBox(p, vec2f(0.82, 0.72), vec2f(0.07, 0.19))); }
+  if ((m & 4) != 0) { v = max(v, segBox(p, vec2f(0.82, 0.28), vec2f(0.07, 0.19))); }
+  if ((m & 8) != 0) { v = max(v, segBox(p, vec2f(0.5, 0.07), vec2f(0.30, 0.07))); }
+  if ((m & 16) != 0) { v = max(v, segBox(p, vec2f(0.18, 0.28), vec2f(0.07, 0.19))); }
+  if ((m & 32) != 0) { v = max(v, segBox(p, vec2f(0.18, 0.72), vec2f(0.07, 0.19))); }
+  if ((m & 64) != 0) { v = max(v, segBox(p, vec2f(0.5, 0.5), vec2f(0.30, 0.07))); }
+  return v;
+}
+fn drawNumber(uv: vec2f, org: vec2f, scale: vec2f, value: f32,
+              ndigits: i32) -> f32 {
+  var v = 0.0;
+  var val = i32(value);
+  for (var i = 0; i < ndigits; i++) {
+    let slot = ndigits - 1 - i;
+    let cell = vec2f(org.x + f32(slot) * scale.x * 1.25, org.y);
+    let p = (uv - cell) / scale;
+    if (p.x >= 0.0 && p.x <= 1.0 && p.y >= 0.0 && p.y <= 1.0) {
+      v = max(v, digitPix(p, val % 10));
+    }
+    val = val / 10;
+  }
+  return v;
+}
+// 5x7 bitmap glyphs for "GAME OVER" (row 0 = top, 5-bit rows, MSB left).
+fn glyphRow(g: i32, row: i32) -> i32 {
+  var font = array<i32, 56>(
+    0x0E, 0x11, 0x10, 0x17, 0x11, 0x11, 0x0E,  // G
+    0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11,  // A
+    0x11, 0x1B, 0x15, 0x15, 0x11, 0x11, 0x11,  // M
+    0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x1F,  // E
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // space
+    0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E,  // O
+    0x11, 0x11, 0x11, 0x11, 0x11, 0x0A, 0x04,  // V
+    0x1E, 0x11, 0x11, 0x1E, 0x14, 0x12, 0x11); // R
+  return font[g * 7 + row];
+}
+fn gameOverText(uv: vec2f, org: vec2f, scale: vec2f) -> f32 {
+  var order = array<i32, 9>(0, 1, 2, 3, 4, 5, 6, 3, 7); // G A M E _ O V E R
+  for (var i = 0; i < 9; i++) {
+    let cell = vec2f(org.x + f32(i) * scale.x * 6.0, org.y);
+    let p = (uv - cell) / scale;
+    if (p.x >= 0.0 && p.x < 5.0 && p.y >= 0.0 && p.y < 7.0) {
+      let row = 6 - i32(p.y);
+      let col = i32(p.x);
+      if (((glyphRow(order[i], row) >> u32(4 - col)) & 1) != 0) {
+        return 1.0;
+      }
+    }
+  }
+  return 0.0;
+}
+fn mainImage(fragCoord: vec2f) -> vec4f {
+  let uv = fragCoord / iResolution.xy;
+  let s0 = data(0);
+  let s1 = data(1);
+  let playerX = s0.x;
+  let speed = s0.y;
+  let dist = s0.z;
+  let crash = s0.w;
+  let alive = s1.x;
+  let horizon = 0.56;
+  var col: vec3f;
+  if (uv.y > horizon) {
+    col = mix(vec3f(0.98, 0.62, 0.35), vec3f(0.20, 0.25, 0.55),
+              (uv.y - horizon) / (1.0 - horizon));
+    col += vec3f(1.0, 0.8, 0.4)
+        * exp(-distance(uv, vec2f(0.5 - sin(dist * 0.05) * 0.2, horizon + 0.10)) * 9.0);
+    let ridge = horizon + 0.035
+        + 0.03 * sin(uv.x * 11.0 + sin(dist * 0.05) * 2.0);
+    if (uv.y < ridge) { col = vec3f(0.16, 0.12, 0.24); }
+  } else {
+    let p = (horizon - uv.y) / horizon;
+    let z = 1.0 / max(p, 0.02);
+    let seg = dist + z * 3.0;
+    let center = roadCenter(playerX, dist, z, p);
+    let halfW = p * 0.42 + 0.01;
+    let xr = (uv.x - center) / halfW;
+    let stripe = step(0.5, fract(seg * 0.7));
+    col = mix(vec3f(0.10, 0.35, 0.12), vec3f(0.08, 0.28, 0.10), stripe);
+    if (abs(xr) < 1.08 && abs(xr) >= 1.0) {
+      col = mix(vec3f(0.85, 0.15, 0.12), vec3f(0.92, 0.90, 0.88), stripe);
+    }
+    if (abs(xr) < 1.0) {
+      col = mix(vec3f(0.22, 0.22, 0.25), vec3f(0.25, 0.25, 0.28), stripe);
+      if (abs(xr) < 0.035 && fract(seg * 0.7) > 0.5) {
+        col = vec3f(0.92, 0.92, 0.85);
+      }
+      if (abs(abs(xr) - 0.55) < 0.02) { col *= 1.25; }
+    }
+    col = mix(vec3f(0.65, 0.55, 0.60), col, clamp(p * 2.2, 0.0, 1.0));
+    for (var k = 11; k >= 2; k--) {
+      let segK = floor(dist) + f32(k);
+      let lane = obstacleLane(segK);
+      if (lane < -1.5) { continue; }
+      let zK = segK - dist;
+      if (zK < 0.4) { continue; }
+      let pK = clamp(3.0 / zK, 0.05, 1.0);
+      let yK = horizon - pK * horizon;
+      let cK = roadCenter(playerX, dist, zK, pK);
+      let xK = cK + lane * (pK * 0.42);
+      let w = pK * 0.10;
+      let h = pK * 0.09;
+      if (abs(uv.x - xK) < w && uv.y > yK && uv.y < yK + h) {
+        let tint = hash1(segK * 13.0);
+        col = mix(vec3f(0.85, 0.30, 0.15),
+                  mix(vec3f(0.20, 0.40, 0.85), vec3f(0.90, 0.75, 0.20),
+                      step(0.66, tint)),
+                  step(0.33, tint));
+        if (uv.y > yK + h * 0.55) { col *= 0.35; }
+      }
+    }
+    // Player car: shadow, magenta body, leaning cockpit, spoiler, wheels.
+    let lean = (iKeys.y - iKeys.x) * 0.012;
+    let carX = 0.5 + playerX * 0.18;
+    let carY = 0.115;
+    let shadow = exp(-pow(length((uv - vec2f(carX, carY - 0.045))
+        * vec2f(9.0, 30.0)), 2.0));
+    col = mix(col, vec3f(0.02), shadow * 0.55);
+    let dx = uv.x - carX;
+    let dy = uv.y - carY;
+    if (abs(dx) < 0.075 && abs(dy) < 0.055) {
+      col = vec3f(0.95, 0.10, 0.85);
+      if (dy > 0.014 && abs(dx - lean) < 0.045) {
+        col = vec3f(0.20, 0.05, 0.28);
+      }
+      if (dy > 0.040) { col = vec3f(0.60, 0.05, 0.55); }
+      if (abs(dx) > 0.055 && dy < -0.018) { col = vec3f(0.05); }
+      if (iKeys.w > 0.5 && dy < -0.038) { col = vec3f(1.0, 0.15, 0.10); }
+    }
+  }
+  col = mix(col, vec3f(0.95, 0.15, 0.10), crash * 0.35);
+  // Live score HUD (top-right) + speed bar.
+  let hud = drawNumber(uv, vec2f(0.66, 0.90), vec2f(0.036, 0.055), s1.y, 6);
+  col = mix(col, vec3f(1.0, 0.95, 0.65), hud);
+  if (uv.y > 0.945 && uv.y < 0.972 && uv.x > 0.03
+      && uv.x < 0.03 + speed * 0.28) {
+    col = mix(vec3f(0.20, 0.85, 0.30), vec3f(0.95, 0.25, 0.15), speed);
+  }
+  // Game over: dim, title, final + best score, blinking restart arrow.
+  if (alive < 0.5) {
+    col *= 0.30;
+    let title = gameOverText(uv, vec2f(0.16, 0.60), vec2f(0.014, 0.016));
+    col = mix(col, vec3f(0.95, 0.20, 0.15), title);
+    let fin = drawNumber(uv, vec2f(0.32, 0.42), vec2f(0.045, 0.075), s1.y, 6);
+    col = mix(col, vec3f(1.0, 0.95, 0.65), fin);
+    let best = drawNumber(uv, vec2f(0.40, 0.30), vec2f(0.026, 0.042), s1.z, 6);
+    col = mix(col, vec3f(0.55, 0.85, 1.00), best);
+    if (fract(iTime) < 0.6) {
+      let a = uv - vec2f(0.5, 0.17);
+      if (a.y > 0.0 && a.y < 0.05 && abs(a.x) < (0.05 - a.y) * 0.7) {
+        col = vec3f(0.30, 0.95, 0.45);
+      }
+      if (abs(a.x) < 0.012 && a.y > -0.045 && a.y <= 0.0) {
+        col = vec3f(0.30, 0.95, 0.45);
+      }
+    }
+  }
+  return vec4f(col, 1.0);
+}''';
+
 // ═══════════════════════════════ Registry ═══════════════════════════════
 
 final List<Showcase> showcases = [
@@ -782,6 +1052,16 @@ final List<Showcase> showcases = [
     category: 'Scenes & games',
     interactive: true,
     build: () => _image(_light2d),
+  ),
+  Showcase(
+    title: '3D racer (keyboard)',
+    description: 'Endless GPU racer — arrows/WASD to steer and throttle, '
+        'score climbs with speed, one crash ends the run (throttle to '
+        'restart)',
+    category: 'Scenes & games',
+    interactive: true,
+    keyboard: true,
+    build: () => _feedback(buffer: _racerBuffer, image: _racerImage),
   ),
   Showcase(
     title: 'Breakout (GPU game)',

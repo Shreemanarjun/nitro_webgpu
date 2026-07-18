@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../gpu/scenes.dart';
 import '../gpu/shadertoy_engine.dart';
 import '../widgets/gpu_scene_view.dart';
 import 'showcases.dart';
@@ -56,11 +58,37 @@ class ShowcaseViewerPage extends StatefulWidget {
   final Showcase showcase;
 
   @override
-  State<ShowcaseViewerPage> createState() => _ShowcaseViewerPageState();
+  State<ShowcaseViewerPage> createState() => ShowcaseViewerPageState();
 }
 
-class _ShowcaseViewerPageState extends State<ShowcaseViewerPage> {
+class ShowcaseViewerPageState extends State<ShowcaseViewerPage> {
   late final scene = widget.showcase.build();
+
+  /// The live scene, for widget tests that verify input wiring.
+  @visibleForTesting
+  GpuScene get sceneForTesting => scene;
+
+  static final _keyMap = <LogicalKeyboardKey, ShadertoyKey>{
+    LogicalKeyboardKey.arrowLeft: ShadertoyKey.left,
+    LogicalKeyboardKey.keyA: ShadertoyKey.left,
+    LogicalKeyboardKey.arrowRight: ShadertoyKey.right,
+    LogicalKeyboardKey.keyD: ShadertoyKey.right,
+    LogicalKeyboardKey.arrowUp: ShadertoyKey.up,
+    LogicalKeyboardKey.keyW: ShadertoyKey.up,
+    LogicalKeyboardKey.arrowDown: ShadertoyKey.down,
+    LogicalKeyboardKey.keyS: ShadertoyKey.down,
+  };
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    final engine = scene;
+    final slot = _keyMap[event.logicalKey];
+    if (slot == null || engine is! ShadertoyEngine) {
+      return KeyEventResult.ignored;
+    }
+    if (event is KeyDownEvent) engine.setKey(slot, true);
+    if (event is KeyUpEvent) engine.setKey(slot, false);
+    return KeyEventResult.handled;
+  }
 
   @override
   void dispose() {
@@ -93,10 +121,18 @@ class _ShowcaseViewerPageState extends State<ShowcaseViewerPage> {
         );
       });
     }
+    if (widget.showcase.keyboard) {
+      view = Focus(autofocus: true, onKeyEvent: _onKey, child: view);
+    }
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.showcase.title),
         actions: [
+          if (widget.showcase.keyboard)
+            const Padding(
+              padding: EdgeInsets.only(right: 12),
+              child: Icon(Icons.keyboard, size: 18),
+            ),
           if (widget.showcase.interactive)
             const Padding(
               padding: EdgeInsets.only(right: 16),
