@@ -166,10 +166,10 @@ packages:
     dependency: transitive
     description:
       name: nitro
-      sha256: a408da1084073095c7186d153cb9ef65e7f59a4d31efbdf5101005a71e87eb22
+      sha256: dccd9d102ab6a7c1c29a7b7149baa28e2cb25ff6bdaaa1ea47a9856c196c7d36
       url: "https://pub.dev"
     source: hosted
-    version: "0.5.14"
+    version: "0.5.15"
   nitro_annotations:
     dependency: transitive
     description:
