@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:nitro_webgpu/nitro_webgpu.dart';
+import 'adapter_support.dart';
 import 'package:nitro_webgpu_example/src/gpu/particle_scene.dart';
 import 'package:nitro_webgpu_example/src/gpu/scenes.dart';
 import 'package:nitro_webgpu_example/src/gpu/shadertoy_engine.dart';
@@ -238,6 +239,11 @@ fn fs_main(@location(3) missing: vec4f) -> @location(0) vec4f {
 
     test('zero-sized work is harmless', () async {
       final (adapter, device) = await boot();
+      if (await skipWithoutCompute(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
       final module = await device.createShaderModule('''
 $_fsTriVs
 @fragment
@@ -328,6 +334,11 @@ fn main() {}
     test('workgroup boundary counts 63/64/65 integrate every particle',
         () async {
       final (adapter, device) = await boot();
+      if (await skipWithoutCompute(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
       for (final count in [63, 64, 65]) {
         final seed = Float32List(count * 4);
         for (var i = 0; i < count; i++) {
@@ -605,6 +616,11 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     test('particle kernel swap preserves the storage buffer contents',
         () async {
       final (adapter, device) = await boot();
+      if (await skipWithoutCompute(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
       final scene = ParticleScene(
           count: 1,
           initialParticles: Float32List.fromList([0.25, 0.5, 0.0, 0.0]));
@@ -636,6 +652,11 @@ fn simulate(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     test('100k particles render one frame without incident', () async {
       final (adapter, device) = await boot();
+      if (await skipWithoutCompute(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
       final scene = ParticleScene(count: 100000);
       final pixels = await renderScene(device, scene, [
         Duration.zero,

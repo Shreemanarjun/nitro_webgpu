@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:nitro_webgpu/nitro_webgpu.dart';
+import 'adapter_support.dart';
 import 'package:nitro_webgpu_example/src/gpu/particle_scene.dart';
 import 'package:nitro_webgpu_example/src/gpu/scenes.dart';
 import 'package:nitro_webgpu_example/src/gpu/shadertoy_engine.dart';
@@ -89,6 +90,13 @@ void main() {
             await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
         final device = await adapter.requestDevice();
         final scene = showcase.build();
+        if (scene is ParticleScene &&
+            await skipWithoutCompute(device)) {
+          scene.dispose();
+          device.dispose();
+          adapter.dispose();
+          return;
+        }
         // Enough frames for feedback sims to seed and evolve.
         final pixels = await renderFrames(device, scene, steps(12));
         expect(compileErrorOf(scene), isNull,
@@ -159,6 +167,11 @@ void main() {
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice();
+      if (await skipWithoutCompute(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
       final scene = showcases
           .firstWhere((s) => s.title == 'Boids flocking')
           .build() as ParticleScene;

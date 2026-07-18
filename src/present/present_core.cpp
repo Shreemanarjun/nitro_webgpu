@@ -17,6 +17,7 @@
 #include "present_core.h"
 
 #ifdef __ANDROID__
+#include <android/log.h>
 #include <android/native_window.h>
 #endif
 
@@ -57,6 +58,22 @@ struct NwpPresenter {
     void* sinkUser = nullptr;
     NwpGpuFrameSink gpuSink = nullptr;
     void* gpuSinkUser = nullptr;
+    // Per-presenter ring format: kNwpRingFormat everywhere except the
+    // Android GL-fallback presenter, whose ANativeWindow buffers are RGBA.
+    WGPUTextureFormat ringFormat = kNwpRingFormat;
+#ifdef __ANDROID__
+    // GL-backend fallback (no Vulkan on the device): wgpu's GL backend
+    // cannot create an EGL swapchain on the Flutter SurfaceProducer window
+    // (and wgpu-native panics trying), so frames render into the offscreen
+    // ring — exactly like the desktop presenters — and each mapped frame is
+    // CPU-blitted into the window with ANativeWindow_lock/unlockAndPost (a
+    // CPU BufferQueue connection, which the window does accept).
+    // nativeWindow + geometry are guarded by surfaceMutex in this mode.
+    bool androidReadback = false;
+    int32_t geomWidth = 0;
+    int32_t geomHeight = 0;
+    bool lockFailLogged = false;
+#endif
 
     // Surface mode (nwp_presenter_create_surface): renders straight into a
     // WGPUSurface swapchain instead of the offscreen ring. width/height stay
@@ -163,6 +180,15 @@ void nwpFinalize(int64_t token, NwpPresenter* p) {
         std::lock_guard<std::mutex> surfLock(p->surfaceMutex);
         nwpDestroySurface(p);
     }
+#ifdef __ANDROID__
+    if (p->androidReadback) {
+        std::lock_guard<std::mutex> surfLock(p->surfaceMutex);
+        if (p->nativeWindow) {
+            ANativeWindow_release((ANativeWindow*)p->nativeWindow);
+            p->nativeWindow = nullptr;
+        }
+    }
+#endif
     nwpReleaseTargets(p);
     wgpuQueueRelease(p->queue);
     delete p;
@@ -205,7 +231,7 @@ bool nwpCreateTargets(NwpPresenter* p, int32_t width, int32_t height) {
         td.usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc;
         td.dimension = WGPUTextureDimension_2D;
         td.size = {(uint32_t)width, (uint32_t)height, 1};
-        td.format = kNwpRingFormat;
+        td.format = p->ringFormat;
         td.mipLevelCount = 1;
         td.sampleCount = 1;
         s.target = wgpuDeviceCreateTexture(p->device, &td);
@@ -394,8 +420,68 @@ void nwpDestroySurface(NwpPresenter* p) {
     p->nativeWindow = nullptr;
 }
 
+#ifdef __ANDROID__
+// wgpu's GL backend cannot create an EGL swapchain on the Flutter
+// SurfaceProducer (ImageReader) window — eglCreateWindowSurface fails with
+// EGL_BAD_ALLOC and wgpu-native PANICS inside wgpuSurfaceConfigure,
+// aborting the whole process. Detect GL up front so those devices take the
+// CPU-readback fallback instead. (Vulkan-backed devices — every real
+// modern Android GPU plus emulators with -gpu swiftshader_indirect — take
+// the normal zero-copy path.)
+bool nwpDeviceOnGlBackend(WGPUDevice device) {
+    // NEVER query the device handle here — wgpuDeviceGetAdapterInfo is an
+    // unimplemented!() panic stub in wgpu-native v29. The backend was
+    // recorded from the adapter at requestDevice time.
+    const WGPUBackendType backend = WgpuContext::get().deviceBackend(device);
+    return backend == WGPUBackendType_OpenGL ||
+           backend == WGPUBackendType_OpenGLES;
+}
+
+// GL-fallback frame delivery: copies a mapped ring frame into the
+// ANativeWindow. Runs on the wgpu map-callback thread; serialized against
+// window replace/park/destroy by surfaceMutex.
+void nwpBlitToWindow(NwpPresenter* p, const uint8_t* pixels, int32_t width,
+                     int32_t height, int32_t bytesPerRow) {
+    std::lock_guard<std::mutex> lock(p->surfaceMutex);
+    auto* win = (ANativeWindow*)p->nativeWindow;
+    if (!win) return;  // parked (window lost) — drop the frame
+    if (p->geomWidth != width || p->geomHeight != height) {
+        // Buffers at the RENDER size; the compositor scales to the window,
+        // so renderScale works with no extra blit.
+        ANativeWindow_setBuffersGeometry(win, width, height,
+                                         WINDOW_FORMAT_RGBA_8888);
+        p->geomWidth = width;
+        p->geomHeight = height;
+    }
+    ANativeWindow_Buffer buf;
+    if (ANativeWindow_lock(win, &buf, nullptr) != 0) {
+        if (!p->lockFailLogged) {
+            p->lockFailLogged = true;
+            __android_log_print(ANDROID_LOG_ERROR, "nwp",
+                                "ANativeWindow_lock failed — the GL-backend "
+                                "fallback cannot present on this window");
+        }
+        return;
+    }
+    const int32_t copyW = width < buf.width ? width : buf.width;
+    const int32_t copyH = height < buf.height ? height : buf.height;
+    auto* dst = (uint8_t*)buf.bits;
+    for (int32_t y = 0; y < copyH; y++) {
+        memcpy(dst + (size_t)y * (size_t)buf.stride * 4,
+               pixels + (size_t)y * (size_t)bytesPerRow, (size_t)copyW * 4);
+    }
+    ANativeWindow_unlockAndPost(win);
+}
+#endif
+
 // Builds a WGPUSurface for [window] and configures it at the current size.
 bool nwpAttachWindow(NwpPresenter* p, void* window) {
+#ifdef __ANDROID__
+    // Safety net: a WGPUSurface must never be configured on the GL backend
+    // (process-fatal panic) — GL presenters are created in readback mode
+    // and never reach here.
+    if (nwpDeviceOnGlBackend(p->device)) return false;
+#endif
     WGPUSurfaceSourceAndroidNativeWindow src = {};
     src.chain.sType = WGPUSType_SurfaceSourceAndroidNativeWindow;
     src.window = window;
@@ -439,6 +525,36 @@ int64_t nwp_presenter_create_surface(int64_t deviceAddress,
                                      void* nativeWindow, int32_t width,
                                      int32_t height) {
     if (!deviceAddress || !nativeWindow || width <= 0 || height <= 0) return 0;
+#ifdef __ANDROID__
+    if (nwpDeviceOnGlBackend((WGPUDevice)(intptr_t)deviceAddress)) {
+        // GL fallback: ring/readback presenter + CPU blit into the window.
+        auto* p = new NwpPresenter();
+        p->androidReadback = true;
+        p->ringFormat = WGPUTextureFormat_RGBA8Unorm;
+        p->device = (WGPUDevice)(intptr_t)deviceAddress;
+        p->queue = wgpuDeviceGetQueue(p->device);
+        p->surfaceWidth = width;
+        p->surfaceHeight = height;
+        if (!p->queue || !nwpCreateTargets(p, width, height)) {
+            nwpReleaseTargets(p);
+            if (p->queue) wgpuQueueRelease(p->queue);
+            delete p;
+            return 0;
+        }
+        p->nativeWindow = nativeWindow;  // ownership transfers
+        __android_log_print(
+            ANDROID_LOG_INFO, "nwp",
+            "GL backend (no Vulkan): presenting via CPU readback fallback "
+            "(%dx%d) — expect reduced throughput; emulators can enable "
+            "Vulkan with -gpu swiftshader_indirect",
+            width, height);
+        WgpuContext::get().registerDevice(p->device);
+        std::lock_guard<std::mutex> lock(gPresentersMutex);
+        const int64_t token = gNextPresenterToken++;
+        gPresenters[token] = p;
+        return token;
+    }
+#endif
     auto* p = new NwpPresenter();
     p->surfaceMode = true;
     p->device = (WGPUDevice)(intptr_t)deviceAddress;
@@ -464,6 +580,22 @@ void nwp_presenter_replace_surface(int64_t token, void* nativeWindow,
     NwpPresenter* p = nwpFindAndRef(token);
     if (!p) return;
     NwpOpGuard guard{token, p};
+#ifdef __ANDROID__
+    if (p->androidReadback) {
+        std::lock_guard<std::mutex> surfLock(p->surfaceMutex);
+        if (p->nativeWindow) {
+            ANativeWindow_release((ANativeWindow*)p->nativeWindow);
+        }
+        p->nativeWindow = nativeWindow;  // may be null → parked
+        p->geomWidth = 0;  // re-assert buffer geometry on the next blit
+        p->geomHeight = 0;
+        if (width > 0 && height > 0) {
+            p->surfaceWidth = width;
+            p->surfaceHeight = height;
+        }
+        return;
+    }
+#endif
     if (!p->surfaceMode) return;
     std::lock_guard<std::mutex> surfLock(p->surfaceMutex);
     nwpDestroySurface(p);
@@ -723,6 +855,12 @@ void nwp_presenter_present(int64_t token) {
         if (status == WGPUMapAsyncStatus_Success) {
             const size_t n = (size_t)p->alignedBytesPerRow * (size_t)p->height;
             const void* mapped = wgpuBufferGetConstMappedRange(s.readback, 0, n);
+#ifdef __ANDROID__
+            if (mapped && p->androidReadback) {
+                nwpBlitToWindow(p, (const uint8_t*)mapped, p->width,
+                                p->height, p->alignedBytesPerRow);
+            }
+#endif
             if (mapped && p->sink) {
                 p->sink(op->token, (const uint8_t*)mapped, p->width, p->height,
                         p->alignedBytesPerRow, p->sinkUser);
@@ -739,8 +877,13 @@ void nwp_presenter_present(int64_t token) {
 
 int32_t nwp_presenter_format(int64_t token) {
     NwpPresenter* p = nwpFind(token);
-    if (p && p->surfaceMode) return (int32_t)p->surfaceFormat;
-    return (int32_t)kNwpRingFormat;
+    if (!p) return (int32_t)kNwpRingFormat;
+    return (int32_t)(p->surfaceMode ? p->surfaceFormat : p->ringFormat);
+}
+
+int32_t nwp_presenter_is_surface_mode(int64_t token) {
+    NwpPresenter* p = nwpFind(token);
+    return (p && p->surfaceMode) ? 1 : 0;
 }
 
 void nwp_presenter_resize(int64_t token, int32_t width, int32_t height) {

@@ -3,6 +3,8 @@
 // so regressions in feature *interactions* surface even when the isolated
 // feature tests stay green.
 import 'dart:io' show Platform;
+
+import 'adapter_support.dart';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -50,6 +52,11 @@ void main() {
       final hasTs = adapter.supportsTimestampQueries;
       final device =
           await adapter.requestDevice(requireTimestampQueries: hasTs);
+      if (await skipWithoutCompute(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
 
       // One compute dispatch fills a vertex buffer (fullscreen triangle),
       // indirect draw args, and a storage texture — the render pass then
@@ -631,6 +638,11 @@ fn fs_main() -> @location(0) vec4f { return tint; }
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice();
+      if (await skipWithoutCompute(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
 
       final module = await device.createShaderModule('''
 struct Params { m: f32 };

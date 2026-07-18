@@ -18,5 +18,6 @@ internal class NwpSurfacePresenter {
     external fun nativeFormat(token: Long): Int
     external fun nativeResize(token: Long, width: Int, height: Int)
     external fun nativeIsBusy(token: Long): Int
+    external fun nativeIsSurfaceMode(token: Long): Int
     external fun nativeDestroy(token: Long)
 }

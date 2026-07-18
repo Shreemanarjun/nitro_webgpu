@@ -87,6 +87,11 @@ NWP_EXPORT void nwp_presenter_present(int64_t token);
 /// Raw WGPUTextureFormat of the render target (BGRA8Unorm).
 NWP_EXPORT int32_t nwp_presenter_format(int64_t token);
 
+/// 1 when the presenter drives a real WGPUSurface swapchain (zero-copy GPU
+/// path); 0 for ring/readback presenters — including the Android GL-backend
+/// fallback, which presents via CPU blit into the native window.
+NWP_EXPORT int32_t nwp_presenter_is_surface_mode(int64_t token);
+
 /// Requests a resize; applied on the next acquire with a fully idle ring.
 NWP_EXPORT void nwp_presenter_resize(int64_t token, int32_t width,
                                      int32_t height);

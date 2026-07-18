@@ -17,6 +17,8 @@
 #include <condition_variable>
 #include <cstdio>
 #include <cstring>
+#include <deque>
+#include <functional>
 #include <mutex>
 #include <stdexcept>
 #include <string>
@@ -221,6 +223,14 @@ public:
         wgpuSetLogLevel(WGPULogLevel_Warn);
         wgpuSetLogCallback(
             [](WGPULogLevel level, WGPUStringView message, void*) {
+                // wgpu-hal's GLES backend logs "Fake map" at error level for
+                // every emulated buffer map — routine on the GL readback
+                // path, once per presented frame. Drop it so real errors
+                // stay visible.
+                if (message.length == 8 &&
+                    memcmp(message.data, "Fake map", 8) == 0) {
+                    return;
+                }
 #ifdef __ANDROID__
                 __android_log_print(
                     level <= WGPULogLevel_Error ? ANDROID_LOG_ERROR
@@ -274,7 +284,25 @@ public:
     void unregisterDevice(WGPUDevice device) {
         std::lock_guard<std::mutex> lock(devicesMutex_);
         auto it = devices_.find(device);
-        if (it != devices_.end() && --it->second == 0) devices_.erase(it);
+        if (it != devices_.end() && --it->second == 0) {
+            devices_.erase(it);
+            backends_.erase(device);
+        }
+    }
+
+    // Backend each device was created on, recorded at requestDevice time.
+    // The presenter needs this to detect the GL backend, and
+    // wgpuDeviceGetAdapterInfo is an unimplemented!() PANIC stub in
+    // wgpu-native v29 — the device handle itself cannot be queried.
+    void recordDeviceBackend(WGPUDevice device, WGPUBackendType backend) {
+        std::lock_guard<std::mutex> lock(devicesMutex_);
+        backends_[device] = backend;
+    }
+
+    WGPUBackendType deviceBackend(WGPUDevice device) {
+        std::lock_guard<std::mutex> lock(devicesMutex_);
+        auto it = backends_.find(device);
+        return it == backends_.end() ? WGPUBackendType_Undefined : it->second;
     }
 
     // Drops the Dart handle's registration and releases it under the same
@@ -283,7 +311,10 @@ public:
         {
             std::lock_guard<std::mutex> lock(devicesMutex_);
             auto it = devices_.find(device);
-            if (it != devices_.end() && --it->second == 0) devices_.erase(it);
+            if (it != devices_.end() && --it->second == 0) {
+                devices_.erase(it);
+                backends_.erase(device);
+            }
             wgpuDeviceRelease(device);
         }
         // The device-lost event is delivered through the instance event queue;
@@ -297,6 +328,25 @@ public:
     void pokePump(int64_t ms) {
         lingerUntilMs_.store(nowMs() + ms, std::memory_order_release);
         cv_.notify_one();
+    }
+
+    // Runs [job] on the persistent creation-worker thread. Async shader and
+    // pipeline creates all funnel through this ONE thread instead of a
+    // detached thread per call: wgpu's GL backend binds its EGL context on
+    // whichever thread makes the call, and Android's EGL translator
+    // mistracks per-thread current-context state across short-lived threads
+    // — eglMakeCurrent eventually fails with BAD_ACCESS and wgpu-hal panics
+    // (process abort). A stable thread set (main, pump, worker) avoids it.
+    void runOnWorker(std::function<void()> job) {
+        {
+            std::lock_guard<std::mutex> lock(workerMutex_);
+            if (!workerStarted_) {
+                workerStarted_ = true;
+                std::thread([this] { workerLoop(); }).detach();
+            }
+            workerQueue_.push_back(std::move(job));
+        }
+        workerCv_.notify_one();
     }
 
 private:
@@ -350,6 +400,24 @@ private:
     std::atomic<int> pendingOps_{0};
     std::atomic<int64_t> lingerUntilMs_{0};
     std::unordered_map<WGPUDevice, int> devices_;
+    std::unordered_map<WGPUDevice, WGPUBackendType> backends_;
+
+    void workerLoop() {
+        for (;;) {
+            std::function<void()> job;
+            {
+                std::unique_lock<std::mutex> lock(workerMutex_);
+                workerCv_.wait(lock, [this] { return !workerQueue_.empty(); });
+                job = std::move(workerQueue_.front());
+                workerQueue_.pop_front();
+            }
+            job();
+        }
+    }
+    std::mutex workerMutex_;
+    std::condition_variable workerCv_;
+    std::deque<std::function<void()>> workerQueue_;
+    bool workerStarted_ = false;
     WGPUInstance instance_ = nullptr;
     std::thread pump_;
 };
@@ -376,13 +444,21 @@ WGPUAdapter pickHardwareAdapter(int64_t powerPreference) {
             default: return 3;  // CPU — never picked here
         }
     };
+    // wgpu's GL backend is DOWNLEVEL (no compute shaders, no vertex-stage
+    // storage on most GLES stacks) — when a device exposes both Vulkan and
+    // GL adapters, GL must never win on adapter-type rank alone.
+    auto backendPenalty = [](WGPUBackendType b) {
+        return (b == WGPUBackendType_OpenGL || b == WGPUBackendType_OpenGLES)
+                   ? 10
+                   : 0;
+    };
     WGPUAdapter best = nullptr;
-    int bestRank = 3;
+    int bestRank = 99;
     for (size_t i = 0; i < count; i++) {
         if (!adapters[i]) continue;
         WGPUAdapterInfo ai = WGPU_ADAPTER_INFO_INIT;
         if (wgpuAdapterGetInfo(adapters[i], &ai) != WGPUStatus_Success) continue;
-        const int r = rank(ai.adapterType);
+        const int r = rank(ai.adapterType) + backendPenalty(ai.backendType);
         wgpuAdapterInfoFreeMembers(ai);
         if (r < bestRank) {
             bestRank = r;
@@ -392,9 +468,16 @@ WGPUAdapter pickHardwareAdapter(int64_t powerPreference) {
     for (auto a : adapters) {
         if (a && a != best) wgpuAdapterRelease(a);
     }
-    if (bestRank >= 3) {
+    // Rank 3+ within a backend tier means only CPU adapters at that tier;
+    // a GL-backed hardware adapter (rank 10-12) is still preferred over
+    // falling through to a software adapter.
+    if (bestRank >= 3 && bestRank < 10) {
         if (best) wgpuAdapterRelease(best);
         return nullptr;  // only CPU adapters exist — use the normal path
+    }
+    if (bestRank >= 13) {
+        if (best) wgpuAdapterRelease(best);
+        return nullptr;
     }
     return best;
 }
@@ -748,12 +831,27 @@ public:
                 gImpl->emit_uncapturedErrors(ev.toNativeBuffer());
             };
 
+        // The adapter's backend, captured now: the presenter needs it later
+        // to route GL devices onto the readback fallback, and the device
+        // handle can't be queried (wgpuDeviceGetAdapterInfo is a panic stub).
+        WGPUBackendType backendType = WGPUBackendType_Undefined;
+        {
+            WGPUAdapterInfo ai = WGPU_ADAPTER_INFO_INIT;
+            if (wgpuAdapterGetInfo((WGPUAdapter)(intptr_t)adapter, &ai) ==
+                WGPUStatus_Success) {
+                backendType = ai.backendType;
+                wgpuAdapterInfoFreeMembers(ai);
+            }
+        }
+
         struct DeviceOp {
             PendingOp op;
             std::string* label;
             std::vector<WGPUFeatureName>* features;
+            WGPUBackendType backend;
         };
-        auto* dop = new DeviceOp{{_nitro_err, dartPort}, label, features};
+        auto* dop =
+            new DeviceOp{{_nitro_err, dartPort}, label, features, backendType};
 
         WGPURequestDeviceCallbackInfo cb = WGPU_REQUEST_DEVICE_CALLBACK_INFO_INIT;
         cb.mode = WGPUCallbackMode_AllowProcessEvents;
@@ -763,6 +861,7 @@ public:
             auto* dop = static_cast<DeviceOp*>(ud1);
             if (status == WGPURequestDeviceStatus_Success && device) {
                 WgpuContext::get().registerDevice(device);
+                WgpuContext::get().recordDeviceBackend(device, dop->backend);
                 postInt64(dop->op.port, (int64_t)(intptr_t)device);
             } else {
                 fillError(dop->op.err, "GpuDeviceError",
@@ -1014,7 +1113,8 @@ public:
                                            NitroError* _nitro_err,
                                            int64_t dartPort) override {
         // naga parses/validates the whole module — off the UI isolate.
-        std::thread([device, label, wgsl, _nitro_err, dartPort]() {
+        WgpuContext::get().runOnWorker([device, label, wgsl, _nitro_err,
+                                        dartPort]() {
             WGPUShaderSourceWGSL src = WGPU_SHADER_SOURCE_WGSL_INIT;
             src.chain.sType = WGPUSType_ShaderSourceWGSL;
             src.code = toView(wgsl);
@@ -1030,7 +1130,7 @@ public:
                 return;
             }
             postInt64(dartPort, (int64_t)(intptr_t)mod);
-        }).detach();
+        });
     }
 
     void deviceCreateShaderModuleGlslAsync(int64_t device,
@@ -1041,7 +1141,8 @@ public:
                                            int64_t dartPort) override {
         // naga's glsl-in front end (probe-verified in the release binaries);
         // GLSL modules target exactly one stage and use entry point "main".
-        std::thread([device, label, glsl, stage, _nitro_err, dartPort]() {
+        WgpuContext::get().runOnWorker([device, label, glsl, stage, _nitro_err,
+                                        dartPort]() {
             WGPUShaderSourceGLSL src = {};
             src.chain.sType = (WGPUSType)WGPUSType_ShaderSourceGLSL;
             src.stage = (WGPUShaderStage)stage;
@@ -1058,7 +1159,7 @@ public:
                 return;
             }
             postInt64(dartPort, (int64_t)(intptr_t)mod);
-        }).detach();
+        });
     }
 
     void shaderModuleRelease(int64_t module) override {
@@ -1089,14 +1190,14 @@ public:
                                           NitroError* _nitro_err,
                                           int64_t dartPort) override {
         auto d = GpuComputePipelineDescriptor::fromNative(descriptor);
-        std::thread([device, d = std::move(d), _nitro_err, dartPort]() {
+        WgpuContext::get().runOnWorker([device, d = std::move(d), _nitro_err, dartPort]() {
             try {
                 postInt64(dartPort, nwCreateComputePipelineSync(device, d));
             } catch (const std::exception& e) {
                 fillError(_nitro_err, "GpuPipelineError", e.what());
                 postNull(dartPort);
             }
-        }).detach();
+        });
     }
 
     void computePipelineRelease(int64_t pipeline) override {
@@ -1467,14 +1568,14 @@ public:
         // background thread (wgpu is internally synchronized) so big
         // pipelines never freeze the UI isolate.
         auto d = GpuRenderPipelineDescriptor::fromNative(descriptor);
-        std::thread([device, d = std::move(d), _nitro_err, dartPort]() {
+        WgpuContext::get().runOnWorker([device, d = std::move(d), _nitro_err, dartPort]() {
             try {
                 postInt64(dartPort, nwCreateRenderPipelineSync(device, d));
             } catch (const std::exception& e) {
                 fillError(_nitro_err, "GpuPipelineError", e.what());
                 postNull(dartPort);
             }
-        }).detach();
+        });
     }
 
     void renderPipelineRelease(int64_t pipeline) override {

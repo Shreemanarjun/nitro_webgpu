@@ -961,6 +961,55 @@ class GpuDevice {
     return GpuShaderModule._(address);
   }
 
+  bool? _computeSupport;
+  bool? _vertexStorageSupport;
+
+  /// Whether this device can run compute shaders. wgpu's GL backend (old
+  /// Android devices, GLES emulators) is "downlevel" and may lack them —
+  /// the C ABI exposes no downlevel query, so this probes with a trivial
+  /// pipeline once and caches the answer. Feature-detect before using
+  /// compute in apps that must run everywhere.
+  Future<bool> supportsCompute() async {
+    if (_computeSupport != null) return _computeSupport!;
+    try {
+      final module =
+          await createShaderModule('@compute @workgroup_size(1) fn main() {}');
+      final pipeline = await createComputePipeline(module: module);
+      pipeline.dispose();
+      module.dispose();
+      _computeSupport = true;
+    } on GpuValidationException {
+      _computeSupport = false;
+    }
+    return _computeSupport!;
+  }
+
+  /// Whether storage buffers can be read from the VERTEX stage (needed for
+  /// instanced rendering straight from compute output). Also missing on
+  /// downlevel GL devices; probe-cached like [supportsCompute].
+  Future<bool> supportsVertexStorage() async {
+    if (_vertexStorageSupport != null) return _vertexStorageSupport!;
+    try {
+      final module = await createShaderModule('''
+@group(0) @binding(0) var<storage, read> d: array<vec2f>;
+@vertex
+fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
+  return vec4f(d[i], 0.0, 1.0);
+}
+@fragment
+fn fs_main() -> @location(0) vec4f { return vec4f(1.0); }
+''');
+      final pipeline = await createRenderPipeline(
+          module: module, targetFormat: GpuTextureFormat.rgba8Unorm);
+      pipeline.dispose();
+      module.dispose();
+      _vertexStorageSupport = true;
+    } on GpuValidationException {
+      _vertexStorageSupport = false;
+    }
+    return _vertexStorageSupport!;
+  }
+
   /// Checked create for a GLSL shader (naga's glsl-in front end). A GLSL
   /// module targets exactly one [stage] ([GpuShaderStage.vertex] /
   /// [GpuShaderStage.fragment] / [GpuShaderStage.compute]) and its entry

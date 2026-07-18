@@ -285,6 +285,22 @@ flutter test integration_test -d macos
 - Desktop Linux defaults to the Vulkan backend only: wgpu's GL probe races
   the Flutter GTK engine's EGL context. Pass `GpuBackend.gl` explicitly if
   you need it.
+- **GL-backend devices are downlevel.** On devices without Vulkan (old
+  Android hardware, emulators running the GLES translator), wgpu's GL
+  backend lacks compute shaders and vertex-stage storage buffers. Feature-
+  detect with `device.supportsCompute()` / `device.supportsVertexStorage()`
+  before using them; adapter selection prefers Vulkan whenever both are
+  present. Android emulators should enable Vulkan (`-gpu
+  swiftshader_indirect`, or Graphics: Software in AVD settings) for full
+  capability.
+- **GL-backend Android presents via a CPU-readback fallback.** wgpu's GL
+  backend cannot create an EGL swapchain on a Flutter `SurfaceProducer`
+  window (the BufferQueue rejects the connect and wgpu-native aborts inside
+  `wgpuSurfaceConfigure`), so on GL devices the presenter automatically
+  switches to the same ring/readback path the desktop presenters use and
+  CPU-blits each frame into the window. Everything renders — at readback
+  throughput rather than zero-copy speed. Vulkan-backed devices (every
+  modern Android GPU) keep the zero-copy swapchain.
 - One complex-suite test (read-only depth) is skipped on Windows pending an
   upstream D3D12 fix.
 

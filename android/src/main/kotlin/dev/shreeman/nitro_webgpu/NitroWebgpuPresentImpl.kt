@@ -125,8 +125,12 @@ class NitroWebgpuPresentImpl(
         }
         if (token == 0L) {
             throw IllegalStateException(
-                "nitro_webgpu: failed to create a surface presenter " +
-                    "(WGPUSurface creation/configure failed)")
+                "nitro_webgpu: failed to create a surface presenter. " +
+                    "Most common cause: no Vulkan on this device/emulator, " +
+                    "so wgpu fell back to its GL backend, which cannot " +
+                    "present into a Flutter SurfaceProducer. Emulators: " +
+                    "launch with -gpu swiftshader_indirect or set AVD " +
+                    "Graphics to Software.")
         }
         entries[token] = Entry(producer, widthPx.toInt(), heightPx.toInt())
         Log.i("nwp", "createPresenter token=$token ${widthPx}x$heightPx texId=${producer.id()}")
@@ -151,8 +155,10 @@ class NitroWebgpuPresentImpl(
     override fun presenterFormat(token: Long): Long =
         native.nativeFormat(token).toLong()
 
-    // The surface path is pure GPU — frames never touch the CPU.
-    override fun presenterUsesGpuPath(token: Long): Boolean = true
+    // Surface mode is pure GPU (zero-copy swapchain); the GL-backend
+    // fallback presents via CPU readback.
+    override fun presenterUsesGpuPath(token: Long): Boolean =
+        native.nativeIsSurfaceMode(token) != 0
 
     override fun resizePresenter(token: Long, widthPx: Long, heightPx: Long) {
         // Render-resolution only: the swapchain and SurfaceProducer stay

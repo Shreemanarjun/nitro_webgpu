@@ -66,6 +66,12 @@ Java_dev_shreeman_nitro_1webgpu_NwpSurfacePresenter_nativeIsBusy(
     return nwp_presenter_is_busy(token);
 }
 
+JNIEXPORT jint JNICALL
+Java_dev_shreeman_nitro_1webgpu_NwpSurfacePresenter_nativeIsSurfaceMode(
+    JNIEnv*, jobject, jlong token) {
+    return nwp_presenter_is_surface_mode(token);
+}
+
 JNIEXPORT void JNICALL
 Java_dev_shreeman_nitro_1webgpu_NwpSurfacePresenter_nativeDestroy(
     JNIEnv*, jobject, jlong token) {

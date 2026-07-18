@@ -55,6 +55,11 @@ class _WebGpuViewState extends State<WebGpuView>
   int _surfaceH = 0;
   bool _frameInFlight = false;
   bool _disposed = false;
+  // Set when presenter creation fails (e.g. GL-backend Android devices,
+  // where wgpu cannot present into a Flutter surface). The view renders a
+  // message instead of retrying — the failure is device-level, not
+  // transient.
+  String? _presenterError;
   // The Texture is only attached after the first frame was presented —
   // compositing an empty swapchain flashes black for a few frames on
   // Android (one visible "pop" per view on multi-view/benchmark pages).
@@ -99,8 +104,17 @@ class _WebGpuViewState extends State<WebGpuView>
     _heightPx = heightPx;
     _surfaceW = surfaceW;
     _surfaceH = surfaceH;
-    final token = NitroWebgpuPresent.instance.createPresenter(
-        widget.device.debugAddress, widthPx, heightPx);
+    final int token;
+    try {
+      token = NitroWebgpuPresent.instance.createPresenter(
+          widget.device.debugAddress, widthPx, heightPx);
+    } catch (e) {
+      _presenterError = '$e';
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+      return;
+    }
     if (token == 0) return;
     _token = token;
     if (surfaceW != widthPx || surfaceH != heightPx) {
@@ -222,7 +236,27 @@ class _WebGpuViewState extends State<WebGpuView>
       final surfaceH = (constraints.maxHeight * dpr).round();
       final w = (constraints.maxWidth * dpr * scale).round();
       final h = (constraints.maxHeight * dpr * scale).round();
-      if (w > 0 && h > 0) _ensurePresenter(w, h, surfaceW, surfaceH);
+      if (_presenterError == null && w > 0 && h > 0) {
+        _ensurePresenter(w, h, surfaceW, surfaceH);
+      }
+      if (_presenterError != null) {
+        return ColoredBox(
+          color: const Color(0xFF1A1A1A),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'WebGPU presentation unavailable\n\n$_presenterError',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xB3FFFFFF),
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ),
+        );
+      }
       if (_textureId < 0 || !_firstFramePresented) {
         return const SizedBox.expand();
       }

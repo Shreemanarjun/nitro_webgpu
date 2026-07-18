@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:nitro_webgpu/nitro_webgpu.dart';
 import 'package:nitro_webgpu/src/nitro_webgpu_present.native.dart';
+import 'adapter_support.dart';
 import 'package:nitro_webgpu_example/src/demos/compute_toy_page.dart';
 import 'package:nitro_webgpu_example/src/demos/particles_page.dart';
 import 'package:nitro_webgpu_example/src/demos/shadertoy_player_page.dart';
@@ -120,6 +121,11 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice(label: 'compute-device');
+      if (await skipWithoutCompute(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
       final queue = device.queue;
 
       final storage = device.createBuffer(
@@ -321,10 +327,16 @@ fn fs_main() -> @location(0) vec4<f32> {
           .createPresenter(device.debugAddress, 64, 64);
       expect(token, isNonZero);
       final gpuPath = NitroWebgpuPresent.instance.presenterUsesGpuPath(token);
+      final glBackend = adapter.backendType == GpuBackendType.openGL ||
+          adapter.backendType == GpuBackendType.openGLES;
       if (Platform.isWindows || Platform.isLinux) {
         expect(gpuPath, isFalse,
             reason: 'desktop Windows/Linux present via CPU readback '
                 '(M2.4/M2.5 phase A)');
+      } else if (Platform.isAndroid && glBackend) {
+        expect(gpuPath, isFalse,
+            reason: 'GL-backend Android (no Vulkan) presents via the CPU '
+                'readback fallback — the swapchain path would abort');
       } else {
         expect(gpuPath, isTrue,
             reason: 'Apple runs the Metal blit, Android the zero-copy '
@@ -1224,6 +1236,11 @@ fn fs_main() -> @location(0) vec4f { return vec4f(1.0, 1.0, 0.0, 1.0); }
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice();
+      if (await skipWithoutCompute(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
 
       final bgl = device.createBindGroupLayout(entries: const [
         GpuLayoutEntry(
@@ -1890,6 +1907,11 @@ fn fs_main() -> @location(0) vec4f { return vec4f(0.0, 1.0, 0.0, 1.0); }
       }
       final device =
           await adapter.requestDevice(requireTimestampQueries: true);
+      if (await skipWithoutCompute(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
       final queue = device.queue;
       expect(queue.timestampPeriod, greaterThan(0));
 
@@ -2396,6 +2418,11 @@ fn mainImage(fragCoord: vec2f) -> vec4f {
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice();
+      if (await skipWithoutCompute(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
       final scene = ParticleScene(
         count: 2,
         initialParticles: Float32List.fromList([
@@ -2445,6 +2472,11 @@ fn simulate(@builtin(global_invocation_id) gid: vec3<u32>) {
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice();
+      if (await skipWithoutCompute(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
       // One stationary particle at the center with a big footprint.
       final scene = ParticleScene(
         count: 1,
@@ -2471,6 +2503,11 @@ fn simulate(@builtin(global_invocation_id) gid: vec3<u32>) {
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice();
+      if (await skipWithoutCompute(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
       final scene = ParticleScene(
           count: 1,
           initialParticles: Float32List.fromList([0.0, 0.0, 0.0, 0.0]));
