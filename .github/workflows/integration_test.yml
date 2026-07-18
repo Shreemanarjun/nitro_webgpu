@@ -48,6 +48,9 @@ jobs:
       - name: Robustness tests
         working-directory: example
         run: flutter test integration_test/wgpu_robustness_test.dart -d macos --reporter expanded
+      - name: Showcase tests
+        working-directory: example
+        run: flutter test integration_test/wgpu_showcase_test.dart -d macos --reporter expanded
 
   ios:
     name: iOS (simulator, Metal)
@@ -105,6 +108,9 @@ jobs:
       - name: Robustness tests
         working-directory: example
         run: flutter test integration_test/wgpu_robustness_test.dart -d "$SIM_UDID" --reporter expanded
+      - name: Showcase tests
+        working-directory: example
+        run: flutter test integration_test/wgpu_showcase_test.dart -d "$SIM_UDID" --reporter expanded
       - name: Hang diagnostics (simulator + app logs)
         if: failure()
         run: |
@@ -162,6 +168,7 @@ jobs:
             flutter test integration_test/wgpu_instance_test.dart -d emulator-5554 --reporter expanded
             flutter test integration_test/wgpu_parity_complex_test.dart -d emulator-5554 --reporter expanded
             flutter test integration_test/wgpu_robustness_test.dart -d emulator-5554 --reporter expanded
+            flutter test integration_test/wgpu_showcase_test.dart -d emulator-5554 --reporter expanded
 
   linux:
     name: Linux (lavapipe software Vulkan)
@@ -220,6 +227,13 @@ jobs:
         run: |
           ulimit -n 8192
           xvfb-run -a -s "-screen 0 1280x800x24" flutter test integration_test/wgpu_robustness_test.dart -d linux --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded
+      - name: Showcase tests (fallback adapter)
+        working-directory: example
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          ulimit -n 8192
+          xvfb-run -a -s "-screen 0 1280x800x24" flutter test integration_test/wgpu_showcase_test.dart -d linux --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded
       - name: Crash diagnostics (core-dump backtrace + app stderr)
         if: failure()
         working-directory: example
@@ -309,6 +323,9 @@ jobs:
       - name: Robustness tests (fallback adapter)
         working-directory: example
         run: flutter test integration_test/wgpu_robustness_test.dart -d windows --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded
+      - name: Showcase tests (fallback adapter)
+        working-directory: example
+        run: flutter test integration_test/wgpu_showcase_test.dart -d windows --dart-define=WGPU_FORCE_FALLBACK=true --reporter expanded
       - name: Crash diagnostics (isolate read-only depth test)
         if: failure()
         working-directory: example

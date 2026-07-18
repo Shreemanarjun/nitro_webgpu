@@ -6,6 +6,7 @@ import 'package:nitro_webgpu/nitro_webgpu.dart';
 
 import '../gpu/gpu_context.dart';
 import '../gpu/shadertoy_engine.dart';
+import '../widgets/editor_shell.dart';
 import '../widgets/gpu_scene_view.dart';
 
 class _Preset {
@@ -283,61 +284,16 @@ class _ShadertoyPlayerPageState extends State<ShadertoyPlayerPage> {
             ),
           ],
         ),
-        ValueListenableBuilder<String?>(
-          valueListenable: _engine.compileError,
-          builder: (context, error, _) => error == null
-              ? const SizedBox.shrink()
-              : Container(
-                  margin: const EdgeInsets.only(top: 8),
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(maxHeight: 140),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(6),
-                    border:
-                        Border.all(color: Colors.red.withValues(alpha: 0.5)),
-                  ),
-                  child: SingleChildScrollView(
-                    child: Text(error,
-                        style: const TextStyle(
-                            fontFamily: 'monospace', fontSize: 11)),
-                  ),
-                ),
-        ),
+        CompileErrorBox(error: _engine.compileError),
       ],
-    );
-  }
-
-  Widget _buildEditor(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: TextField(
-        controller: _passTab == 0 ? _imageEditor : _bufferEditor,
-        maxLines: null,
-        expands: true,
-        style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-        decoration: InputDecoration(
-          contentPadding: const EdgeInsets.all(12),
-          border: InputBorder.none,
-          hintText: _language == ShadertoyLanguage.glsl
-              ? 'GLSL from shadertoy.com: void mainImage(out vec4 fragColor, '
-                  'in vec2 fragCoord) { ... } — iTime/iResolution/iMouse/'
-                  'iChannel0..3 available'
-              : 'WGSL snippet: fn mainImage(fragCoord: vec2f) -> vec4f '
-                  '{ ... } — iTime/iResolution/iMouse/iChannel0..3 available',
-        ),
-      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final render = ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: LayoutBuilder(builder: (context, box) {
+    return EditorPageScaffold(
+      title: 'Shadertoy player',
+      render: LayoutBuilder(builder: (context, box) {
         return GestureDetector(
           onPanDown: (d) => _engine.setMouseNormalized(
               d.localPosition.dx / box.maxWidth,
@@ -353,33 +309,24 @@ class _ShadertoyPlayerPageState extends State<ShadertoyPlayerPage> {
           ),
         );
       }),
-    );
-    final panel = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _buildControls(context),
-        const SizedBox(height: 8),
-        Expanded(child: _buildEditor(context)),
-      ],
-    );
-    return Scaffold(
-      appBar: AppBar(title: const Text('Shadertoy player')),
-      body: Padding(
-        padding: const EdgeInsets.all(12),
-        child: LayoutBuilder(builder: (context, constraints) {
-          if (constraints.maxWidth > 900) {
-            return Row(children: [
-              Expanded(flex: 3, child: render),
-              const SizedBox(width: 12),
-              Expanded(flex: 2, child: panel),
-            ]);
-          }
-          return Column(children: [
-            Expanded(flex: 3, child: render),
-            const SizedBox(height: 12),
-            Expanded(flex: 4, child: panel),
-          ]);
-        }),
+      panel: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildControls(context),
+          const SizedBox(height: 8),
+          Expanded(
+            child: ShaderEditorField(
+              controller: _passTab == 0 ? _imageEditor : _bufferEditor,
+              hint: _language == ShadertoyLanguage.glsl
+                  ? 'GLSL from shadertoy.com: void mainImage(out vec4 '
+                      'fragColor, in vec2 fragCoord) { ... } — iTime/'
+                      'iResolution/iMouse/iChannel0..3 available'
+                  : 'WGSL snippet: fn mainImage(fragCoord: vec2f) -> vec4f '
+                      '{ ... } — iTime/iResolution/iMouse/iChannel0..3 '
+                      'available',
+            ),
+          ),
+        ],
       ),
     );
   }

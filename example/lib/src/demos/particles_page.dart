@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../gpu/particle_scene.dart';
+import '../widgets/editor_shell.dart';
 import '../widgets/gpu_scene_view.dart';
 
 /// GPU particles: a compute kernel (editable) integrates a storage buffer of
@@ -77,88 +78,35 @@ class _ParticlesPageState extends State<ParticlesPage> {
             ),
           ],
         ),
-        ValueListenableBuilder<String?>(
-          valueListenable: scene.compileError,
-          builder: (context, error, _) => error == null
-              ? const SizedBox.shrink()
-              : Container(
-                  margin: const EdgeInsets.only(top: 8),
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(maxHeight: 140),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(6),
-                    border:
-                        Border.all(color: Colors.red.withValues(alpha: 0.5)),
-                  ),
-                  child: SingleChildScrollView(
-                    child: Text(error,
-                        style: const TextStyle(
-                            fontFamily: 'monospace', fontSize: 11)),
-                  ),
-                ),
-        ),
+        CompileErrorBox(error: scene.compileError),
       ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final render = ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: GpuSceneView(
+    return EditorPageScaffold(
+      title: 'GPU particles',
+      render: GpuSceneView(
         key: ValueKey(_scene),
         scene: _scene!,
         ownsScene: false,
         dynamicResolution: true,
       ),
-    );
-    final panel = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _buildControls(context),
-        const SizedBox(height: 8),
-        Expanded(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerLowest,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: TextField(
+      panel: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildControls(context),
+          const SizedBox(height: 8),
+          Expanded(
+            child: ShaderEditorField(
               controller: _editor,
-              maxLines: null,
-              expands: true,
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-              decoration: const InputDecoration(
-                contentPadding: EdgeInsets.all(12),
-                border: InputBorder.none,
-                hintText: 'WGSL compute kernel — entry `simulate`, '
-                    'Particle {pos, vel} storage at @binding(1), SimParams '
-                    '{dt, time, count, size} at @binding(0)',
-              ),
+              hint: 'WGSL compute kernel — entry `simulate`, '
+                  'Particle {pos, vel} storage at @binding(1), SimParams '
+                  '{dt, time, count, size} at @binding(0)',
             ),
           ),
-        ),
-      ],
-    );
-    return Scaffold(
-      appBar: AppBar(title: const Text('GPU particles')),
-      body: Padding(
-        padding: const EdgeInsets.all(12),
-        child: LayoutBuilder(builder: (context, constraints) {
-          if (constraints.maxWidth > 900) {
-            return Row(children: [
-              Expanded(flex: 3, child: render),
-              const SizedBox(width: 12),
-              Expanded(flex: 2, child: panel),
-            ]);
-          }
-          return Column(children: [
-            Expanded(flex: 3, child: render),
-            const SizedBox(height: 12),
-            Expanded(flex: 4, child: panel),
-          ]);
-        }),
+        ],
       ),
     );
   }

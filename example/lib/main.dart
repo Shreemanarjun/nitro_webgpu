@@ -12,6 +12,7 @@ import 'src/demos/live_scene_page.dart';
 import 'src/demos/multi_view_page.dart';
 import 'src/demos/offscreen_page.dart';
 import 'src/demos/shader_toy_page.dart';
+import 'src/showcase/showcase_gallery_page.dart';
 import 'src/gpu/gpu_context.dart';
 import 'src/gpu/scenes.dart';
 
@@ -61,6 +62,13 @@ class GalleryPage extends StatelessWidget {
   const GalleryPage({super.key});
 
   static final List<_DemoEntry> _demos = [
+    _DemoEntry(
+      title: 'Shader showcase',
+      subtitle: '16 real-world techniques: holographic cards, bloom, '
+          'reaction-diffusion, boids, fog of war, and more',
+      icon: Icons.collections,
+      builder: (_) => const ShowcaseGalleryPage(),
+    ),
     _DemoEntry(
       title: 'WGSL shader toy',
       subtitle: 'Live-edit WGSL with inline compile errors, speed/param '

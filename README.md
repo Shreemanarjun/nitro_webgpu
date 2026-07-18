@@ -41,7 +41,7 @@ WebGpuView(
 - **Full WebGPU, verified.** Compute and render pipelines, every draw
   variant, complete depth/stencil/blend state, MSAA, MRT, render bundles,
   occlusion + timestamp queries, storage textures, comparison samplers —
-  exercised by **106 integration tests** across three suites on macOS
+  exercised by **129 integration tests** across four suites on macOS
   (Metal), Windows (D3D12), Linux (Vulkan), Android, and the iOS simulator.
 - **Fast by default.** Zero-copy buffer and texture uploads straight from
   Dart memory. Presentation is zero-copy on Android (frames render into a
@@ -217,6 +217,14 @@ a strategy.
 
 `example/` is a full gallery:
 
+- **Shader showcase** — 17 production-ready techniques across four
+  categories: holographic cards, mesh gradients, shimmer skeletons, neon
+  borders, ripple transitions; halftone/Kuwahara/chromatic-aberration
+  filters and a multi-pass bloom pipeline; reaction-diffusion, Game of
+  Life, ink flow, boids flocking, fireworks; 2D dynamic lighting, fog of
+  war, and a **playable Breakout whose entire game state — ball physics,
+  paddle, 32 bricks — lives in GPU data texels** — every showcase verified
+  by a pixel test.
 - **Shadertoy player** — paste GLSL straight from shadertoy.com or WGSL
   snippets: mouse interaction, multi-pass Buffer A feedback, texture
   channels, inline compile errors.
@@ -236,7 +244,7 @@ flutter run -d macos
 
 ## Testing
 
-Three integration suites — 106 tests — run on every platform in CI:
+Four integration suites — 129 tests — run on every platform in CI:
 
 - `wgpu_instance_test.dart` (57) — per-feature coverage, from link proof
   through adapter/device, compute, offscreen rendering, textures, GLSL,
@@ -247,6 +255,10 @@ Three integration suites — 106 tests — run on every platform in CI:
   ping-pong frame graph in one submit.
 - `wgpu_robustness_test.dart` (18) — production hardening: lifecycle soak,
   error paths, boundary values, concurrency, and editor-engine stress.
+- `wgpu_showcase_test.dart` (23) — every gallery showcase compiles and
+  renders non-degenerate frames; interactive ones react to the pointer,
+  simulations provably evolve, boids stay in bounds, and Breakout's paddle
+  tracks the pointer while its GPU-resident ball keeps moving.
 
 ```sh
 cd example
