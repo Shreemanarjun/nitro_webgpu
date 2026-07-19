@@ -40,11 +40,50 @@ dart run nitro_webgpu:setup
 Then use it like any plugin — no platform channels to configure, no
 per-platform shader code.
 
-## A complete example
+## One widget, one shader
 
-Everything in one file: a device, an animated WGSL shader, and a widget —
-this renders a full-screen animated gradient wave at your display's refresh
-rate on macOS, iOS, Android, Windows, and Linux unchanged.
+The fastest path to pixels — `WebGpuShaderView` owns the device, the
+uniforms, the pipeline, and presentation; you write a fragment shader:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:nitro_webgpu/nitro_webgpu.dart';
+
+void main() => runApp(MaterialApp(
+      home: WebGpuShaderView(fragment: '''
+@fragment
+fn fs_main(@builtin(position) pos: vec4f) -> @location(0) vec4f {
+  let uv = pos.xy / nw.resolution;
+  let wave = sin(uv.x * 6.0 + nw.time) * cos(uv.y * 4.0 - nw.time * 0.7);
+  return vec4f(0.1 + 0.5 * wave, 0.2 + uv.y * 0.5, 0.6 - 0.3 * wave, 1.0);
+}
+'''),
+    ));
+```
+
+That's a complete app: an animated, display-rate shader on macOS, iOS,
+Android, Windows, and Linux unchanged. The fragment sees Shadertoy-style
+built-ins (`nw.time`, `nw.resolution`, `nw.mouse`, `nw.mouseDown`), the
+source can be swapped live — hot reload included; a compile error keeps
+the last good frame running and surfaces through `onError` or an overlay —
+and `language: ShaderViewLanguage.glsl` runs GLSL sources unchanged.
+
+### Pick your level
+
+| Level | You write | It handles |
+|---|---|---|
+| `WebGpuShaderView` | a fragment shader string | everything |
+| `WebGpuBuilder` + `WebGpuView` | a per-frame callback recording passes | device boot, loading/error UI, frame pacing, presentation |
+| Raw API (`Gpu.requestAdapter()` …) | everything | nothing — full WebGPU control |
+
+The tiers compose: the shared `WebGpu.device()` behind `WebGpuBuilder` is
+a normal `GpuDevice`, so raw compute and render code runs on it too.
+
+## Full control in one file
+
+The same wave, hand-rolled: your own uniform layout, pipeline, and render
+pass, with `WebGpuBuilder` still handling device boot and `WebGpuView`
+presentation.
 
 ```dart
 import 'dart:typed_data';
@@ -80,36 +119,17 @@ class WaveDemo extends StatefulWidget {
 }
 
 class _WaveDemoState extends State<WaveDemo> {
-  GpuAdapter? _adapter;
-  GpuDevice? _device;
   GpuShaderModule? _module;
   GpuBuffer? _uniforms;
   GpuRenderPipeline? _pipeline;
   GpuBindGroup? _bind;
 
-  @override
-  void initState() {
-    super.initState();
-    _boot();
-  }
-
-  Future<void> _boot() async {
-    final adapter = await Gpu.requestAdapter();
-    final device = await adapter.requestDevice();
-    final module = await device.createShaderModule(_shader);
-    final uniforms = device.createBuffer(
+  Future<void> _frame(
+      GpuDevice device, GpuRenderTarget target, Duration elapsed) async {
+    // Created on the first frame, then reused.
+    _module ??= await device.createShaderModule(_shader);
+    _uniforms ??= device.createBuffer(
         size: 16, usage: GpuBufferUsage.uniform | GpuBufferUsage.copyDst);
-    setState(() {
-      _adapter = adapter;
-      _device = device;
-      _module = module;
-      _uniforms = uniforms;
-    });
-  }
-
-  Future<void> _frame(GpuRenderTarget target, Duration elapsed) async {
-    final device = _device!;
-    // Pipelines are created once per target format, then reused.
     _pipeline ??= await device.createRenderPipeline(
         module: _module!, targetFormat: target.targetFormat);
     _bind ??= device.createBindGroup(
@@ -140,18 +160,19 @@ class _WaveDemoState extends State<WaveDemo> {
     _pipeline?.dispose();
     _uniforms?.dispose();
     _module?.dispose();
-    _device?.dispose();
-    _adapter?.dispose();
+    // The shared device outlives this screen — nothing else to release.
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final device = _device;
     return Scaffold(
-      body: device == null
-          ? const Center(child: CircularProgressIndicator())
-          : WebGpuView(device: device, onFrame: _frame),
+      body: WebGpuBuilder(
+        builder: (context, device) => WebGpuView(
+          device: device,
+          onFrame: (target, elapsed) => _frame(device, target, elapsed),
+        ),
+      ),
     );
   }
 }
@@ -291,7 +312,9 @@ passes report exact per-pass GPU milliseconds.
 | Textures | `createTexture` (2D/3D/cube, mips, MSAA, storage), `createView`, `createSampler` (incl. comparison), `writeTexture` (auto stride, compressed), `copyTextureToBuffer`, `copyTextureToTexture` |
 | Timing | `createTimestampQuerySet`, pass-level `timestampWrites`, `queue.timestampPeriod` |
 | Errors | typed checked creates, `pushErrorScope`/`popErrorScope`, `onUncapturedError`, `onLost` |
-| Presentation | `WebGpuView(device:, onFrame:, renderScale:, filterQuality:)` |
+| Widgets — foundation | `WebGpu.device()` (shared app-lifetime device), `WebGpuBuilder(builder:, loading:, error:)` |
+| Widgets — presentation | `WebGpuView(device:, onFrame:, renderScale:, filterQuality:)` |
+| Widgets — effects | `WebGpuShaderView(fragment:, language:, renderScale:, onError:)` |
 
 ## Supported platforms
 
@@ -327,6 +350,9 @@ If you only need a fragment-shader effect, `FragmentProgram` is built in
 and simpler; if you want the engine team's own experimental low-level
 renderer and can ride the master channel, look at flutter_gpu.
 
+Moving from one of these? [docs/MIGRATION.md](docs/MIGRATION.md) has
+concept maps and before/after code for each.
+
 ## Two backends, one API
 
 nitro_webgpu is the only Flutter plugin that runs on **both** production
@@ -335,8 +361,11 @@ WebGPU implementations — [wgpu-native](https://github.com/gfx-rs/wgpu-native)
 (C++, used by Chrome). The same Dart code runs identically on either;
 the full integration-test matrix passes on both.
 
+### Switching backends
+
 **wgpu-native is the default** and what ships when you follow Getting
-Started. Dawn is an opt-in switch per platform:
+Started. Dawn is an opt-in switch per platform — no Dart changes, and
+switching back is the same command:
 
 ```bash
 # Fetch prebuilt Dawn from this repo's dawn-v* releases…
@@ -397,8 +426,8 @@ identically.
   Real iOS devices support indirect fully.
 - **Web backend is not built yet**; the API deliberately avoids `dart:ffi`
   types so a `navigator.gpu` implementation can share the same surface.
-- Upstream wgpu-native gaps (unimplemented stubs, quirks) are catalogued in
-  [PARITY.md](PARITY.md); the plugin calls none of the stubbed functions.
+- Upstream wgpu-native has a few unimplemented stubs; the plugin calls
+  none of them.
 
 ## Error handling
 

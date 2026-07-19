@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
-import '../api/gpu.dart';
-import '../nitro_webgpu_present.native.dart';
+import '../../api/gpu.dart';
+import '../../nitro_webgpu_present.native.dart';
 
 /// Embeds WebGPU-rendered content in the widget tree.
 ///

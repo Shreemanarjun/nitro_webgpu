@@ -491,4 +491,68 @@ void main() {
       await tester.pump();
     });
   });
+
+  group('high-level widgets', () {
+    testWidgets('WebGpuShaderView renders live with zero setup',
+        (tester) async {
+      final binding = tester.binding as LiveTestWidgetsFlutterBinding;
+      binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+
+      String? reported;
+      await tester.pumpWidget(MaterialApp(
+          home: WebGpuShaderView(onError: (m) => reported = m)));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(seconds: 2)));
+      await tester.pump();
+      expect(find.byType(WebGpuShaderView), findsOneWidget);
+      // The built-in demo fragment must compile and validate cleanly.
+      expect(reported, isNull,
+          reason: 'unexpected shader-view error: $reported');
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 600)));
+      await tester.pump();
+    });
+
+    testWidgets('WebGpuShaderView surfaces compile errors and keeps running',
+        (tester) async {
+      final binding = tester.binding as LiveTestWidgetsFlutterBinding;
+      binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+
+      String? reported;
+      await tester.pumpWidget(MaterialApp(
+        home: WebGpuShaderView(
+          fragment: 'this is not wgsl',
+          onError: (m) => reported = m,
+        ),
+      ));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(seconds: 2)));
+      await tester.pump();
+      expect(reported, isNotNull,
+          reason: 'compiler diagnostics reach onError');
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 600)));
+      await tester.pump();
+    });
+
+    testWidgets('WebGpuBuilder hands out the shared device', (tester) async {
+      GpuDevice? received;
+      await tester.pumpWidget(MaterialApp(
+        home: WebGpuBuilder(builder: (context, device) {
+          received = device;
+          return const SizedBox();
+        }),
+      ));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 800)));
+      await tester.pump();
+      expect(received, isNotNull);
+      expect(identical(received, await WebGpu.device()), isTrue,
+          reason: 'WebGpuBuilder serves the app-lifetime shared device');
+    });
+  });
 }

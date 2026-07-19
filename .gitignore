@@ -43,3 +43,13 @@ src/third_party/BACKEND
 android/src/main/jniLibs/
 macos/nitro_webgpu/Frameworks/webgpu_dawn.xcframework/
 ios/nitro_webgpu/Frameworks/webgpu_dawn.xcframework/
+
+# AI agent workspace configs (local tooling, not part of the plugin)
+.claude/
+.codex/
+.gemini/
+.cursor/
+.windsurf/
+
+# internal parity tracking notes
+PARITY.md

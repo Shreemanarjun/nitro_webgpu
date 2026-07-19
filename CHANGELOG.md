@@ -67,5 +67,3 @@ shared C++ core on every native platform and a curated, Dart-idiomatic API
   lavapipe Vulkan (42/42 + 31/31; desktop Linux instances default to
   Vulkan-only — wgpu's GL/EGL probe races the GTK engine's EGL context).
   Web: API designed for a future `navigator.gpu` backend.
-* Known upstream wgpu-native gaps are documented in
-  [PARITY.md](PARITY.md).
