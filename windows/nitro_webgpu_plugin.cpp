@@ -61,6 +61,7 @@ struct D3dShared {
   std::mutex mutex;
 
   bool Init() {
+    std::lock_guard<std::mutex> lock(mutex);
     if (device) return true;
     // Hardware first; WARP keeps CI / GPU-less machines working.
     static const D3D_DRIVER_TYPE kDrivers[] = {D3D_DRIVER_TYPE_HARDWARE,

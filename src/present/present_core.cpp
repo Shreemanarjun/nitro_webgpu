@@ -623,7 +623,11 @@ void nwpPresentViaImport(int64_t token, NwpPresenter* p, int slot) {
                       void* ud1, void*) {
         auto* op = static_cast<IoPresentOp*>(ud1);
         NwpPresenter* p = op->p;
-        if (status == WGPUQueueWorkDoneStatus_Success && p->ioPresented) {
+        // Hand the surface back REGARDLESS of status — the shim retains its
+        // pixel buffer until this fires, and dropping it on device loss
+        // would exhaust the pool (one stale frame is the lesser evil).
+        (void)status;
+        if (p->ioPresented) {
             p->ioPresented(op->token, op->surface, p->ioUser);
         }
         nwpCompleteInflight(op->token, p, op->slot);
