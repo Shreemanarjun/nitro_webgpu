@@ -198,6 +198,10 @@ class _WebGpuViewState extends State<WebGpuView>
   @override
   void didUpdateWidget(WebGpuView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.device != widget.device) {
+      // A creation failure is device-level: a new device deserves a retry.
+      _presenterError = null;
+    }
     if (oldWidget.device != widget.device && _token != 0) {
       // The device changed under us: tear the old presenter down at a safe
       // point; the next layout creates a fresh one on the new device.

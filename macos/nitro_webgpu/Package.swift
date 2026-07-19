@@ -24,9 +24,14 @@ if useDawnBackend {
     cppSettings.append(
         .unsafeFlags(["-I", pkgDir + "/../../src/third_party/dawn/include"]))
     // glslang (brew) provides the GLSL→SPIR-V front end Dawn lacks.
-    cppSettings.append(.unsafeFlags(["-I", "/opt/homebrew/include"]))
+    // Homebrew prefix: /opt/homebrew on Apple Silicon, /usr/local on Intel.
+    let brewPrefix =
+        FileManager.default.fileExists(atPath: "/opt/homebrew/include")
+            ? "/opt/homebrew" : "/usr/local"
+    cppSettings.append(.unsafeFlags(["-I", brewPrefix + "/include"]))
     cppLinkerSettings.append(.unsafeFlags([
-        "-L/opt/homebrew/lib", "-lglslang", "-lglslang-default-resource-limits",
+        "-L" + brewPrefix + "/lib", "-lglslang",
+        "-lglslang-default-resource-limits",
     ]))
 }
 

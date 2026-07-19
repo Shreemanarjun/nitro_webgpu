@@ -971,15 +971,17 @@ class GpuDevice {
   /// compute in apps that must run everywhere.
   Future<bool> supportsCompute() async {
     if (_computeSupport != null) return _computeSupport!;
+    GpuShaderModule? module;
     try {
-      final module =
+      module =
           await createShaderModule('@compute @workgroup_size(1) fn main() {}');
       final pipeline = await createComputePipeline(module: module);
       pipeline.dispose();
-      module.dispose();
       _computeSupport = true;
     } on GpuValidationException {
       _computeSupport = false;
+    } finally {
+      module?.dispose();
     }
     return _computeSupport!;
   }
@@ -989,8 +991,9 @@ class GpuDevice {
   /// downlevel GL devices; probe-cached like [supportsCompute].
   Future<bool> supportsVertexStorage() async {
     if (_vertexStorageSupport != null) return _vertexStorageSupport!;
+    GpuShaderModule? module;
     try {
-      final module = await createShaderModule('''
+      module = await createShaderModule('''
 @group(0) @binding(0) var<storage, read> d: array<vec2f>;
 @vertex
 fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
@@ -1002,10 +1005,11 @@ fn fs_main() -> @location(0) vec4f { return vec4f(1.0); }
       final pipeline = await createRenderPipeline(
           module: module, targetFormat: GpuTextureFormat.rgba8Unorm);
       pipeline.dispose();
-      module.dispose();
       _vertexStorageSupport = true;
     } on GpuValidationException {
       _vertexStorageSupport = false;
+    } finally {
+      module?.dispose();
     }
     return _vertexStorageSupport!;
   }

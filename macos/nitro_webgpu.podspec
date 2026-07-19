@@ -37,10 +37,14 @@ A new Flutter FFI plugin project.
   #   NITRO_WEBGPU_BACKEND=dawn flutter run -d macos
   header_paths = '$(inherited) "${PODS_ROOT}/../Flutter/ephemeral/.symlinks/plugins/nitro/src/native" "${PODS_TARGET_SRCROOT}/../src" "${PODS_TARGET_SRCROOT}/../lib/src/generated/cpp"'
   backend_defines = '$(inherited)'
+  ldflags = '$(inherited)'
   if ENV['NITRO_WEBGPU_BACKEND'] == 'dawn'
     s.vendored_frameworks = 'nitro_webgpu/Frameworks/webgpu_dawn.xcframework'
-    backend_defines += ' NITRO_WEBGPU_BACKEND_DAWN=1'
-    header_paths += ' "${PODS_TARGET_SRCROOT}/../src/third_party/dawn/include"'
+    backend_defines += ' NITRO_WEBGPU_BACKEND_DAWN=1 NITRO_WEBGPU_HAS_GLSLANG=1'
+    brew_prefix = File.directory?('/opt/homebrew/include') ? '/opt/homebrew' : '/usr/local'
+    header_paths += ' "${PODS_TARGET_SRCROOT}/../src/third_party/dawn/include"' \
+                    " \"#{brew_prefix}/include\""
+    ldflags += " -L#{brew_prefix}/lib -lglslang -lglslang-default-resource-limits"
   else
     s.vendored_frameworks = 'nitro_webgpu/Frameworks/wgpu_native.xcframework'
   end
@@ -50,7 +54,8 @@ A new Flutter FFI plugin project.
     'CLANG_CXX_LANGUAGE_STANDARD' => 'c++17',
     'CLANG_CXX_LIBRARY' => 'libc++',
     'GCC_PREPROCESSOR_DEFINITIONS' => backend_defines,
-    'HEADER_SEARCH_PATHS' => header_paths
+    'HEADER_SEARCH_PATHS' => header_paths,
+    'OTHER_LDFLAGS' => ldflags
   }
   s.swift_version = '5.9'
 end

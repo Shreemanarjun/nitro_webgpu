@@ -218,6 +218,13 @@ bool nwDawnCaptureError(int64_t device, int64_t type, const char* msg,
         if (!rit->hasError) {
             rit->hasError = true;
             rit->type = type;
+            // WGPUStringView contract: length == WGPU_STRLEN means
+            // null-terminated; a null pointer means empty.
+            if (!msg) {
+                len = 0;
+            } else if (len == WGPU_STRLEN) {
+                len = strlen(msg);
+            }
             rit->message.assign(msg ? msg : "", len);
         }
         return true;
@@ -449,7 +456,12 @@ private:
                 job = std::move(workerQueue_.front());
                 workerQueue_.pop_front();
             }
-            job();
+            try {
+                job();
+            } catch (...) {
+                // Jobs report their own errors to Dart; a stray exception
+                // must not take down the process-lifetime worker.
+            }
         }
     }
     std::mutex workerMutex_;

@@ -35,8 +35,11 @@ for target in "${LIST[@]}"; do
   cp -R "$TMP/dawn-$target/lib" "$DEST/$target/lib"
   mkdir -p "$DEST/include"
   cp -R "$TMP/dawn-$target/include/." "$DEST/include/"
-  if [[ "$target" == macos-* ]]; then
-    FRAMEWORKS="$REPO_ROOT/macos/nitro_webgpu/Frameworks"
+  if [[ "$target" == macos-* || "$target" == ios-* ]]; then
+    case "$target" in
+      macos-*) FRAMEWORKS="$REPO_ROOT/macos/nitro_webgpu/Frameworks" ;;
+      ios-*)   FRAMEWORKS="$REPO_ROOT/ios/nitro_webgpu/Frameworks" ;;
+    esac
     rm -rf "$FRAMEWORKS/webgpu_dawn.xcframework"
     xcodebuild -create-xcframework \
       -library "$DEST/$target/lib/libwebgpu_dawn.dylib" \

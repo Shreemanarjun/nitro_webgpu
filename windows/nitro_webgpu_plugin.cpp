@@ -154,10 +154,14 @@ class WinDxgiTexture : public PresentTextureBase {
  private:
   // Raster thread. The engine opens the shared handle once and keeps its own
   // reference; it re-opens whenever the handle value changes (resize).
+  // Returns a raster-thread-owned snapshot: descriptor_ can be rewritten by
+  // Publish/FramePresented on the wgpu callback thread after the lock
+  // drops, and the engine reads the pointer post-return.
   const FlutterDesktopGpuSurfaceDescriptor* ObtainDescriptor() {
     std::lock_guard<std::mutex> lock(mutex_);
     if (!has_frame_) return nullptr;
-    return &descriptor_;
+    visible_descriptor_ = descriptor_;
+    return &visible_descriptor_;
   }
 
   // d3d_->mutex held.
@@ -205,6 +209,8 @@ class WinDxgiTexture : public PresentTextureBase {
 
   std::mutex mutex_;  // guards descriptor_ / has_frame_
   FlutterDesktopGpuSurfaceDescriptor descriptor_ = {};
+  // Only ever touched inside ObtainDescriptor (raster thread).
+  FlutterDesktopGpuSurfaceDescriptor visible_descriptor_ = {};
   bool has_frame_ = false;
 };
 

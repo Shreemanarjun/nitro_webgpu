@@ -350,7 +350,8 @@ class ParticleScene implements GpuScene {
       p[b + 2] = vx;
       p[b + 3] = vy;
     }
-    device.queue.writeBuffer(_particles!, p.buffer.asUint8List());
+    device.queue.writeBuffer(
+        _particles!, p.buffer.asUint8List(p.offsetInBytes, p.lengthInBytes));
   }
 
   @override

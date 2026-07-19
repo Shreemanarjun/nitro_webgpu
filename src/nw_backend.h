@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 #if defined(NITRO_WEBGPU_BACKEND_DAWN)
@@ -135,6 +136,7 @@ inline bool nwBackendEnumerateAdapters(WGPUInstance instance,
         wgpuInstanceRequestAdapter(instance, &opts, cb);
         for (int i = 0; i < 1000 && !result.done; i++) {
             wgpuInstanceProcessEvents(instance);
+            if (!result.done) std::this_thread::yield();
         }
         if (result.adapter) out->push_back(result.adapter);
     }

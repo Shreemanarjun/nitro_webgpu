@@ -73,7 +73,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/nitro_webgpu/dawn-src
-          key: dawn-macos-${{ hashFiles('scripts/stage_dawn_macos.sh') }}-v1
+          key: dawn-macos-${{ hashFiles('.github/workflows/integration_test.yml') }}-v1
       - name: Build Dawn
         if: steps.dawn-cache.outputs.cache-hit != 'true'
         run: |
@@ -119,7 +119,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: dawn-src
-          key: dawn-windows-${{ hashFiles('scripts/stage_dawn_macos.sh') }}-v1
+          key: dawn-windows-${{ hashFiles('.github/workflows/integration_test.yml') }}-v1
       - name: Build Dawn
         if: steps.dawn-cache.outputs.cache-hit != 'true'
         shell: bash
@@ -173,7 +173,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: dawn-src
-          key: dawn-linux-${{ hashFiles('scripts/stage_dawn_macos.sh') }}-v1
+          key: dawn-linux-${{ hashFiles('.github/workflows/integration_test.yml') }}-v1
       - name: Build Dawn
         if: steps.dawn-cache.outputs.cache-hit != 'true'
         run: |

@@ -31,11 +31,17 @@ jobs:
           - target: android-aarch64
             os: ubuntu-latest
             lib: libwebgpu_dawn.so
+          - target: ios-simulator-aarch64
+            os: macos-15
+            lib: libwebgpu_dawn.dylib
     steps:
       - uses: actions/checkout@v4
       - name: Install host protoc (cross builds)
         if: matrix.target == 'android-aarch64'
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler ninja-build
+      - name: Install host protoc (macOS cross builds)
+        if: matrix.target == 'ios-simulator-aarch64'
+        run: brew install protobuf
       - name: Install ninja (linux)
         if: matrix.target == 'linux-x86_64'
         run: sudo apt-get update && sudo apt-get install -y ninja-build
@@ -48,6 +54,8 @@ jobs:
           EXTRA=""
           if [ "${{ matrix.target }}" = "android-aarch64" ]; then
             EXTRA="-DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_LATEST_HOME/build/cmake/android.toolchain.cmake -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-24 -DPROTOC_EXECUTABLE=$(command -v protoc)"
+          elif [ "${{ matrix.target }}" = "ios-simulator-aarch64" ]; then
+            EXTRA="-DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=iphonesimulator -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 -DPROTOC_EXECUTABLE=$(command -v protoc || echo /opt/homebrew/bin/protoc)"
           fi
           cmake -S dawn-src -B dawn-src/out -DDAWN_USE_X11=OFF -DCMAKE_BUILD_TYPE=Release \
             -DDAWN_FETCH_DEPENDENCIES=ON -DDAWN_SUPPORTS_CXX_MODULES=OFF -DDAWN_BUILD_MONOLITHIC_LIBRARY=SHARED \

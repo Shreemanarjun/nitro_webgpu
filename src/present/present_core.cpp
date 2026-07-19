@@ -528,6 +528,15 @@ void nwpPresentViaImport(int64_t token, NwpPresenter* p, int slot) {
         nwpCompleteInflight(token, p, slot);
         return;
     }
+    // Any failure after acquire must still hand the surface back — the
+    // shim retains its pixel buffer in an in-flight map keyed by this
+    // pointer, and dropping it silently exhausts the pool. One
+    // possibly-stale published frame on a never-taken error path is the
+    // lesser evil.
+    auto releaseAcquired = [&]() {
+        if (p->ioPresented) p->ioPresented(token, surface, p->ioUser);
+        nwpCompleteInflight(token, p, slot);
+    };
     auto& imp = p->ioImports[surface];
     if (imp.mem && (imp.width != p->width || imp.height != p->height)) {
         // Same pointer, different geometry: the pool was rebuilt and the
@@ -563,7 +572,7 @@ void nwpPresentViaImport(int64_t token, NwpPresenter* p, int slot) {
             if (imp.tex) wgpuTextureRelease(imp.tex);
             if (imp.mem) wgpuSharedTextureMemoryRelease(imp.mem);
             p->ioImports.erase(surface);
-            nwpCompleteInflight(token, p, slot);
+            releaseAcquired();
             return;
         }
         imp.width = p->width;
@@ -577,7 +586,7 @@ void nwpPresentViaImport(int64_t token, NwpPresenter* p, int slot) {
     ba.initialized = 1;
     if (wgpuSharedTextureMemoryBeginAccess(imp.mem, imp.tex, &ba) !=
         WGPUStatus_Success) {
-        nwpCompleteInflight(token, p, slot);
+        releaseAcquired();
         return;
     }
 
