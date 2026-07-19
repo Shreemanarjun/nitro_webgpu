@@ -497,23 +497,32 @@ class _WebGpuShaderViewState extends State<WebGpuShaderView> {
           ? null
           : (context, error) => widget.errorBuilder!(context, '$error'),
       builder: (context, device) {
-        Widget view = Listener(
-          onPointerDown: (e) {
-            _mouseDown = 1;
-            _mouseX = e.localPosition.dx * dpr * widget.renderScale;
-            _mouseY = e.localPosition.dy * dpr * widget.renderScale;
-          },
-          onPointerMove: (e) {
-            _mouseX = e.localPosition.dx * dpr * widget.renderScale;
-            _mouseY = e.localPosition.dy * dpr * widget.renderScale;
-          },
-          onPointerUp: (_) => _mouseDown = 0,
-          child: WebGpuView(
-            device: device,
-            controller: widget.controller?.view,
-            renderScale: widget.renderScale,
-            filterQuality: widget.filterQuality,
-            onFrame: (target, elapsed) => _frame(device, target, elapsed),
+        void trackMouse(Offset local) {
+          _mouseX = local.dx * dpr * widget.renderScale;
+          _mouseY = local.dy * dpr * widget.renderScale;
+        }
+
+        Widget view = MouseRegion(
+          opaque: false,
+          onHover: (e) => trackMouse(e.localPosition),
+          child: Listener(
+            // Opaque: receive input regardless of how the platform texture
+            // underneath hit-tests.
+            behavior: HitTestBehavior.opaque,
+            onPointerDown: (e) {
+              _mouseDown = 1;
+              trackMouse(e.localPosition);
+            },
+            onPointerMove: (e) => trackMouse(e.localPosition),
+            onPointerUp: (_) => _mouseDown = 0,
+            onPointerCancel: (_) => _mouseDown = 0,
+            child: WebGpuView(
+              device: device,
+              controller: widget.controller?.view,
+              renderScale: widget.renderScale,
+              filterQuality: widget.filterQuality,
+              onFrame: (target, elapsed) => _frame(device, target, elapsed),
+            ),
           ),
         );
         final error = _error;

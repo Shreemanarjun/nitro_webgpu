@@ -152,32 +152,42 @@ class _ShaderCard extends StatelessWidget {
               onError:
                   onError == null ? null : (m) => onError!(title, m),
             ),
-            // Legibility scrim behind the labels.
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  stops: [0.55, 1.0],
-                  colors: [Colors.transparent, Colors.black54],
-                ),
-              ),
-            ),
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: 12,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            // Overlays must not steal input from the shader view below —
+            // a DecoratedBox (and text) hit-test opaquely by default.
+            IgnorePointer(
+              child: Stack(
+                fit: StackFit.expand,
                 children: [
-                  Text(title,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600)),
-                  Text(subtitle,
-                      style: const TextStyle(
-                          color: Colors.white70, fontSize: 13)),
+                  // Legibility scrim behind the labels.
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        stops: [0.55, 1.0],
+                        colors: [Colors.transparent, Colors.black54],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 16,
+                    right: 16,
+                    bottom: 12,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(title,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600)),
+                        Text(subtitle,
+                            style: const TextStyle(
+                                color: Colors.white70, fontSize: 13)),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),

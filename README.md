@@ -305,11 +305,16 @@ class _WaveDemoState extends State<WaveDemo> {
 }
 ```
 
-The example app in this repo has more: a live WGSL/GLSL shader editor, a
+The example app in this repo has more: shader-backed UI pages (the clock
+above, and animated card backgrounds), a live WGSL/GLSL shader editor, a
 Shadertoy-compatible player with multi-pass buffers, GPU particles, an
 18-scene showcase gallery, and two GPU-state games (Breakout and an
 endless racer), plus the four integration-test suites that run all of it
 in CI.
+
+<p align="center">
+  <img src="assets/shader_cards.png" alt="shader card backgrounds" width="560">
+</p>
 
 ## What the plugin does
 
