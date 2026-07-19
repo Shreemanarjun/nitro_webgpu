@@ -330,10 +330,18 @@ fn fs_main() -> @location(0) vec4<f32> {
       final gpuPath = NitroWebgpuPresent.instance.presenterUsesGpuPath(token);
       final glBackend = adapter.backendType == GpuBackendType.openGL ||
           adapter.backendType == GpuBackendType.openGLES;
-      if (Platform.isWindows || Platform.isLinux) {
+      if (Platform.isWindows && isDawnBackend) {
+        // Dawn on Windows takes the DXGI shared-handle import path when the
+        // adapter exposes SharedTextureMemoryDXGISharedHandle (true) and
+        // falls back to readback otherwise (false) — both are valid; the
+        // capability isn't queryable from Dart, so only log it.
+        // ignore: avoid_print
+        print('presenter path on Windows/Dawn: '
+            '${gpuPath ? 'DXGI import' : 'CPU readback'}');
+      } else if (Platform.isWindows || Platform.isLinux) {
         expect(gpuPath, isFalse,
             reason: 'desktop Windows/Linux present via CPU readback '
-                '(M2.4/M2.5 phase A)');
+                '(wgpu backend, M2.4/M2.5 phase A)');
       } else if (Platform.isAndroid && glBackend) {
         expect(gpuPath, isFalse,
             reason: 'GL-backend Android (no Vulkan) presents via the CPU '
