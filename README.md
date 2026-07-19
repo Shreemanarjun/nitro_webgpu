@@ -16,15 +16,12 @@ uses typed descriptors with defaults, `Future`s instead of callbacks, and
 deterministic `dispose()` with a GC-finalizer safety net. No `dart:ffi`
 types in the public API.
 
+## Demo
 
-
-
-
-
-
+The example app: shader editor, Shadertoy player, GPU particles, the
+showcase gallery, and GPU-state games.
 
 https://github.com/user-attachments/assets/296912d1-95f7-43b9-92b3-cb751b9affae
-
 
 https://github.com/user-attachments/assets/5e42166e-366e-43be-b508-ecf87a6c629d
 
