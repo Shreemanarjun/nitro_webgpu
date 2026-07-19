@@ -49,7 +49,7 @@ jobs:
           if [ "${{ matrix.target }}" = "android-aarch64" ]; then
             EXTRA="-DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_LATEST_HOME/build/cmake/android.toolchain.cmake -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-24 -DPROTOC_EXECUTABLE=$(command -v protoc)"
           fi
-          cmake -S dawn-src -B dawn-src/out -DCMAKE_BUILD_TYPE=Release \
+          cmake -S dawn-src -B dawn-src/out -DDAWN_USE_X11=OFF -DCMAKE_BUILD_TYPE=Release \
             -DDAWN_FETCH_DEPENDENCIES=ON -DDAWN_SUPPORTS_CXX_MODULES=OFF -DDAWN_BUILD_MONOLITHIC_LIBRARY=SHARED \
             -DTINT_BUILD_SPV_READER=ON -DDAWN_BUILD_SAMPLES=OFF \
             -DDAWN_USE_GLFW=OFF -DTINT_BUILD_TESTS=OFF -DTINT_BUILD_CMD_TOOLS=OFF $EXTRA
