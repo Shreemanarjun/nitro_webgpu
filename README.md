@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://github.com/Shreemanarjun/nitro_webgpu/blob/main/assets/nitro_webgpu_logo.svg" alt="nitro_webgpu logo" width="180">
+  <img src="https://zmozkivkhopoeutpnnum.supabase.co/storage/v1/object/public/images/nitro_webgpu/nitro_webgpu_logo.svg" alt="nitro_webgpu logo" width="180">
 </p>
 
 # nitro_webgpu
