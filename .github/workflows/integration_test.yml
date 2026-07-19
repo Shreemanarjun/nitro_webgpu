@@ -80,7 +80,7 @@ jobs:
           mkdir -p ~/.cache/nitro_webgpu
           git clone --depth 1 https://github.com/google/dawn.git ~/.cache/nitro_webgpu/dawn-src
           cmake -S ~/.cache/nitro_webgpu/dawn-src -B ~/.cache/nitro_webgpu/dawn-src/out \
-            -DCMAKE_BUILD_TYPE=Release -DDAWN_FETCH_DEPENDENCIES=ON \
+            -DCMAKE_BUILD_TYPE=Release -DDAWN_FETCH_DEPENDENCIES=ON -DDAWN_SUPPORTS_CXX_MODULES=OFF \
             -DDAWN_BUILD_MONOLITHIC_LIBRARY=SHARED -DTINT_BUILD_SPV_READER=ON \
             -DDAWN_BUILD_SAMPLES=OFF -DDAWN_USE_GLFW=OFF \
             -DTINT_BUILD_TESTS=OFF -DTINT_BUILD_CMD_TOOLS=OFF
@@ -125,7 +125,7 @@ jobs:
         shell: bash
         run: |
           git clone --depth 1 https://github.com/google/dawn.git dawn-src
-          cmake -S dawn-src -B dawn-src/out -DCMAKE_BUILD_TYPE=Release             -DDAWN_FETCH_DEPENDENCIES=ON -DDAWN_BUILD_MONOLITHIC_LIBRARY=SHARED             -DTINT_BUILD_SPV_READER=ON -DDAWN_BUILD_SAMPLES=OFF             -DDAWN_USE_GLFW=OFF -DTINT_BUILD_TESTS=OFF -DTINT_BUILD_CMD_TOOLS=OFF
+          cmake -S dawn-src -B dawn-src/out -DCMAKE_BUILD_TYPE=Release             -DDAWN_FETCH_DEPENDENCIES=ON -DDAWN_SUPPORTS_CXX_MODULES=OFF -DDAWN_BUILD_MONOLITHIC_LIBRARY=SHARED             -DTINT_BUILD_SPV_READER=ON -DDAWN_BUILD_SAMPLES=OFF             -DDAWN_USE_GLFW=OFF -DTINT_BUILD_TESTS=OFF -DTINT_BUILD_CMD_TOOLS=OFF
           cmake --build dawn-src/out --config Release --target webgpu_dawn -j 4
       - name: Stage Dawn
         shell: bash
@@ -178,7 +178,7 @@ jobs:
         if: steps.dawn-cache.outputs.cache-hit != 'true'
         run: |
           git clone --depth 1 https://github.com/google/dawn.git dawn-src
-          cmake -S dawn-src -B dawn-src/out -GNinja -DCMAKE_BUILD_TYPE=Release             -DDAWN_FETCH_DEPENDENCIES=ON -DDAWN_BUILD_MONOLITHIC_LIBRARY=SHARED             -DTINT_BUILD_SPV_READER=ON -DDAWN_BUILD_SAMPLES=OFF             -DDAWN_USE_GLFW=OFF -DTINT_BUILD_TESTS=OFF -DTINT_BUILD_CMD_TOOLS=OFF
+          cmake -S dawn-src -B dawn-src/out -GNinja -DCMAKE_BUILD_TYPE=Release             -DDAWN_FETCH_DEPENDENCIES=ON -DDAWN_SUPPORTS_CXX_MODULES=OFF -DDAWN_BUILD_MONOLITHIC_LIBRARY=SHARED             -DTINT_BUILD_SPV_READER=ON -DDAWN_BUILD_SAMPLES=OFF             -DDAWN_USE_GLFW=OFF -DTINT_BUILD_TESTS=OFF -DTINT_BUILD_CMD_TOOLS=OFF
           cmake --build dawn-src/out --target webgpu_dawn -j 4
       - name: Stage Dawn
         run: |
