@@ -7,7 +7,9 @@ set -euo pipefail
 DAWN_SRC="${NITRO_WEBGPU_DAWN_SRC:-$HOME/.cache/nitro_webgpu/dawn-src}"
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 NDK="${ANDROID_NDK_HOME:-$HOME/Library/Android/sdk/ndk/30.0.14904198}"
-STRIP="$NDK/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-strip"
+HOST_TAG="darwin-x86_64"
+[[ "$(uname -s)" == "Linux" ]] && HOST_TAG="linux-x86_64"
+STRIP="$NDK/toolchains/llvm/prebuilt/$HOST_TAG/bin/llvm-strip"
 
 INC="$REPO_ROOT/src/third_party/dawn/include"
 mkdir -p "$INC/webgpu" "$INC/dawn"
