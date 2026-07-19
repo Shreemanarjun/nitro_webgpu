@@ -26,7 +26,8 @@ void main() {
 
   group('M0 link proof', () {
     test('wgpuVersion returns the pinned wgpu-native version', () {
-      expect(Gpu.version, '29.0.1.1');
+      // Dawn has no packed-version query; the shim reports 0.0.0.0 there.
+      expect(Gpu.version, isDawnBackend ? '0.0.0.0' : '29.0.1.1');
     });
 
     test('ensureInitialized is idempotent', () {
@@ -1124,6 +1125,16 @@ fn fs_main() -> @location(0) vec4f { return vec4f(0.0, 1.0, 0.0, 1.0); }
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice();
+      if (await skipDawnHardwareCpuIndirect(adapter)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
+      if (await skipWithoutIndirect(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
       final module = await device.createShaderModule('''
 $fullscreenVs
 @fragment
@@ -1398,7 +1409,14 @@ fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
       final device = await adapter.requestDevice(
         requiredLimits: const GpuRequiredLimits(maxTextureDimension2D: 4096),
       );
-      expect(device.limits.maxTextureDimension2D, 4096);
+      if (isDawnBackend) {
+        // Dawn grants the default when a limit is requested BELOW it (no
+        // lowered-limit reification); wgpu-native reifies the lower value.
+        expect(device.limits.maxTextureDimension2D,
+            greaterThanOrEqualTo(4096));
+      } else {
+        expect(device.limits.maxTextureDimension2D, 4096);
+      }
       device.dispose();
       adapter.dispose();
     });
@@ -1960,11 +1978,17 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
       final bytes = await staging.mapRead();
       final stamps = bytes.buffer.asUint64List(bytes.offsetInBytes, 2);
-      expect(stamps[1], greaterThan(stamps[0]),
+      expect(
+          stamps[1],
+          // Dawn Metal samples pass-boundary counters that can legitimately
+          // read equal on a trivial pass; wgpu always advances.
+          isDawnBackend
+              ? greaterThanOrEqualTo(stamps[0])
+              : greaterThan(stamps[0]),
           reason: 'end-of-pass timestamp must be after begin-of-pass');
       final ms =
           (stamps[1] - stamps[0]) * queue.timestampPeriod / 1e6;
-      expect(ms, greaterThan(0));
+      expect(ms, isDawnBackend ? greaterThanOrEqualTo(0) : greaterThan(0));
       expect(ms, lessThan(1000), reason: 'sanity: a tiny pass, not seconds');
 
       bindGroup.dispose();
@@ -2059,6 +2083,11 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice();
+      if (await skipWithoutGlsl(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
 
       final vsModule = await device.createShaderModule('''
 @vertex
@@ -2120,6 +2149,11 @@ void main() { fragColor = vec4(0.0, 1.0, 0.0, 1.0); }
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice();
+      if (await skipWithoutGlsl(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
       await expectLater(
         device.createShaderModuleGlsl('#version 450\nvoid main() { bogus }',
             stage: GpuShaderStage.fragment),
@@ -2195,6 +2229,11 @@ fn mainImage(fragCoord: vec2f) -> vec4f {
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice();
+      if (await skipWithoutGlsl(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
       final engine = ShadertoyEngine(
         image: const ShadertoyPassSpec(
           language: ShadertoyLanguage.glsl,

@@ -1,0 +1,84 @@
+# Builds Dawn prebuilts for every nitro_webgpu target and attaches them to a
+# GitHub release, so scripts/fetch_dawn.sh can vendor Dawn the same way
+# fetch_wgpu_native.sh vendors wgpu-native (no local 30-minute builds).
+#
+# Trigger by pushing a tag like `dawn-v1` (or manually via workflow_dispatch).
+name: dawn prebuilts
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["dawn-v*"]
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: macos-aarch64
+            os: macos-15
+            lib: libwebgpu_dawn.dylib
+          - target: windows-x86_64
+            os: windows-latest
+            lib: webgpu_dawn.dll
+          - target: linux-x86_64
+            os: ubuntu-latest
+            lib: libwebgpu_dawn.so
+          - target: android-aarch64
+            os: ubuntu-latest
+            lib: libwebgpu_dawn.so
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install host protoc (cross builds)
+        if: matrix.target == 'android-aarch64'
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler ninja-build
+      - name: Install ninja (linux)
+        if: matrix.target == 'linux-x86_64'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - name: Clone Dawn
+        shell: bash
+        run: git clone --depth 1 https://github.com/google/dawn.git dawn-src
+      - name: Configure + build
+        shell: bash
+        run: |
+          EXTRA=""
+          if [ "${{ matrix.target }}" = "android-aarch64" ]; then
+            EXTRA="-DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_LATEST_HOME/build/cmake/android.toolchain.cmake -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-24 -DPROTOC_EXECUTABLE=$(command -v protoc)"
+          fi
+          cmake -S dawn-src -B dawn-src/out -DCMAKE_BUILD_TYPE=Release \
+            -DDAWN_FETCH_DEPENDENCIES=ON -DDAWN_BUILD_MONOLITHIC_LIBRARY=SHARED \
+            -DTINT_BUILD_SPV_READER=ON -DDAWN_BUILD_SAMPLES=OFF \
+            -DDAWN_USE_GLFW=OFF -DTINT_BUILD_TESTS=OFF -DTINT_BUILD_CMD_TOOLS=OFF $EXTRA
+          cmake --build dawn-src/out --config Release --target webgpu_dawn -j 4
+      - name: Package
+        shell: bash
+        run: |
+          STAGE=dawn-${{ matrix.target }}
+          mkdir -p "$STAGE/lib" "$STAGE/include/webgpu" "$STAGE/include/dawn"
+          cp dawn-src/include/webgpu/webgpu.h "$STAGE/include/webgpu/"
+          cp dawn-src/out/gen/include/dawn/webgpu.h "$STAGE/include/dawn/"
+          find dawn-src/out -name "${{ matrix.lib }}" -exec cp {} "$STAGE/lib/" \;
+          find dawn-src/out -name "webgpu_dawn.lib" -exec cp {} "$STAGE/lib/" \; || true
+          7z a "$STAGE.zip" "$STAGE" || zip -r "$STAGE.zip" "$STAGE"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dawn-${{ matrix.target }}
+          path: dawn-${{ matrix.target }}.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/dawn-v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: "dawn-*.zip"

@@ -23,6 +23,13 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Dawn backend (feat/dawn-backend dev loop): only arm64 is staged —
+        // restrict ABIs so gradle doesn't configure unstaged ones.
+        val nwBackend = rootProject.file("../../src/third_party/BACKEND")
+            .takeIf { it.exists() }?.readText()?.trim() ?: "wgpu"
+        if (nwBackend == "dawn") {
+            ndk { abiFilters += listOf("arm64-v8a") }
+        }
     }
 
     buildTypes {

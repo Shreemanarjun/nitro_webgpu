@@ -5,8 +5,11 @@
 #include "../lib/src/generated/cpp/nitro_webgpu.native.g.h"
 
 #include "native/dart_api_dl.h"
-#include "third_party/wgpu_native/include/webgpu/webgpu.h"
-#include "third_party/wgpu_native/include/webgpu/wgpu.h"
+#include "nw_backend.h"
+
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
 
 #ifdef __ANDROID__
 #include <android/log.h>
@@ -176,26 +179,52 @@ int64_t packFeatureBits(const WGPUSupportedFeatures& f) {
 // (see GpuBackend in nitro_webgpu.native.dart — the Dart API never carries raw
 // wgpu ABI values)
 
-WGPUInstanceBackend mapBackends(int64_t bits) {
-#if defined(__linux__) && !defined(__ANDROID__)
-    // Flutter's GTK embedder owns the process's EGL context; wgpu-hal's GL
-    // backend probe races it during adapter enumeration and panics
-    // (egl.rs unwraps Err(BadAccess) → abort across the C ABI —
-    // CI core-dump + stderr verified). Desktop Linux renders offscreen and
-    // presents via CPU readback, so wgpu's GL backend is never needed:
-    // default to Vulkan-only, and honor an explicit GL request only when
-    // the caller opted in by name.
-    if (bits == 0) return WGPUInstanceBackend_Vulkan;
-#else
-    if (bits == 0) return WGPUInstanceBackend_All;
-#endif
-    WGPUInstanceBackend out = 0;
-    if (bits & (1 << 0)) out |= WGPUInstanceBackend_Vulkan;
-    if (bits & (1 << 1)) out |= WGPUInstanceBackend_Metal;
-    if (bits & (1 << 2)) out |= WGPUInstanceBackend_DX12;
-    if (bits & (1 << 3)) out |= WGPUInstanceBackend_GL;
-    return out;
+// Backend-bit mapping lives in nw_backend.h (nwBackendMapBits): the
+// instance-level restriction is a wgpu-native concept.
+
+#if defined(NITRO_WEBGPU_BACKEND_DAWN)
+// Dawn's error scopes are PER-THREAD (the Chromium model); wgpu-native's
+// are per-device. The plugin creates shaders/pipelines on a worker thread
+// while Dart pushes/pops scopes on its own thread, so Dawn-side scopes can
+// never capture those errors (probe-verified: the error lands on the
+// uncaptured callback and the pop reports NoError). Scopes are therefore
+// emulated here with wgpu-native's device-wide semantics: pushes/pops
+// never reach Dawn, and Dawn's uncaptured-error callback routes every
+// error into the innermost matching scope — falling through to the Dart
+// uncaptured stream only when no scope matches.
+struct NwDawnScope {
+    int64_t filter;  // GpuErrorFilter raw: 1=validation 2=oom 3=internal
+    bool hasError = false;
+    int64_t type = 0;
+    std::string message;
+};
+std::mutex gDawnScopesMutex;
+std::unordered_map<int64_t, std::vector<NwDawnScope>> gDawnScopes;
+
+// Returns true when the error was captured by an open scope.
+bool nwDawnCaptureError(int64_t device, int64_t type, const char* msg,
+                        size_t len) {
+    const int64_t filter =
+        type == (int64_t)WGPUErrorType_Validation    ? 1
+        : type == (int64_t)WGPUErrorType_OutOfMemory ? 2
+        : type == (int64_t)WGPUErrorType_Internal    ? 3
+                                                     : 0;
+    if (!filter) return false;
+    std::lock_guard<std::mutex> lock(gDawnScopesMutex);
+    auto it = gDawnScopes.find(device);
+    if (it == gDawnScopes.end()) return false;
+    for (auto rit = it->second.rbegin(); rit != it->second.rend(); ++rit) {
+        if (rit->filter != filter) continue;
+        if (!rit->hasError) {
+            rit->hasError = true;
+            rit->type = type;
+            rit->message.assign(msg ? msg : "", len);
+        }
+        return true;
+    }
+    return false;
 }
+#endif
 
 // ── WgpuContext ──────────────────────────────────────────────────────────────
 // Owns the process-wide WGPUInstance and the callback pump thread.
@@ -218,36 +247,26 @@ public:
     void init(int64_t backendBits) {
         std::lock_guard<std::mutex> lock(mutex_);
         if (instance_) return;  // idempotent
-        // Route wgpu's own logs to the platform log so adapter selection and
-        // driver issues are diagnosable in the field.
-        wgpuSetLogLevel(WGPULogLevel_Warn);
-        wgpuSetLogCallback(
-            [](WGPULogLevel level, WGPUStringView message, void*) {
-                // wgpu-hal's GLES backend logs "Fake map" at error level for
-                // every emulated buffer map — routine on the GL readback
-                // path, once per presented frame. Drop it so real errors
-                // stay visible.
-                if (message.length == 8 &&
-                    memcmp(message.data, "Fake map", 8) == 0) {
-                    return;
-                }
+        // Route the implementation's own logs to the platform log so adapter
+        // selection and driver issues are diagnosable in the field.
+        nwBackendInitLogging([](int level, const char* message,
+                                size_t length) {
+            // wgpu-hal's GLES backend logs "Fake map" at error level for
+            // every emulated buffer map — routine on the GL readback path,
+            // once per presented frame. Drop it so real errors stay visible.
+            if (length == 8 && memcmp(message, "Fake map", 8) == 0) return;
 #ifdef __ANDROID__
-                __android_log_print(
-                    level <= WGPULogLevel_Error ? ANDROID_LOG_ERROR
-                                                : ANDROID_LOG_WARN,
-                    "wgpu", "%.*s", (int)message.length, message.data);
+            // level 1 == error in both implementations' log-level enums.
+            __android_log_print(
+                level <= 1 ? ANDROID_LOG_ERROR : ANDROID_LOG_WARN, "wgpu",
+                "%.*s", (int)length, message);
 #else
-                fprintf(stderr, "[wgpu:%d] %.*s\n", (int)level,
-                        (int)message.length, message.data);
+            fprintf(stderr, "[wgpu:%d] %.*s\n", level, (int)length, message);
 #endif
-            },
-            nullptr);
-        WGPUInstanceExtras extras = {};
-        extras.chain.sType = static_cast<WGPUSType>(WGPUSType_InstanceExtras);
-        extras.backends = mapBackends(backendBits);
-        WGPUInstanceDescriptor desc = {};
-        desc.nextInChain = &extras.chain;
-        instance_ = wgpuCreateInstance(&desc);
+        });
+        NwBackendInstanceDesc desc;
+        nwBackendFillInstanceDesc(&desc, nwBackendMapBits(backendBits));
+        instance_ = wgpuCreateInstance(&desc.desc);
         if (!instance_) {
             throw std::runtime_error("wgpuCreateInstance failed");
         }
@@ -287,7 +306,16 @@ public:
         if (it != devices_.end() && --it->second == 0) {
             devices_.erase(it);
             backends_.erase(device);
+            destroyed_.erase(device);
         }
+    }
+
+    // Explicitly destroyed devices are excluded from the pump's per-device
+    // poll (Dawn's Tick is unsafe on them) while remaining registered so
+    // instance-level event delivery continues.
+    void markDestroyed(WGPUDevice device) {
+        std::lock_guard<std::mutex> lock(devicesMutex_);
+        destroyed_.insert(device);
     }
 
     // Backend each device was created on, recorded at requestDevice time.
@@ -314,6 +342,7 @@ public:
             if (it != devices_.end() && --it->second == 0) {
                 devices_.erase(it);
                 backends_.erase(device);
+                destroyed_.erase(device);
             }
             wgpuDeviceRelease(device);
         }
@@ -373,7 +402,15 @@ private:
             {
                 std::lock_guard<std::mutex> lock(devicesMutex_);
                 for (const auto& [device, refs] : devices_) {
-                    wgpuDevicePoll(device, /*wait=*/0, nullptr);
+#if defined(NITRO_WEBGPU_BACKEND_DAWN)
+                    // Dawn's Metal Tick on a DESTROYED device still submits
+                    // its pending signal event and trips a Metal assert
+                    // (crash-report verified); wgpu-native tolerates the
+                    // poll. Pending callbacks still complete through
+                    // wgpuInstanceProcessEvents below.
+                    if (destroyed_.count(device)) continue;
+#endif
+                    nwBackendDevicePoll(device);
                 }
             }
             if (pendingOps_.load(std::memory_order_acquire) > 0) {
@@ -401,6 +438,7 @@ private:
     std::atomic<int64_t> lingerUntilMs_{0};
     std::unordered_map<WGPUDevice, int> devices_;
     std::unordered_map<WGPUDevice, WGPUBackendType> backends_;
+    std::unordered_set<WGPUDevice> destroyed_;
 
     void workerLoop() {
         for (;;) {
@@ -429,10 +467,9 @@ private:
 // re-entering wgpu from a callback panics).
 WGPUAdapter pickHardwareAdapter(int64_t powerPreference) {
     WGPUInstance instance = WgpuContext::get().instance();
-    size_t count = wgpuInstanceEnumerateAdapters(instance, nullptr, nullptr);
-    if (count == 0) return nullptr;
-    std::vector<WGPUAdapter> adapters(count);
-    count = wgpuInstanceEnumerateAdapters(instance, nullptr, adapters.data());
+    std::vector<WGPUAdapter> adapters;
+    if (!nwBackendEnumerateAdapters(instance, &adapters)) return nullptr;
+    const size_t count = adapters.size();
 
     // powerPreference: 1 = low power (prefer integrated), else prefer discrete.
     const bool lowPower = powerPreference == 1;
@@ -671,7 +708,7 @@ public:
     }
 
     std::string wgpuVersion() override {
-        const uint32_t v = wgpuGetVersion();
+        const uint32_t v = nwBackendVersion();
         char out[24];
         std::snprintf(out, sizeof(out), "%u.%u.%u.%u",
                       (v >> 24) & 0xFFu, (v >> 16) & 0xFFu, (v >> 8) & 0xFFu, v & 0xFFu);
@@ -783,7 +820,7 @@ public:
         // wgpu-native gates encoder-level writeTimestamp behind an extras
         // feature; enable it with timestamps whenever the adapter has it.
         const auto kTsInsideEncoders =
-            (WGPUFeatureName)WGPUNativeFeature_TimestampQueryInsideEncoders;
+            nwBackendTimestampInsideEncodersFeature();
         if (wantsTimestamps &&
             wgpuAdapterHasFeature((WGPUAdapter)(intptr_t)adapter,
                                   kTsInsideEncoders)) {
@@ -797,6 +834,8 @@ public:
             }
             features->push_back((WGPUFeatureName)i);
         }
+        nwBackendAppendDeviceFeatures((WGPUAdapter)(intptr_t)adapter,
+                                      features);
         if (!features->empty()) {
             wgpuDesc.requiredFeatureCount = features->size();
             wgpuDesc.requiredFeatures = features->data();
@@ -823,9 +862,19 @@ public:
         wgpuDesc.uncapturedErrorCallbackInfo.callback =
             [](WGPUDevice const* device, WGPUErrorType type,
                WGPUStringView message, void*, void*) {
+                const int64_t addr =
+                    device ? (int64_t)(intptr_t)*device : 0;
+#if defined(NITRO_WEBGPU_BACKEND_DAWN)
+                // Device-wide scope emulation: capture into the innermost
+                // matching scope before anything reaches the Dart stream.
+                if (nwDawnCaptureError(addr, (int64_t)type, message.data,
+                                       message.length)) {
+                    return;
+                }
+#endif
                 if (!gImpl) return;
                 GpuUncapturedError ev;
-                ev.deviceAddress = device ? (int64_t)(intptr_t)*device : 0;
+                ev.deviceAddress = addr;
                 ev.type = (int64_t)type;
                 ev.message = toStd(message);
                 gImpl->emit_uncapturedErrors(ev.toNativeBuffer());
@@ -884,6 +933,7 @@ public:
     }
 
     void deviceDestroy(int64_t device) override {
+        WgpuContext::get().markDestroyed((WGPUDevice)(intptr_t)device);
         wgpuDeviceDestroy((WGPUDevice)(intptr_t)device);
         // The lost event is delivered through the event queue; make sure the
         // pump ticks even if this device was the only pending work.
@@ -895,6 +945,12 @@ public:
             std::lock_guard<std::mutex> lock(scopesMutex_);
             errorScopeDepth_.erase(device);
         }
+#if defined(NITRO_WEBGPU_BACKEND_DAWN)
+        {
+            std::lock_guard<std::mutex> lock(gDawnScopesMutex);
+            gDawnScopes.erase(device);
+        }
+#endif
         WgpuContext::get().unregisterAndRelease((WGPUDevice)(intptr_t)device);
     }
 
@@ -917,8 +973,13 @@ public:
             std::lock_guard<std::mutex> lock(scopesMutex_);
             ++errorScopeDepth_[device];
         }
+#if defined(NITRO_WEBGPU_BACKEND_DAWN)
+        std::lock_guard<std::mutex> lock(gDawnScopesMutex);
+        gDawnScopes[device].push_back(NwDawnScope{filter});
+#else
         wgpuDevicePushErrorScope((WGPUDevice)(intptr_t)device,
                                  static_cast<WGPUErrorFilter>(filter));
+#endif
     }
 
     void devicePopErrorScope(int64_t device, NitroError* _nitro_err,
@@ -936,6 +997,32 @@ public:
             }
             --it->second;
         }
+#if defined(NITRO_WEBGPU_BACKEND_DAWN)
+        // Emulated scope (see gDawnScopes): resolve instantly from our
+        // stack — the errors were routed in by the uncaptured callback.
+        NwDawnScope scope;
+        {
+            std::lock_guard<std::mutex> lock(gDawnScopesMutex);
+            auto& stack = gDawnScopes[device];
+            if (stack.empty()) {
+                fillError(_nitro_err, "GpuErrorScopeError",
+                          "popErrorScope called with no active error scope");
+                postNull(dartPort);
+                return;
+            }
+            scope = std::move(stack.back());
+            stack.pop_back();
+        }
+        if (!scope.hasError) {
+            postInt64(dartPort, 0);
+        } else {
+            GpuError err;
+            err.type = scope.type;
+            err.message = std::move(scope.message);
+            postRecord(dartPort, err.toNativeBuffer());
+        }
+        return;
+#else
         auto* op = new PendingOp{_nitro_err, dartPort};
         WGPUPopErrorScopeCallbackInfo cb = WGPU_POP_ERROR_SCOPE_CALLBACK_INFO_INIT;
         cb.mode = WGPUCallbackMode_AllowProcessEvents;
@@ -962,6 +1049,7 @@ public:
         };
         wgpuDevicePopErrorScope((WGPUDevice)(intptr_t)device, cb);
         WgpuContext::get().opStarted();
+#endif
     }
 
     // ── Buffers ──────────────────────────────────────────────────────────
@@ -1139,10 +1227,52 @@ public:
                                            int64_t stage,
                                            NitroError* _nitro_err,
                                            int64_t dartPort) override {
-        // naga's glsl-in front end (probe-verified in the release binaries);
-        // GLSL modules target exactly one stage and use entry point "main".
+        // GLSL front end: naga's glsl-in under wgpu-native; glslang→SPIR-V
+        // under Dawn. GLSL modules target exactly one stage and use entry
+        // point "main".
+        if (!nwBackendSupportsGlsl()) {
+            fillError(_nitro_err, "GpuShaderError",
+                      "GLSL shaders need a staged glslang build for this "
+                      "platform's Dawn backend (see docs/DAWN_MIGRATION.md)");
+            postNull(dartPort);
+            return;
+        }
         WgpuContext::get().runOnWorker([device, label, glsl, stage, _nitro_err,
                                         dartPort]() {
+#if defined(NITRO_WEBGPU_BACKEND_DAWN) && !defined(NITRO_WEBGPU_HAS_GLSLANG)
+            // Unreachable: the nwBackendSupportsGlsl() guard returned early.
+            (void)device; (void)label; (void)glsl; (void)stage;
+            (void)_nitro_err; (void)dartPort;
+#elif defined(NITRO_WEBGPU_BACKEND_DAWN)
+            std::string glslError;
+            WGPUShaderModule mod = nwBackendCreateGlslModule(
+                (WGPUDevice)(intptr_t)device, glsl.c_str(), (uint32_t)stage,
+                label.c_str(), &glslError);
+            if (!mod) {
+                // Deliver the compiler diagnostics through the emulated
+                // validation scope so the Dart checked-create flow is
+                // byte-for-byte identical to naga's error-object path —
+                // then hand back a real (empty, valid) module for the
+                // caller's release-on-error step.
+                nwDawnCaptureError(device, (int64_t)WGPUErrorType_Validation,
+                                   glslError.c_str(), glslError.size());
+                WGPUShaderSourceWGSL empty = WGPU_SHADER_SOURCE_WGSL_INIT;
+                empty.chain.sType = WGPUSType_ShaderSourceWGSL;
+                empty.code = {"", WGPU_STRLEN};
+                WGPUShaderModuleDescriptor desc =
+                    WGPU_SHADER_MODULE_DESCRIPTOR_INIT;
+                desc.nextInChain = &empty.chain;
+                mod = wgpuDeviceCreateShaderModule(
+                    (WGPUDevice)(intptr_t)device, &desc);
+            }
+            if (!mod) {
+                fillError(_nitro_err, "GpuShaderError",
+                          "shader module creation failed");
+                postNull(dartPort);
+                return;
+            }
+            postInt64(dartPort, (int64_t)(intptr_t)mod);
+#else
             WGPUShaderSourceGLSL src = {};
             src.chain.sType = (WGPUSType)WGPUSType_ShaderSourceGLSL;
             src.stage = (WGPUShaderStage)stage;
@@ -1159,6 +1289,7 @@ public:
                 return;
             }
             postInt64(dartPort, (int64_t)(intptr_t)mod);
+#endif
         });
     }
 
@@ -1852,8 +1983,23 @@ public:
 
     // ── Indirect execution ───────────────────────────────────────────────
 
+    // The iOS SIMULATOR's Metal (Apple2-sim family) has no indirect
+    // execution, and wgpu-native panics inside wgpuQueueSubmit when a
+    // command buffer contains one (panic across the C ABI = process abort;
+    // crash-report verified). Refuse at encode time with a catchable error.
+    // Real iOS devices and macOS support indirect fully.
+    static void nwCheckIndirectSupported() {
+#if defined(__APPLE__) && TARGET_OS_SIMULATOR
+        throw std::runtime_error(
+            "indirect draws/dispatches are unsupported on the iOS "
+            "simulator (Metal Apple2-sim family; wgpu aborts at submit) — "
+            "run on a real device");
+#endif
+    }
+
     void renderPassDrawIndirect(int64_t pass, int64_t buffer,
                                 int64_t offset) override {
+        nwCheckIndirectSupported();
         wgpuRenderPassEncoderDrawIndirect(
             (WGPURenderPassEncoder)(intptr_t)pass,
             (WGPUBuffer)(intptr_t)buffer, (uint64_t)offset);
@@ -1861,6 +2007,7 @@ public:
 
     void renderPassDrawIndexedIndirect(int64_t pass, int64_t buffer,
                                        int64_t offset) override {
+        nwCheckIndirectSupported();
         wgpuRenderPassEncoderDrawIndexedIndirect(
             (WGPURenderPassEncoder)(intptr_t)pass,
             (WGPUBuffer)(intptr_t)buffer, (uint64_t)offset);
@@ -1868,6 +2015,7 @@ public:
 
     void computePassDispatchWorkgroupsIndirect(int64_t pass, int64_t buffer,
                                                int64_t offset) override {
+        nwCheckIndirectSupported();
         wgpuComputePassEncoderDispatchWorkgroupsIndirect(
             (WGPUComputePassEncoder)(intptr_t)pass,
             (WGPUBuffer)(intptr_t)buffer, (uint64_t)offset);
@@ -2019,6 +2167,7 @@ public:
 
     void bundleDrawIndirect(int64_t bundleEncoder, int64_t buffer,
                             int64_t offset) override {
+        nwCheckIndirectSupported();
         wgpuRenderBundleEncoderDrawIndirect(
             (WGPURenderBundleEncoder)(intptr_t)bundleEncoder,
             (WGPUBuffer)(intptr_t)buffer, (uint64_t)offset);
@@ -2026,6 +2175,7 @@ public:
 
     void bundleDrawIndexedIndirect(int64_t bundleEncoder, int64_t buffer,
                                    int64_t offset) override {
+        nwCheckIndirectSupported();
         wgpuRenderBundleEncoderDrawIndexedIndirect(
             (WGPURenderBundleEncoder)(intptr_t)bundleEncoder,
             (WGPUBuffer)(intptr_t)buffer, (uint64_t)offset);
@@ -2092,7 +2242,7 @@ public:
     }
 
     double queueTimestampPeriod(int64_t queue) override {
-        return (double)wgpuQueueGetTimestampPeriod((WGPUQueue)(intptr_t)queue);
+        return (double)nwBackendQueueTimestampPeriod((WGPUQueue)(intptr_t)queue);
     }
 
     void encoderCopyTextureToBuffer(int64_t encoder, int64_t texture,

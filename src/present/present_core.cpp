@@ -99,6 +99,20 @@ struct NwpPresenter {
     WGPUTexture offTex = nullptr;
     WGPUTextureView offView = nullptr;
     bool offscreenAcquired = false;
+#if defined(NITRO_WEBGPU_BACKEND_DAWN) && (defined(__APPLE__) || defined(_WIN32))
+    // Texture-import path (Dawn): per-IOSurface import cache. Guarded by
+    // the presenter's single-threaded present flow (Dart thread).
+    NwpImportAcquire ioAcquire = nullptr;
+    NwpImportPresented ioPresented = nullptr;
+    void* ioUser = nullptr;
+    struct NwpImportedSurface {
+        WGPUSharedTextureMemory mem = nullptr;
+        WGPUTexture tex = nullptr;
+        int32_t width = 0;
+        int32_t height = 0;
+    };
+    std::unordered_map<void*, NwpImportedSurface> ioImports;
+#endif
     // Lazily-built upscale blit (fullscreen sampled triangle).
     WGPUShaderModule blitModule = nullptr;
     WGPURenderPipeline blitPipeline = nullptr;
@@ -176,6 +190,13 @@ void nwpFinalize(int64_t token, NwpPresenter* p) {
         gPresenters.erase(token);
     }
     WgpuContext::get().unregisterDevice(p->device);
+#if defined(NITRO_WEBGPU_BACKEND_DAWN) && (defined(__APPLE__) || defined(_WIN32))
+    for (auto& [surface, imp] : p->ioImports) {
+        if (imp.tex) wgpuTextureRelease(imp.tex);
+        if (imp.mem) wgpuSharedTextureMemoryRelease(imp.mem);
+    }
+    p->ioImports.clear();
+#endif
     if (p->surfaceMode) {
         std::lock_guard<std::mutex> surfLock(p->surfaceMutex);
         nwpDestroySurface(p);
@@ -496,6 +517,115 @@ bool nwpAttachWindow(NwpPresenter* p, void* window) {
     return true;
 }
 
+#if defined(NITRO_WEBGPU_BACKEND_DAWN) && (defined(__APPLE__) || defined(_WIN32))
+// Zero-copy present: import the shim's IOSurface (cached), GPU-copy the
+// ring slot into it, then notify the shim once the GPU finished. Runs on
+// the Dart thread inside nwp_presenter_present; slot state is already 2.
+void nwpPresentViaImport(int64_t token, NwpPresenter* p, int slot) {
+    NwpSlot& s = p->slots[slot];
+    void* surface = p->ioAcquire(token, p->width, p->height, p->ioUser);
+    if (!surface) {
+        nwpCompleteInflight(token, p, slot);
+        return;
+    }
+    auto& imp = p->ioImports[surface];
+    if (imp.mem && (imp.width != p->width || imp.height != p->height)) {
+        // Same pointer, different geometry: the pool was rebuilt and the
+        // address was reused — the cached import points at a dead surface.
+        wgpuTextureRelease(imp.tex);
+        wgpuSharedTextureMemoryRelease(imp.mem);
+        imp = {};
+    }
+    if (!imp.mem) {
+#if defined(__APPLE__)
+        WGPUSharedTextureMemoryIOSurfaceDescriptor io =
+            WGPU_SHARED_TEXTURE_MEMORY_IO_SURFACE_DESCRIPTOR_INIT;
+        io.chain.sType = WGPUSType_SharedTextureMemoryIOSurfaceDescriptor;
+        io.ioSurface = surface;
+#else
+        WGPUSharedTextureMemoryDXGISharedHandleDescriptor io =
+            WGPU_SHARED_TEXTURE_MEMORY_DXGI_SHARED_HANDLE_DESCRIPTOR_INIT;
+        io.chain.sType =
+            WGPUSType_SharedTextureMemoryDXGISharedHandleDescriptor;
+        io.handle = surface;
+        io.useKeyedMutex = 0;
+#endif
+        WGPUSharedTextureMemoryDescriptor smd =
+            WGPU_SHARED_TEXTURE_MEMORY_DESCRIPTOR_INIT;
+        smd.nextInChain = &io.chain;
+        imp.mem = wgpuDeviceImportSharedTextureMemory(p->device, &smd);
+        // Null descriptor: Dawn derives the texture from the surface's
+        // own properties (BGRA8, full usage).
+        if (imp.mem) {
+            imp.tex = wgpuSharedTextureMemoryCreateTexture(imp.mem, nullptr);
+        }
+        if (!imp.mem || !imp.tex) {
+            if (imp.tex) wgpuTextureRelease(imp.tex);
+            if (imp.mem) wgpuSharedTextureMemoryRelease(imp.mem);
+            p->ioImports.erase(surface);
+            nwpCompleteInflight(token, p, slot);
+            return;
+        }
+        imp.width = p->width;
+        imp.height = p->height;
+    }
+
+    WGPUSharedTextureMemoryBeginAccessDescriptor ba = {};
+    // Contents are fully overwritten by the copy; claiming initialized
+    // skips Dawn's lazy clear. No fences: the pool + drop-latest pacing
+    // guarantee the compositor finished reading recycled buffers.
+    ba.initialized = 1;
+    if (wgpuSharedTextureMemoryBeginAccess(imp.mem, imp.tex, &ba) !=
+        WGPUStatus_Success) {
+        nwpCompleteInflight(token, p, slot);
+        return;
+    }
+
+    WGPUCommandEncoderDescriptor ed = WGPU_COMMAND_ENCODER_DESCRIPTOR_INIT;
+    WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(p->device, &ed);
+    WGPUTexelCopyTextureInfo src = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
+    src.texture = s.target;
+    WGPUTexelCopyTextureInfo dst = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
+    dst.texture = imp.tex;
+    WGPUExtent3D extent = {(uint32_t)p->width, (uint32_t)p->height, 1};
+    wgpuCommandEncoderCopyTextureToTexture(encoder, &src, &dst, &extent);
+    WGPUCommandBuffer cmd = wgpuCommandEncoderFinish(encoder, nullptr);
+    wgpuQueueSubmit(p->queue, 1, &cmd);
+    wgpuCommandBufferRelease(cmd);
+    wgpuCommandEncoderRelease(encoder);
+
+    WGPUSharedTextureMemoryEndAccessState ea = {};
+    if (wgpuSharedTextureMemoryEndAccess(imp.mem, imp.tex, &ea) ==
+        WGPUStatus_Success) {
+        wgpuSharedTextureMemoryEndAccessStateFreeMembers(ea);
+    }
+
+    struct IoPresentOp {
+        NwpPresenter* p;
+        int64_t token;
+        int slot;
+        void* surface;
+    };
+    auto* op = new IoPresentOp{p, token, slot, surface};
+    WGPUQueueWorkDoneCallbackInfo wcb = WGPU_QUEUE_WORK_DONE_CALLBACK_INFO_INIT;
+    wcb.mode = WGPUCallbackMode_AllowProcessEvents;
+    wcb.userdata1 = op;
+    wcb.callback = [](WGPUQueueWorkDoneStatus status, WGPUStringView,
+                      void* ud1, void*) {
+        auto* op = static_cast<IoPresentOp*>(ud1);
+        NwpPresenter* p = op->p;
+        if (status == WGPUQueueWorkDoneStatus_Success && p->ioPresented) {
+            p->ioPresented(op->token, op->surface, p->ioUser);
+        }
+        nwpCompleteInflight(op->token, p, op->slot);
+        WgpuContext::get().opFinished();
+        delete op;
+    };
+    wgpuQueueOnSubmittedWorkDone(p->queue, wcb);
+    WgpuContext::get().opStarted();
+}
+#endif
+
 }  // namespace
 
 extern "C" {
@@ -630,7 +760,13 @@ void nwp_presenter_frame_done(int64_t token, int32_t slot) {
 void* nwp_presenter_metal_device(int64_t token) {
     NwpPresenter* p = nwpFind(token);
     if (!p) return nullptr;
+#if defined(NITRO_WEBGPU_BACKEND_DAWN)
+    // Dawn presents via SharedTextureMemory import (P2 of the migration),
+    // not exported Metal handles.
+    return nullptr;
+#else
     return wgpuDeviceGetNativeMetalDevice(p->device);
+#endif
 }
 
 int64_t nwp_presenter_acquire(int64_t token) {
@@ -783,6 +919,12 @@ void nwp_presenter_present(int64_t token) {
     if (!p->slots[slot].state.compare_exchange_strong(expected, 2)) return;
     p->acquiredSlot = -1;
 
+#if defined(NITRO_WEBGPU_BACKEND_DAWN) && (defined(__APPLE__) || defined(_WIN32))
+    if (p->ioAcquire) {
+        nwpPresentViaImport(token, p, slot);
+        return;
+    }
+#endif
     if (p->gpuSink) {
         // GPU path: once the app's submitted work completes, hand the slot's
         // native texture to the shim, which blits it and calls
@@ -801,9 +943,13 @@ void nwp_presenter_present(int64_t token) {
             auto* op = static_cast<GpuPresentOp*>(ud1);
             NwpPresenter* p = op->p;
             void* mtl = nullptr;
+#if !defined(NITRO_WEBGPU_BACKEND_DAWN)
             if (status == WGPUQueueWorkDoneStatus_Success && p->gpuSink) {
                 mtl = wgpuTextureGetNativeMetalTexture(p->slots[op->slot].target);
             }
+#else
+            (void)status;
+#endif
             if (mtl) {
                 p->gpuSink(op->token, p->width, p->height, mtl, op->slot,
                            p->gpuSinkUser);
@@ -884,6 +1030,40 @@ int32_t nwp_presenter_format(int64_t token) {
 int32_t nwp_presenter_is_surface_mode(int64_t token) {
     NwpPresenter* p = nwpFind(token);
     return (p && p->surfaceMode) ? 1 : 0;
+}
+
+int32_t nwp_presenter_supports_texture_import(int64_t token) {
+#if defined(NITRO_WEBGPU_BACKEND_DAWN) && (defined(__APPLE__) || defined(_WIN32))
+    NwpPresenter* p = nwpFind(token);
+#if defined(__APPLE__)
+    const WGPUFeatureName kImport = WGPUFeatureName_SharedTextureMemoryIOSurface;
+#else
+    const WGPUFeatureName kImport =
+        WGPUFeatureName_SharedTextureMemoryDXGISharedHandle;
+#endif
+    return (p && wgpuDeviceHasFeature(p->device, kImport)) ? 1 : 0;
+#else
+    (void)token;
+    return 0;
+#endif
+}
+
+void nwp_presenter_set_import_ops(int64_t token,
+                                  NwpImportAcquire acquire,
+                                  NwpImportPresented presented,
+                                  void* user) {
+#if defined(NITRO_WEBGPU_BACKEND_DAWN) && (defined(__APPLE__) || defined(_WIN32))
+    NwpPresenter* p = nwpFind(token);
+    if (!p) return;
+    p->ioAcquire = acquire;
+    p->ioPresented = presented;
+    p->ioUser = user;
+#else
+    (void)token;
+    (void)acquire;
+    (void)presented;
+    (void)user;
+#endif
 }
 
 void nwp_presenter_resize(int64_t token, int32_t width, int32_t height) {

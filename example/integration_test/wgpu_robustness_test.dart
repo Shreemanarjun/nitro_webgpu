@@ -580,6 +580,11 @@ fn fs_main() -> @location(0) vec4f {
 
     test('GLSL and WGSL passes mix in one engine', () async {
       final (adapter, device) = await boot();
+      if (await skipWithoutGlsl(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
       final engine = ShadertoyEngine(
         buffers: const [
           // Buffer A in GLSL writes solid red.

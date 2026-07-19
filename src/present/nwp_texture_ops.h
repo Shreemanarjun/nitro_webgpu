@@ -42,6 +42,17 @@ typedef struct NwpTextureOps {
     /// Unregisters the texture. The plugin frees the handle once the engine
     /// confirms; the caller never touches [handle] again. Any thread.
     void (*unregister_texture)(void* ctx, void* handle);
+
+    /// OPTIONAL zero-copy path (Dawn backend): returns the platform shared
+    /// object for [handle]'s texture at [width]x[height] (Windows: the DXGI
+    /// shared HANDLE of a MISC_SHARED D3D11 texture), or NULL when
+    /// unavailable. The core imports it and GPU-copies frames into it.
+    void* (*acquire_shared_handle)(void* ctx, void* handle, int32_t width,
+                                   int32_t height);
+
+    /// OPTIONAL zero-copy path: the GPU finished writing the shared
+    /// texture — publish the frame (MarkTextureFrameAvailable).
+    void (*frame_presented)(void* ctx, void* handle);
 } NwpTextureOps;
 
 /// Exported by the nitro_webgpu_present library. The ops struct is copied;
