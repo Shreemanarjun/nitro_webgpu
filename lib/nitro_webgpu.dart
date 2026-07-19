@@ -8,6 +8,10 @@ export 'src/api/gpu.dart';
 //  - effects: one-liner shaders ([WebGpuShaderView])
 export 'src/widgets/foundation/web_gpu.dart' show WebGpu;
 export 'src/widgets/foundation/web_gpu_builder.dart' show WebGpuBuilder;
-export 'src/widgets/presentation/web_gpu_view.dart' show WebGpuView;
+export 'src/widgets/interaction/web_gpu_input_area.dart'
+    show GpuInputAxis, GpuInputBinding, GpuInputMap, GpuInputs,
+        WebGpuInputArea;
+export 'src/widgets/presentation/web_gpu_view.dart'
+    show WebGpuView, WebGpuViewController;
 export 'src/widgets/effects/web_gpu_shader_view.dart'
-    show WebGpuShaderView, ShaderViewLanguage;
+    show ShaderViewLanguage, WebGpuShaderView, WebGpuShaderViewController;

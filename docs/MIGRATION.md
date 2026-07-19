@@ -98,9 +98,16 @@ matrix passes on both. The engineering notes behind the Dawn port live in
 
 | Tier | Widget | You write | It handles |
 |---|---|---|---|
-| Effects | `WebGpuShaderView` | a fragment shader string | device, uniforms, pipeline, presentation, errors, hot swap |
+| Effects | `WebGpuShaderView` | a fragment shader string | device, uniforms (incl. mouse + arrow/WASD keys), pipeline, presentation, errors, hot swap |
+| Interaction | `GpuInputs` + `WebGpuInputArea` | per-frame polls of pointer/keys/scroll | focus handling, event capture with zero rebuilds |
 | Foundation | `WebGpuBuilder` + `WebGpuView` | a frame callback recording passes | device boot, loading/error states, pacing, presentation |
 | Raw | the full API | everything | nothing — full control (multiple devices, compute chains, custom features/limits) |
 
 Start at the top; drop a tier when you need more control. They compose —
 a `WebGpuBuilder` device works with raw API calls too.
+
+Each widget pairs with a controller for imperative control:
+`WebGpuViewController` (pause/resume with frozen time, single-frame
+render-on-demand), `WebGpuShaderViewController` (adds `resetTime()` and
+`lastError`), and `GpuInputs` (the polled input state, with a
+`GpuInputMap` of named key/mouse actions and axes).

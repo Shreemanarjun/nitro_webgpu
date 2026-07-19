@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="80%">
+      <stop offset="0%" stop-color="#182148"/>
+      <stop offset="60%" stop-color="#101736"/>
+      <stop offset="100%" stop-color="#090D1E"/>
+    </radialGradient>
+    <linearGradient id="cool" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2BE0F7"/>
+      <stop offset="55%" stop-color="#4D8DFF"/>
+      <stop offset="100%" stop-color="#8B5CFF"/>
+    </linearGradient>
+    <linearGradient id="warm" x1="0%" y1="0%" x2="20%" y2="100%">
+      <stop offset="0%" stop-color="#FFE066"/>
+      <stop offset="55%" stop-color="#FFAA33"/>
+      <stop offset="100%" stop-color="#FF5E3A"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2BE0F7" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#8B5CFF" stop-opacity="0.30"/>
+    </linearGradient>
+    <filter id="glowWarm" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="9" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glowCool" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- die -->
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect x="6" y="6" width="500" height="500" rx="106" fill="none" stroke="url(#ring)" stroke-opacity="0.35" stroke-width="2"/>
+
+  <!-- hex chip ring with corner nodes -->
+  <polygon points="256,88 410,177 410,355 256,444 102,355 102,177"
+           fill="none" stroke="url(#ring)" stroke-width="5" stroke-linejoin="round"/>
+  <g fill="#0E1430" stroke="#2BE0F7" stroke-opacity="0.6" stroke-width="3">
+    <circle cx="256" cy="88" r="7"/>
+    <circle cx="410" cy="177" r="7"/>
+    <circle cx="410" cy="355" r="7"/>
+    <circle cx="256" cy="444" r="7"/>
+    <circle cx="102" cy="355" r="7"/>
+    <circle cx="102" cy="177" r="7"/>
+  </g>
+
+  <!-- faceted W, peak sits lower so the bolt can strike through it -->
+  <g filter="url(#glowCool)">
+    <polyline points="126,170 204,362 256,248 308,362 386,170"
+              fill="none" stroke="url(#cool)" stroke-width="48"
+              stroke-linejoin="miter" stroke-miterlimit="8" stroke-linecap="butt"/>
+  </g>
+  <!-- facet shading -->
+  <polygon points="179,302 204,362 229,302" fill="#000000" opacity="0.28"/>
+  <polygon points="283,302 308,362 333,302" fill="#000000" opacity="0.28"/>
+  <polygon points="234,296 256,248 278,296" fill="#FFFFFF" opacity="0.16"/>
+
+  <!-- nitro bolt with dark keyline so it cuts cleanly across the W -->
+  <g filter="url(#glowWarm)">
+    <path d="M284 128 L212 258 L252 258 L226 356 L310 216 L266 216 Z"
+          fill="url(#warm)" stroke="#0A0F22" stroke-width="11" stroke-linejoin="round" paint-order="stroke"/>
+  </g>
+
+  <!-- stray GPU triangles -->
+  <polygon points="120,110 146,96 142,126" fill="none" stroke="#2BE0F7" stroke-opacity="0.35" stroke-width="3" stroke-linejoin="round"/>
+  <polygon points="392,398 416,388 410,414" fill="none" stroke="#8B5CFF" stroke-opacity="0.4" stroke-width="3" stroke-linejoin="round"/>
+</svg>

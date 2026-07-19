@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="images/nitro_webgpu_logo.svg" alt="nitro_webgpu logo" width="180">
+</p>
+
 # nitro_webgpu
 
 **WebGPU for Flutter** — GPU compute and rendering from Dart with one API on
@@ -7,9 +11,9 @@ and bound through [Nitro](https://pub.dev/packages/nitro) FFI.
 [![integration tests](https://github.com/Shreemanarjun/nitro_webgpu/actions/workflows/integration_test.yml/badge.svg)](https://github.com/Shreemanarjun/nitro_webgpu/actions/workflows/integration_test.yml)
 
 One shared C++ core wraps the standard `webgpu.h` C ABI; shaders are written
-once in WGSL (or GLSL) and run on Metal, Vulkan, and D3D12. The Dart surface
-is curated — typed descriptors with defaults, `Future`s instead of callbacks,
-deterministic `dispose()` with a GC-finalizer safety net, and no `dart:ffi`
+once in WGSL (or GLSL) and run on Metal, Vulkan, and D3D12. The Dart API
+uses typed descriptors with defaults, `Future`s instead of callbacks, and
+deterministic `dispose()` with a GC-finalizer safety net. No `dart:ffi`
 types in the public API.
 
 ## Getting started
@@ -25,25 +29,20 @@ dependencies:
       url: https://github.com/Shreemanarjun/nitro_webgpu.git
 ```
 
-**Android, Windows, Linux: that's it.** The first build vendors the
-prebuilt wgpu-native binaries automatically (downloaded from the official
-releases, sha256-pinned).
+Android, Windows, and Linux need nothing else — the first build downloads
+the prebuilt wgpu-native binaries (sha256-pinned) automatically.
 
-**macOS / iOS: one command**, run from your app directory — it assembles
-the Metal xcframeworks (needs `xcodebuild`, so it can't happen inside the
-build):
+macOS and iOS need one command, run from your app directory (xcframework
+assembly requires `xcodebuild`, which can't run inside the build):
 
 ```bash
 dart run nitro_webgpu:setup
 ```
 
-Then use it like any plugin — no platform channels to configure, no
-per-platform shader code.
-
 ## One widget, one shader
 
-The fastest path to pixels — `WebGpuShaderView` owns the device, the
-uniforms, the pipeline, and presentation; you write a fragment shader:
+`WebGpuShaderView` owns the device, uniforms, pipeline, and presentation;
+you write a fragment shader:
 
 ```dart
 import 'package:flutter/material.dart';
@@ -61,12 +60,13 @@ fn fs_main(@builtin(position) pos: vec4f) -> @location(0) vec4f {
     ));
 ```
 
-That's a complete app: an animated, display-rate shader on macOS, iOS,
-Android, Windows, and Linux unchanged. The fragment sees Shadertoy-style
-built-ins (`nw.time`, `nw.resolution`, `nw.mouse`, `nw.mouseDown`), the
-source can be swapped live — hot reload included; a compile error keeps
-the last good frame running and surfaces through `onError` or an overlay —
-and `language: ShaderViewLanguage.glsl` runs GLSL sources unchanged.
+This is a complete app that animates at display rate on all five
+platforms. The fragment sees Shadertoy-style built-ins: `nw.time`,
+`nw.resolution`, `nw.mouse`, `nw.mouseDown`, and `nw.keys` (arrows/WASD).
+The source can be swapped live, including hot reload; a compile error
+keeps the last good frame running and surfaces through `onError`, a
+custom `errorBuilder`, or the built-in overlay.
+`language: ShaderViewLanguage.glsl` runs GLSL sources unchanged.
 
 ### Pick your level
 
@@ -77,13 +77,82 @@ and `language: ShaderViewLanguage.glsl` runs GLSL sources unchanged.
 | Raw API (`Gpu.requestAdapter()` …) | everything | nothing — full WebGPU control |
 
 The tiers compose: the shared `WebGpu.device()` behind `WebGpuBuilder` is
-a normal `GpuDevice`, so raw compute and render code runs on it too.
+a normal `GpuDevice`, so raw compute and render code runs on it too. All
+three widgets take `loadingBuilder`/`errorBuilder`, and none of them
+rebuilds or allocates per frame.
+
+### Controllers
+
+Each widget pairs with a controller, in the `TextEditingController`
+style:
+
+| Controller | Pairs with | Gives you |
+|---|---|---|
+| `WebGpuViewController` | `WebGpuView` | `pause()` / `resume()`, `requestFrame()` (one frame while paused); stats: `frameCount`, `fps`, `elapsed`, `hasPresented`, `renderSize` |
+| `WebGpuShaderViewController` | `WebGpuShaderView` | the same, plus `time` / `resetTime()`, `lastError` / `hasError`, and `setKeyLane(lane, down)` to drive `nw.keys` from on-screen touch buttons |
+| `GpuInputs` | `WebGpuInputArea` | the polled input state below |
+
+```dart
+final shader = WebGpuShaderViewController();
+WebGpuShaderView(fragment: src, controller: shader);
+// later:
+shader.pause();
+shader.requestFrame();   // render one frame while paused
+shader.resetTime();      // nw.time restarts at 0
+```
+
+Pausing mutes the ticker (no encode, present, or readback), and the
+elapsed time handed to frames excludes the pause, so animations resume
+where they stopped.
+
+### Input
+
+For interactive content, wrap a view in `WebGpuInputArea` and poll a
+`GpuInputs` object from your frame callback: pointer position (also
+normalized 0-1), buttons, scroll and movement deltas, held keys, and an
+arrows/WASD `moveAxis` vector. Events are plain field writes — no
+rebuilds:
+
+```dart
+final inputs = GpuInputs();
+// ...
+WebGpuInputArea(
+  inputs: inputs,
+  child: WebGpuView(device: device, onFrame: _frame),
+)
+// in _frame: inputs.moveAxis, inputs.uv, inputs.isKeyDown(...),
+//            inputs.takeScroll(), inputs.takePointerDelta()
+```
+
+With a `GpuInputMap`, game code polls named actions instead of keys.
+Bindings mix keys and mouse buttons; rebinding at runtime is swapping the
+map:
+
+```dart
+final inputs = GpuInputs(
+  map: GpuInputMap(
+    actions: {
+      'fire': GpuInputBinding(
+          keys: {LogicalKeyboardKey.space}, buttons: kPrimaryButton),
+    },
+    axes: {
+      'steer': GpuInputAxis(
+        negative: GpuInputBinding(keys: {LogicalKeyboardKey.keyA}),
+        positive: GpuInputBinding(keys: {LogicalKeyboardKey.keyD}),
+      ),
+    },
+  ),
+);
+// in _frame: if (inputs.action('fire')) ...; x += inputs.axisValue('steer');
+```
+
+In `WebGpuShaderView`, the four `nw.keys` lanes default to arrows/WASD
+and remap through `keyBindings:`.
 
 ## Full control in one file
 
-The same wave, hand-rolled: your own uniform layout, pipeline, and render
-pass, with `WebGpuBuilder` still handling device boot and `WebGpuView`
-presentation.
+The same wave with your own uniform layout, pipeline, and render pass;
+`WebGpuBuilder` handles device boot and `WebGpuView` presentation.
 
 ```dart
 import 'dart:typed_data';
@@ -178,11 +247,11 @@ class _WaveDemoState extends State<WaveDemo> {
 }
 ```
 
-The example app in this repo goes much further: a live WGSL/GLSL shader
-editor, a Shadertoy-compatible player with multi-pass buffers, GPU
-particles, an 18-scene showcase gallery, and two fully GPU-state games
-(Breakout and an endless racer) — plus the four integration-test suites
-that run all of it on every platform in CI.
+The example app in this repo has more: a live WGSL/GLSL shader editor, a
+Shadertoy-compatible player with multi-pass buffers, GPU particles, an
+18-scene showcase gallery, and two GPU-state games (Breakout and an
+endless racer), plus the four integration-test suites that run all of it
+in CI.
 
 ## What the plugin does
 
@@ -215,7 +284,7 @@ final staging = device.createBuffer(
 final result = await staging.mapRead();              // GPU → Dart readback
 ```
 
-### Shaders — WGSL and GLSL, compiled off-thread
+### Shaders: WGSL and GLSL
 
 ```dart
 final module = await device.createShaderModule(wgslSource);
@@ -224,8 +293,8 @@ final fs = await device.createShaderModuleGlsl(glslSource,
     stage: GpuShaderStage.fragment);                 // Shadertoy content as-is
 ```
 
-Modules and pipelines compile on a background worker thread — hot-swapping a
-live shader never stalls the UI isolate.
+Modules and pipelines compile on a background worker thread, so
+hot-swapping a live shader doesn't stall the UI isolate.
 
 ### Pipelines and passes
 
@@ -279,8 +348,8 @@ WebGpuView(
 )
 ```
 
-Frames are paced drop-latest (a slow frame never queues behind a stale one)
-and the first frame is gated so views never flash black.
+Frames are paced drop-latest (a slow frame skips instead of queueing) and
+the first frame is gated so views don't flash black.
 
 ### Feature detection
 
@@ -289,8 +358,8 @@ if (await device.supportsCompute()) { ... }
 if (await device.supportsVertexStorage()) { ... }
 ```
 
-Downlevel GL adapters lack some capabilities (see limitations); these cached
-probes let one codebase degrade gracefully.
+Downlevel GL adapters lack some capabilities (see limitations); the
+probes are cached.
 
 ### GPU timing
 
@@ -312,9 +381,10 @@ passes report exact per-pass GPU milliseconds.
 | Textures | `createTexture` (2D/3D/cube, mips, MSAA, storage), `createView`, `createSampler` (incl. comparison), `writeTexture` (auto stride, compressed), `copyTextureToBuffer`, `copyTextureToTexture` |
 | Timing | `createTimestampQuerySet`, pass-level `timestampWrites`, `queue.timestampPeriod` |
 | Errors | typed checked creates, `pushErrorScope`/`popErrorScope`, `onUncapturedError`, `onLost` |
-| Widgets — foundation | `WebGpu.device()` (shared app-lifetime device), `WebGpuBuilder(builder:, loading:, error:)` |
-| Widgets — presentation | `WebGpuView(device:, onFrame:, renderScale:, filterQuality:)` |
-| Widgets — effects | `WebGpuShaderView(fragment:, language:, renderScale:, onError:)` |
+| Widgets — foundation | `WebGpu.device()` (shared app-lifetime device), `WebGpuBuilder(builder:, loadingBuilder:, errorBuilder:)` |
+| Widgets — presentation | `WebGpuView(device:, onFrame:, renderScale:, filterQuality:, loadingBuilder:, errorBuilder:, controller:)` + `WebGpuViewController` (pause/resume/requestFrame) |
+| Widgets — interaction | `GpuInputs` (polled state: mouse, keys, scroll/pointer deltas, `moveAxis`), `GpuInputMap`/`GpuInputBinding`/`GpuInputAxis` (named actions incl. mouse buttons), `WebGpuInputArea(inputs:, child:)` |
+| Widgets — effects | `WebGpuShaderView(fragment:, language:, renderScale:, onError:, errorBuilder:, keyBindings:, controller:)` + `WebGpuShaderViewController` (pause/resetTime/lastError) — built-ins incl. `nw.mouse`/`nw.keys` |
 
 ## Supported platforms
 
@@ -330,42 +400,40 @@ passes report exact per-pass GPU milliseconds.
 
 ## How it compares
 
-Honest positioning against the other ways to reach the GPU from Flutter:
+Against the other ways to reach the GPU from Flutter:
 
 | | **nitro_webgpu** | [flutter_gpu](https://api.flutter.dev/flutter/flutter_gpu/) (official) | [gpux](https://github.com/dartgfx/gpux) | [minigpu](https://pub.dev/packages/minigpu) | `FragmentProgram` |
 |---|---|---|---|---|---|
 | API model | Standard WebGPU (compute + render) | Custom low-level API over Impeller | WebGPU-style facade | Compute-only (gpu.cpp) | Fragment shaders only |
 | Compute shaders | ✅ full (storage textures, indirect, timestamps) | ⚠️ limited/experimental | ✅ | ✅ (its focus) | ❌ |
 | Rendering to a widget | ✅ `WebGpuView` — zero-copy swapchain (Android Vulkan), Metal blit (Apple), DXGI shared texture (Windows) | ✅ (native to the engine) | ⚠️ varies | ❌ | ✅ (paint-time) |
-| Shader language | WGSL **and** GLSL at runtime (Shadertoy-compatible) | GLSL, offline-bundled | WGSL | WGSL | GLSL, offline-bundled |
-| Engine coupling | None — works on stable Flutter, any renderer | Requires Impeller, experimental, master channel recommended | None | None | None |
-| Backend | **Dual**: wgpu-native *and* Dawn, switchable | Impeller | wgpu | Dawn | Skia/Impeller |
+| Shader language | WGSL and GLSL at runtime (Shadertoy-compatible) | GLSL, offline-bundled | WGSL | WGSL | GLSL, offline-bundled |
+| Engine coupling | None — stable Flutter, any renderer | Requires Impeller, experimental, master channel recommended | None | None | None |
+| Backend | wgpu-native and Dawn, switchable | Impeller | wgpu | Dawn | Skia/Impeller |
 | Downlevel hardware | GL fallback + feature probes (GLES-only Android still renders) | n/a | ⚠️ | ⚠️ | ✅ |
 | Verification | 134-test integration matrix × 5 platforms × 2 backends in CI, plus real-device runs | Flutter CI | ⚠️ | ⚠️ | Flutter CI |
 
-If you need a full modern GPU API — compute feeding rendering, real
-render-pass state, queries, compressed textures — on stable Flutter with
-production presentation paths, that's the niche this plugin exists for.
 If you only need a fragment-shader effect, `FragmentProgram` is built in
-and simpler; if you want the engine team's own experimental low-level
-renderer and can ride the master channel, look at flutter_gpu.
+and simpler. If you want the engine team's own experimental low-level
+renderer and can ride the master channel, look at flutter_gpu. This
+plugin is for a full GPU API (compute + rendering, queries, compressed
+textures) on stable Flutter.
 
 Moving from one of these? [docs/MIGRATION.md](docs/MIGRATION.md) has
 concept maps and before/after code for each.
 
 ## Two backends, one API
 
-nitro_webgpu is the only Flutter plugin that runs on **both** production
-WebGPU implementations — [wgpu-native](https://github.com/gfx-rs/wgpu-native)
-(Rust, used by Firefox) and [Dawn](https://dawn.googlesource.com/dawn)
-(C++, used by Chrome). The same Dart code runs identically on either;
-the full integration-test matrix passes on both.
+The plugin runs on both production WebGPU implementations —
+[wgpu-native](https://github.com/gfx-rs/wgpu-native) (Rust, used by
+Firefox) and [Dawn](https://dawn.googlesource.com/dawn) (C++, used by
+Chrome). The same Dart code runs on either; the integration-test matrix
+passes on both.
 
 ### Switching backends
 
-**wgpu-native is the default** and what ships when you follow Getting
-Started. Dawn is an opt-in switch per platform — no Dart changes, and
-switching back is the same command:
+wgpu-native is the default. Dawn is a per-platform build switch with no
+Dart changes:
 
 ```bash
 # Fetch prebuilt Dawn from this repo's dawn-v* releases…
@@ -382,19 +450,18 @@ switching back is the same command:
 ./scripts/set_backend_macos.sh wgpu
 ```
 
-Why you might want Dawn: Chrome-lineage validation messages, its
-`SharedTextureMemory` zero-copy interop (the plugin uses it for IOSurface
-and DXGI shared-handle presentation), or simply matching the engine your
-web build will run on. Why wgpu-native stays the default: GLSL ingestion
-is built in (Dawn needs a staged glslang), and its GL backend covers
-GLES-only Android devices that Dawn leaves without an adapter.
+Reasons to pick Dawn: Chrome-lineage validation messages, its
+`SharedTextureMemory` zero-copy interop (used for IOSurface and DXGI
+shared-handle presentation), or matching the engine your web build runs
+on. wgpu-native stays the default because GLSL ingestion is built in
+(Dawn needs a staged glslang) and its GL backend covers GLES-only Android
+devices that Dawn leaves without an adapter.
 
-Documented behavioral differences between the two (all gated in the test
-suites): Dawn doesn't reify limits requested *below* the default, its
-pass-boundary timestamps can read equal on trivial passes, `Gpu.version`
-reports `0.0.0.0`, and one Adreno-specific indirect-args quirk is tracked
-for upstream. Everything else — the entire API surface — behaves
-identically.
+Known behavioral differences (all gated in the test suites): Dawn doesn't
+reify limits requested below the default, its pass-boundary timestamps
+can read equal on trivial passes, `Gpu.version` reports `0.0.0.0`, and
+one Adreno-specific indirect-args quirk is tracked for upstream.
+Everything else behaves identically.
 
 ## Limitations
 

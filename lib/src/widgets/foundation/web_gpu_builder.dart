@@ -11,25 +11,32 @@ import 'web_gpu.dart';
 /// WebGpuBuilder(
 ///   builder: (context, device) =>
 ///       WebGpuView(device: device, onFrame: myFrame),
+///   loadingBuilder: (context) => const CircularProgressIndicator(),
+///   errorBuilder: (context, error) => Text('No GPU: $error'),
 /// )
 /// ```
+///
+/// The three builders cover the full lifecycle: [builder] once the device
+/// is ready (the "data" state), [loadingBuilder] while it boots, and
+/// [errorBuilder] when creation fails. The device itself is the shared
+/// app-lifetime [WebGpu.device] — created once, reused by every builder.
 class WebGpuBuilder extends StatelessWidget {
   const WebGpuBuilder({
     super.key,
     required this.builder,
-    this.loading,
-    this.error,
+    this.loadingBuilder,
+    this.errorBuilder,
   });
 
   /// Built once the device is ready.
   final Widget Function(BuildContext context, GpuDevice device) builder;
 
-  /// Shown while the device boots (defaults to an empty box — device
-  /// creation is fast enough that a spinner usually just flashes).
-  final Widget? loading;
+  /// Built while the device boots. Defaults to an empty box — device
+  /// creation is fast enough that a spinner usually just flashes.
+  final WidgetBuilder? loadingBuilder;
 
   /// Built when device creation fails (no GPU, driver failure).
-  final Widget Function(BuildContext context, Object error)? error;
+  final Widget Function(BuildContext context, Object error)? errorBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +44,7 @@ class WebGpuBuilder extends StatelessWidget {
       future: WebGpu.device(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return error?.call(context, snapshot.error!) ??
+          return errorBuilder?.call(context, snapshot.error!) ??
               Center(
                 child: Text(
                   'WebGPU unavailable: ${snapshot.error}',
@@ -46,7 +53,9 @@ class WebGpuBuilder extends StatelessWidget {
               );
         }
         final device = snapshot.data;
-        if (device == null) return loading ?? const SizedBox.expand();
+        if (device == null) {
+          return loadingBuilder?.call(context) ?? const SizedBox.expand();
+        }
         return builder(context, device);
       },
     );

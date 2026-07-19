@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../api/gpu.dart';
@@ -8,6 +9,76 @@ import '../presentation/web_gpu_view.dart';
 
 /// The language of a [WebGpuShaderView] fragment.
 enum ShaderViewLanguage { wgsl, glsl }
+
+/// Imperative control over a [WebGpuShaderView]:
+///
+/// ```dart
+/// final controller = WebGpuShaderViewController();
+/// WebGpuShaderView(fragment: src, controller: controller);
+/// // later:
+/// controller.pause();          // zero GPU work while off-screen/static
+/// controller.requestFrame();   // one frame, nw.time frozen
+/// controller.resume();
+/// controller.resetTime();      // nw.time restarts at 0
+/// print(controller.lastError); // latest compile diagnostics, or null
+/// ```
+///
+/// Live stats mirror the underlying [WebGpuViewController]: [frameCount],
+/// [fps], [time], [hasPresented], [renderSize]. For touch UIs,
+/// [setKeyLane] drives the `nw.keys` lanes from on-screen buttons —
+/// injected lanes merge with physical keys instead of fighting them.
+class WebGpuShaderViewController {
+  /// The underlying presentation controller — usable directly for
+  /// anything [WebGpuView] supports.
+  final WebGpuViewController view = WebGpuViewController();
+
+  _WebGpuShaderViewState? _state;
+  bool _resetTime = false;
+  final Float32List _injectedLanes = Float32List(4);
+
+  bool get isPaused => view.isPaused;
+
+  /// Frames rendered so far.
+  int get frameCount => view.frameCount;
+
+  /// Smoothed frames-per-second (0 until measured).
+  double get fps => view.fps;
+
+  /// Whether at least one frame is on screen.
+  bool get hasPresented => view.hasPresented;
+
+  /// Current render-target size in physical pixels.
+  Size get renderSize => view.renderSize;
+
+  /// The current `nw.time` in seconds — the value the latest frame saw.
+  double get time => _state?._lastTime ?? 0;
+
+  /// Stops the frame loop (`nw.time` freezes with it).
+  void pause() => view.pause();
+
+  /// Restarts the frame loop; `nw.time` continues from where it froze.
+  void resume() => view.resume();
+
+  /// Renders exactly one frame while paused.
+  void requestFrame() => view.requestFrame();
+
+  /// Restarts `nw.time` at zero on the next rendered frame.
+  void resetTime() => _resetTime = true;
+
+  /// Holds or releases one of the four `nw.keys` lanes programmatically —
+  /// the touch-screen counterpart to the keyboard: wire on-screen D-pad
+  /// buttons to `setKeyLane(0, true)` on press and `(0, false)` on
+  /// release. Injected lanes merge with (never fight) physical keys.
+  void setKeyLane(int lane, bool down) {
+    _injectedLanes[lane] = down ? 1.0 : 0.0;
+    _state?._recomputeKeyLanes();
+  }
+
+  /// The latest compile/validation diagnostics, or null while healthy.
+  String? get lastError => _state?._error;
+
+  bool get hasError => lastError != null;
+}
 
 /// A full-screen animated shader as a single widget — the fastest way to
 /// put GPU pixels on screen:
@@ -37,9 +108,15 @@ enum ShaderViewLanguage { wgsl, glsl }
 ///   resolution: vec2f,    // render size in physical pixels
 ///   mouse: vec2f,         // last touch/hover, in pixels
 ///   mouseDown: f32,       // 1.0 while pressed
+///   keys: vec4f,          // left/right/up/down — arrows or WASD, 1.0 held
 /// };
 /// @group(0) @binding(0) var<uniform> nw: NwUniforms;
 /// ```
+///
+/// Keys are tracked globally (no focus dance — a shader reacts to arrows
+/// the moment it's on screen), so games are one fragment away:
+/// `pos += (nw.keys.y - nw.keys.x) * speed`. Remap the four lanes to any
+/// keys with [keyBindings].
 ///
 /// GLSL fragments ([language] == [ShaderViewLanguage.glsl], entry point
 /// `main`, `#version 450` prepended) see the equivalent block plus
@@ -52,6 +129,10 @@ class WebGpuShaderView extends StatefulWidget {
     this.renderScale = 1.0,
     this.filterQuality = FilterQuality.low,
     this.onError,
+    this.errorBuilder,
+    this.loadingBuilder,
+    this.keyBindings,
+    this.controller,
   });
 
   /// Fragment-stage source (see the class docs for the contract). When
@@ -66,22 +147,52 @@ class WebGpuShaderView extends StatefulWidget {
   final FilterQuality filterQuality;
 
   /// Called with the compiler diagnostics when [fragment] fails to
-  /// compile. Without a handler, an overlay shows the message.
+  /// compile. Without a handler (and without [errorBuilder]), a built-in
+  /// overlay shows the message.
   final void Function(String message)? onError;
+
+  /// Builds a custom overlay for compile/validation errors (stacked over
+  /// the last good frame) and for device-creation failures. Takes
+  /// precedence over the built-in overlay; [onError] still fires.
+  final Widget Function(BuildContext context, String message)? errorBuilder;
+
+  /// Built while the shared device boots. Defaults to an empty box.
+  final WidgetBuilder? loadingBuilder;
+
+  /// Which keys drive the four `nw.keys` lanes (x, y, z, w) — up to four
+  /// slots, each activated while any of its keys is held. Defaults to
+  /// left/right/up/down as arrows or WASD:
+  ///
+  /// ```dart
+  /// WebGpuShaderView(
+  ///   keyBindings: [
+  ///     {LogicalKeyboardKey.keyJ},                          // nw.keys.x
+  ///     {LogicalKeyboardKey.keyL},                          // nw.keys.y
+  ///     {LogicalKeyboardKey.keyI, LogicalKeyboardKey.space}, // nw.keys.z
+  ///     {LogicalKeyboardKey.keyK},                          // nw.keys.w
+  ///   ],
+  ///   fragment: ...,
+  /// )
+  /// ```
+  final List<Set<LogicalKeyboardKey>>? keyBindings;
+
+  /// Optional imperative control (pause/resume/single-frame/resetTime).
+  final WebGpuShaderViewController? controller;
 
   @override
   State<WebGpuShaderView> createState() => _WebGpuShaderViewState();
 }
 
-// Layout (32 bytes): time@0, (pad)@4, resolution@8, mouse@16, mouseDown@24,
-// size rounds up to the struct's 8-byte alignment. Must stay in sync with
-// the uniform buffer size and the per-frame Float32List in _frame.
+// Layout (48 bytes): time@0, (pad)@4, resolution@8, mouse@16, mouseDown@24,
+// (pad)@28, keys@32 (vec4f aligns to 16). Must stay in sync with
+// _uniformData in the state below — same layout in both preludes.
 const _wgslPrelude = '''
 struct NwUniforms {
   time: f32,
   resolution: vec2f,
   mouse: vec2f,
   mouseDown: f32,
+  keys: vec4f,
 };
 @group(0) @binding(0) var<uniform> nw: NwUniforms;
 
@@ -98,9 +209,17 @@ layout(set = 0, binding = 0) uniform NwUniforms {
   vec2 resolution;
   vec2 mouse;
   float mouseDown;
+  vec4 keys;
 } nw;
 layout(location = 0) out vec4 fragColor;
 ''';
+
+final _defaultKeyBindings = <Set<LogicalKeyboardKey>>[
+  {LogicalKeyboardKey.arrowLeft, LogicalKeyboardKey.keyA},
+  {LogicalKeyboardKey.arrowRight, LogicalKeyboardKey.keyD},
+  {LogicalKeyboardKey.arrowUp, LogicalKeyboardKey.keyW},
+  {LogicalKeyboardKey.arrowDown, LogicalKeyboardKey.keyS},
+];
 
 const _defaultFragment = '''
 @fragment
@@ -127,7 +246,71 @@ class _WebGpuShaderViewState extends State<WebGpuShaderView> {
   double _mouseX = 0, _mouseY = 0, _mouseDown = 0;
   bool _swapping = false;
 
+  // Reused every frame (no per-frame allocation): floats 0-7 are written
+  // in _frame, 8-11 (keys: left/right/up/down) by the key handler.
+  final Float32List _uniformData = Float32List(12);
+  late final Uint8List _uniformBytes = _uniformData.buffer.asUint8List();
+
   String get _source => widget.fragment ?? _defaultFragment;
+
+  Duration _timeBase = Duration.zero;
+  double _lastTime = 0;
+
+  // Global key tracking: reacts without a focus dance, never consumes.
+  final Set<LogicalKeyboardKey> _held = {};
+
+  void _recomputeKeyLanes() {
+    final bindings = widget.keyBindings ?? _defaultKeyBindings;
+    final injected = widget.controller?._injectedLanes;
+    for (var i = 0; i < 4; i++) {
+      var v = 0.0;
+      if (i < bindings.length) {
+        for (final key in bindings[i]) {
+          if (_held.contains(key)) {
+            v = 1.0;
+            break;
+          }
+        }
+      }
+      if (injected != null && injected[i] > v) v = injected[i];
+      _uniformData[8 + i] = v;
+    }
+  }
+
+  bool _onKey(KeyEvent event) {
+    if (event is KeyDownEvent || event is KeyRepeatEvent) {
+      _held.add(event.logicalKey);
+    } else if (event is KeyUpEvent) {
+      _held.remove(event.logicalKey);
+    } else {
+      return false;
+    }
+    _recomputeKeyLanes();
+    return false;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    assert(widget.controller?._state == null,
+        'WebGpuShaderViewController is already attached to another view');
+    widget.controller?._state = this;
+    HardwareKeyboard.instance.addHandler(_onKey);
+  }
+
+  @override
+  void didUpdateWidget(WebGpuShaderView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      if (oldWidget.controller?._state == this) {
+        oldWidget.controller?._state = null;
+      }
+      widget.controller?._state = this;
+    }
+    if (!identical(oldWidget.keyBindings, widget.keyBindings)) {
+      _recomputeKeyLanes();
+    }
+  }
 
   Future<void> _ensurePipeline(
       GpuDevice device, GpuTextureFormat format) async {
@@ -135,7 +318,7 @@ class _WebGpuShaderViewState extends State<WebGpuShaderView> {
     _swapping = true;
     try {
       _uniforms ??= device.createBuffer(
-          size: 32,
+          size: 48,
           usage: GpuBufferUsage.uniform | GpuBufferUsage.copyDst,
           label: 'shader-view-uniforms');
       _vertexModule ??= await device.createShaderModule(_wgslPrelude,
@@ -221,18 +404,21 @@ class _WebGpuShaderViewState extends State<WebGpuShaderView> {
     final bind = _bind;
     if (pipeline == null) return;
 
-    device.queue.writeBuffer(
-        _uniforms!,
-        Float32List.fromList([
-          elapsed.inMicroseconds / 1e6,
-          0, // vec2 alignment: resolution starts at byte 8
-          target.width.toDouble(),
-          target.height.toDouble(),
-          _mouseX,
-          _mouseY,
-          _mouseDown,
-          0, // struct size rounds up to its 8-byte alignment
-        ]).buffer.asUint8List());
+    final controller = widget.controller;
+    if (controller != null && controller._resetTime) {
+      controller._resetTime = false;
+      _timeBase = elapsed;
+    }
+    _uniformData[0] = _lastTime = (elapsed - _timeBase).inMicroseconds / 1e6;
+    // [1] stays 0 — vec2 alignment: resolution starts at byte 8.
+    _uniformData[2] = target.width.toDouble();
+    _uniformData[3] = target.height.toDouble();
+    _uniformData[4] = _mouseX;
+    _uniformData[5] = _mouseY;
+    _uniformData[6] = _mouseDown;
+    // [7] stays 0 — vec4 alignment: keys start at byte 32.
+    // [8..11] are the keys, maintained by the key handler.
+    device.queue.writeBuffer(_uniforms!, _uniformBytes);
 
     // Submitting invalid work is fatal in the native layer, so the first
     // frame of every fresh pipeline is proven under an error scope before
@@ -269,6 +455,10 @@ class _WebGpuShaderViewState extends State<WebGpuShaderView> {
 
   @override
   void dispose() {
+    if (widget.controller?._state == this) {
+      widget.controller?._state = null;
+    }
+    HardwareKeyboard.instance.removeHandler(_onKey);
     _bind?.dispose();
     _pipeline?.dispose();
     _fragmentModule?.dispose();
@@ -278,10 +468,34 @@ class _WebGpuShaderViewState extends State<WebGpuShaderView> {
     super.dispose();
   }
 
+  Widget _defaultOverlay(String error) {
+    return Container(
+      alignment: Alignment.bottomLeft,
+      padding: const EdgeInsets.all(12),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xCC300000),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Text(
+            error,
+            style: const TextStyle(color: Color(0xFFFFB4B4), fontSize: 11),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final dpr = MediaQuery.devicePixelRatioOf(context);
     return WebGpuBuilder(
+      loadingBuilder: widget.loadingBuilder,
+      errorBuilder: widget.errorBuilder == null
+          ? null
+          : (context, error) => widget.errorBuilder!(context, '$error'),
       builder: (context, device) {
         Widget view = Listener(
           onPointerDown: (e) {
@@ -296,36 +510,22 @@ class _WebGpuShaderViewState extends State<WebGpuShaderView> {
           onPointerUp: (_) => _mouseDown = 0,
           child: WebGpuView(
             device: device,
+            controller: widget.controller?.view,
             renderScale: widget.renderScale,
             filterQuality: widget.filterQuality,
             onFrame: (target, elapsed) => _frame(device, target, elapsed),
           ),
         );
         final error = _error;
-        if (error != null && widget.onError == null) {
-          view = Stack(fit: StackFit.expand, children: [
-            view,
-            IgnorePointer(
-              child: Container(
-                alignment: Alignment.bottomLeft,
-                padding: const EdgeInsets.all(12),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: const Color(0xCC300000),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: Text(
-                      error,
-                      style: const TextStyle(
-                          color: Color(0xFFFFB4B4), fontSize: 11),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ]);
+        if (error != null) {
+          final overlay = widget.errorBuilder?.call(context, error) ??
+              (widget.onError == null ? _defaultOverlay(error) : null);
+          if (overlay != null) {
+            view = Stack(fit: StackFit.expand, children: [
+              view,
+              IgnorePointer(child: overlay),
+            ]);
+          }
         }
         return view;
       },

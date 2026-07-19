@@ -3,6 +3,7 @@
 // the pointer; feedback simulations must evolve over time.
 import 'dart:typed_data';
 
+import 'package:flutter/gestures.dart' show kPrimaryButton;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -532,6 +533,379 @@ void main() {
       await tester.pump();
       expect(reported, isNotNull,
           reason: 'compiler diagnostics reach onError');
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 600)));
+      await tester.pump();
+    });
+
+    testWidgets('WebGpuInputArea feeds pointer and keyboard state',
+        (tester) async {
+      final inputs = GpuInputs();
+      await tester.pumpWidget(MaterialApp(
+        home: WebGpuInputArea(
+          inputs: inputs,
+          child: const SizedBox.expand(),
+        ),
+      ));
+      await tester.pump();
+
+      final gesture =
+          await tester.startGesture(tester.getCenter(find.byType(SizedBox)));
+      await tester.pump();
+      expect(inputs.mouseDown, isTrue);
+      expect(inputs.size.width, greaterThan(0));
+      expect(inputs.uv.dx, closeTo(0.5, 0.05));
+      expect(inputs.uv.dy, closeTo(0.5, 0.05));
+      await gesture.up();
+      await tester.pump();
+      expect(inputs.mouseDown, isFalse);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(inputs.isKeyDown(LogicalKeyboardKey.arrowRight), isTrue);
+      expect(inputs.moveAxis.dx, 1.0);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(inputs.moveAxis.dx, 0.0);
+    });
+
+    testWidgets('GpuInputMap drives named actions and axes', (tester) async {
+      final inputs = GpuInputs(
+        map: GpuInputMap(
+          actions: {
+            'fire': GpuInputBinding(
+                keys: {LogicalKeyboardKey.space}, buttons: kPrimaryButton),
+          },
+          axes: {
+            'steer': GpuInputAxis(
+              negative: GpuInputBinding(keys: {LogicalKeyboardKey.keyQ}),
+              positive: GpuInputBinding(keys: {LogicalKeyboardKey.keyE}),
+            ),
+          },
+        ),
+      );
+      await tester.pumpWidget(MaterialApp(
+        home: WebGpuInputArea(
+          inputs: inputs,
+          child: const SizedBox.expand(),
+        ),
+      ));
+      await tester.pump();
+
+      expect(inputs.action('fire'), isFalse);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.space);
+      await tester.pump();
+      expect(inputs.action('fire'), isTrue, reason: 'space triggers fire');
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.space);
+      await tester.pump();
+      expect(inputs.action('fire'), isFalse);
+
+      // The same action fires from its bound mouse button.
+      final gesture =
+          await tester.startGesture(tester.getCenter(find.byType(SizedBox)));
+      await tester.pump();
+      expect(inputs.action('fire'), isTrue, reason: 'primary button fires');
+      await gesture.moveBy(const Offset(15, 5));
+      await tester.pump();
+      final delta = inputs.takePointerDelta();
+      expect(delta.dx, closeTo(15, 0.5));
+      expect(inputs.takePointerDelta(), Offset.zero, reason: 'consumed');
+      await gesture.up();
+      await tester.pump();
+      expect(inputs.action('fire'), isFalse);
+
+      expect(inputs.axisValue('steer'), 0.0);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyE);
+      await tester.pump();
+      expect(inputs.axisValue('steer'), 1.0);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyE);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyQ);
+      await tester.pump();
+      expect(inputs.axisValue('steer'), -1.0);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyQ);
+      expect(inputs.action('missing'), isFalse);
+      expect(inputs.axisValue('missing'), 0.0);
+    });
+
+    testWidgets('WebGpuShaderView exposes nw.keys and custom errorBuilder',
+        (tester) async {
+      final binding = tester.binding as LiveTestWidgetsFlutterBinding;
+      binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+
+      // A fragment using every built-in (incl. keys) must run cleanly.
+      String? reported;
+      await tester.pumpWidget(MaterialApp(
+        home: WebGpuShaderView(
+          onError: (m) => reported = m,
+          fragment: '''
+@fragment
+fn fs_main(@builtin(position) pos: vec4f) -> @location(0) vec4f {
+  let uv = pos.xy / nw.resolution;
+  let k = nw.keys.x + nw.keys.y + nw.keys.z + nw.keys.w;
+  return vec4f(uv, 0.5 + 0.25 * k + 0.1 * nw.mouseDown, 1.0);
+}
+''',
+        ),
+      ));
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowUp);
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(seconds: 2)));
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pump();
+      expect(reported, isNull,
+          reason: 'nw.keys fragment errored: $reported');
+
+      // A broken fragment with errorBuilder shows the custom overlay.
+      await tester.pumpWidget(MaterialApp(
+        home: WebGpuShaderView(
+          fragment: 'this is not wgsl',
+          errorBuilder: (context, message) =>
+              const Text('custom-shader-error'),
+        ),
+      ));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(seconds: 2)));
+      await tester.pump();
+      expect(find.text('custom-shader-error'), findsOneWidget);
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 600)));
+      await tester.pump();
+    });
+
+    testWidgets('WebGpuViewController pauses, single-frames, and resumes',
+        (tester) async {
+      final binding = tester.binding as LiveTestWidgetsFlutterBinding;
+      binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+
+      final controller = WebGpuViewController();
+      var frames = 0;
+      Duration? lastTime;
+      final device = await WebGpu.device();
+      await tester.pumpWidget(MaterialApp(
+        home: WebGpuView(
+          device: device,
+          controller: controller,
+          onFrame: (target, elapsed) {
+            frames++;
+            lastTime = elapsed;
+            final encoder = device.createCommandEncoder();
+            encoder.beginRenderPass(colorAttachments: [
+              GpuColorAttachmentInfo(view: target.view),
+            ]).end();
+            device.queue.submit([encoder.finish()]);
+          },
+        ),
+      ));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 800)));
+      await tester.pump();
+      expect(frames, greaterThan(5), reason: 'frame loop runs');
+
+      controller.pause();
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 300)));
+      final atPause = frames;
+      final timeAtPause = lastTime;
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 400)));
+      expect(frames, atPause, reason: 'paused loop renders nothing');
+
+      controller.requestFrame();
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 300)));
+      expect(frames, atPause + 1, reason: 'requestFrame renders exactly one');
+      // Frozen time may trail the last delivered frame by a dropped tick or
+      // two, but the ~700ms of wall-clock pause must not leak into it.
+      expect((lastTime! - timeAtPause!).inMilliseconds.abs(), lessThan(150),
+          reason: 'time frozen while paused');
+
+      controller.resume();
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 400)));
+      expect(frames, greaterThan(atPause + 1), reason: 'resumed loop runs');
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 600)));
+      await tester.pump();
+    });
+
+    testWidgets('WebGpuShaderViewController exposes errors and resetTime',
+        (tester) async {
+      final binding = tester.binding as LiveTestWidgetsFlutterBinding;
+      binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+
+      final controller = WebGpuShaderViewController();
+      await tester.pumpWidget(MaterialApp(
+        home: WebGpuShaderView(
+          fragment: 'this is not wgsl',
+          controller: controller,
+          onError: (_) {},
+        ),
+      ));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(seconds: 2)));
+      await tester.pump();
+      expect(controller.lastError, isNotNull,
+          reason: 'controller surfaces compile diagnostics');
+
+      controller.resetTime();
+      controller.pause();
+      expect(controller.isPaused, isTrue);
+      controller.resume();
+      expect(controller.isPaused, isFalse);
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 600)));
+      await tester.pump();
+    });
+
+    testWidgets(
+        'all tiers compose: builder + input area + view + controllers',
+        (tester) async {
+      final binding = tester.binding as LiveTestWidgetsFlutterBinding;
+      binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+
+      final inputs = GpuInputs(
+        map: GpuInputMap(
+          actions: {
+            'boost': GpuInputBinding(
+                keys: {LogicalKeyboardKey.space}, buttons: kPrimaryButton),
+          },
+        ),
+      );
+      final controller = WebGpuViewController();
+      var boostSeenInFrame = false;
+      var axisSeenInFrame = 0.0;
+      await tester.pumpWidget(MaterialApp(
+        home: WebGpuBuilder(
+          loadingBuilder: (context) => const Text('booting'),
+          errorBuilder: (context, error) => Text('no gpu: $error'),
+          builder: (context, device) => WebGpuInputArea(
+            inputs: inputs,
+            child: WebGpuView(
+              device: device,
+              controller: controller,
+              onFrame: (target, elapsed) {
+                // The frame loop polls the input controller — the whole
+                // point of the poll-don't-rebuild design.
+                if (inputs.action('boost')) boostSeenInFrame = true;
+                axisSeenInFrame = inputs.moveAxis.dx;
+                final encoder = device.createCommandEncoder();
+                encoder.beginRenderPass(colorAttachments: [
+                  GpuColorAttachmentInfo(view: target.view),
+                ]).end();
+                device.queue.submit([encoder.finish()]);
+              },
+            ),
+          ),
+        ),
+      ));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 900)));
+      await tester.pump();
+
+      // Controller stats prove the loop is really running.
+      expect(controller.isAttached, isTrue);
+      expect(controller.hasPresented, isTrue);
+      expect(controller.frameCount, greaterThan(5));
+      expect(controller.fps, greaterThan(10),
+          reason: 'smoothed fps is measured');
+      expect(controller.elapsed, greaterThan(Duration.zero));
+      expect(controller.renderSize.width, greaterThan(0));
+
+      // Keyboard reaches the frame loop through the input map…
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.space);
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 250)));
+      expect(boostSeenInFrame, isTrue, reason: 'action polled in onFrame');
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.space);
+
+      // …and so does the merged movement axis.
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowRight);
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 250)));
+      expect(axisSeenInFrame, 1.0);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowRight);
+
+      // Pause freezes the stats; single-frame advances them by one.
+      controller.pause();
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 300)));
+      final pausedCount = controller.frameCount;
+      final pausedElapsed = controller.elapsed;
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 400)));
+      expect(controller.frameCount, pausedCount);
+      controller.requestFrame();
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 300)));
+      expect(controller.frameCount, pausedCount + 1);
+      expect((controller.elapsed - pausedElapsed).inMilliseconds.abs(),
+          lessThan(150),
+          reason: 'pause did not leak into elapsed');
+      controller.resume();
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 600)));
+      await tester.pump();
+    });
+
+    testWidgets('shader controller reports stats and injects key lanes',
+        (tester) async {
+      final binding = tester.binding as LiveTestWidgetsFlutterBinding;
+      binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+
+      final controller = WebGpuShaderViewController();
+      String? reported;
+      await tester.pumpWidget(MaterialApp(
+        home: WebGpuShaderView(
+          controller: controller,
+          onError: (m) => reported = m,
+          keyBindings: [
+            {LogicalKeyboardKey.keyJ},
+            {LogicalKeyboardKey.keyL},
+          ],
+          fragment: '''
+@fragment
+fn fs_main(@builtin(position) pos: vec4f) -> @location(0) vec4f {
+  let uv = pos.xy / nw.resolution;
+  return vec4f(uv * (1.0 - nw.keys.x), nw.keys.y, 1.0);
+}
+''',
+        ),
+      ));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(seconds: 2)));
+      await tester.pump();
+      expect(reported, isNull, reason: 'fragment errored: $reported');
+      expect(controller.hasError, isFalse);
+      expect(controller.hasPresented, isTrue);
+      expect(controller.frameCount, greaterThan(5));
+      expect(controller.fps, greaterThan(10));
+      expect(controller.time, greaterThan(1.0), reason: 'nw.time advances');
+
+      // Custom bindings + programmatic lanes (touch D-pad path) coexist.
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyJ);
+      controller.setKeyLane(1, true);
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 300)));
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyJ);
+      controller.setKeyLane(1, false);
+      expect(reported, isNull, reason: 'key-driven frames stay clean');
+
+      final before = controller.time;
+      controller.resetTime();
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 400)));
+      expect(controller.time, lessThan(before),
+          reason: 'resetTime restarted nw.time');
 
       await tester.pumpWidget(const MaterialApp(home: SizedBox()));
       await tester.runAsync(

@@ -6,6 +6,88 @@ import 'package:flutter/widgets.dart';
 import '../../api/gpu.dart';
 import '../../nitro_webgpu_present.native.dart';
 
+/// Imperative control over a [WebGpuView] — pause and resume the frame
+/// loop, or render single frames on demand:
+///
+/// ```dart
+/// final controller = WebGpuViewController();
+/// WebGpuView(device: device, onFrame: _frame, controller: controller);
+/// // later:
+/// controller.pause();        // ticker stops — zero GPU/CPU work
+/// controller.requestFrame(); // render exactly one frame while paused
+/// controller.resume();
+/// ```
+///
+/// While paused the elapsed time handed to `onFrame` is frozen, and the
+/// pause duration never leaks into it — animations continue from where
+/// they stopped, not where wall time jumped to.
+///
+/// The controller also reads live render stats without touching the frame
+/// loop: [frameCount], [fps] (smoothed), [elapsed], [hasPresented], and
+/// [renderSize] — enough for FPS overlays and "is it actually rendering?"
+/// checks with zero instrumentation in your frame callback.
+class WebGpuViewController {
+  _WebGpuViewState? _state;
+  bool _paused = false;
+  bool _singleFrame = false;
+  int _frameCount = 0;
+  double _fps = 0;
+  Duration _elapsed = Duration.zero;
+
+  bool get isPaused => _paused;
+
+  /// Whether a view is currently attached.
+  bool get isAttached => _state != null;
+
+  /// Frames rendered so far (across pauses; survives view re-attach).
+  int get frameCount => _frameCount;
+
+  /// Smoothed frames-per-second of the render loop — 0 until measured,
+  /// unchanged while paused.
+  double get fps => _fps;
+
+  /// The pause-adjusted elapsed time of the latest frame — the same value
+  /// the frame callback received.
+  Duration get elapsed => _elapsed;
+
+  /// Whether at least one frame is on screen (the view composites nothing
+  /// until then).
+  bool get hasPresented => _state?._firstFramePresented ?? false;
+
+  /// Current render-target size in physical pixels ([Size.zero] before
+  /// the first layout or when detached).
+  Size get renderSize {
+    final s = _state;
+    if (s == null) return Size.zero;
+    return Size(s._widthPx.toDouble(), s._heightPx.toDouble());
+  }
+
+  /// Stops the frame loop. Costs nothing while paused — the ticker is
+  /// muted, no frames are encoded or presented.
+  void pause() {
+    if (_paused) return;
+    _paused = true;
+    _state?._applyPauseState();
+  }
+
+  /// Restarts the frame loop; elapsed time continues from where [pause]
+  /// froze it.
+  void resume() {
+    if (!_paused) return;
+    _paused = false;
+    _singleFrame = false;
+    _state?._applyPauseState();
+  }
+
+  /// Renders exactly one frame while paused (elapsed time stays frozen) —
+  /// for render-on-demand content that only changes on input.
+  void requestFrame() {
+    if (!_paused) return;
+    _singleFrame = true;
+    _state?._applyPauseState();
+  }
+}
+
 /// Embeds WebGPU-rendered content in the widget tree.
 ///
 /// Every frame, [onFrame] receives a [GpuRenderTarget] to render into using
@@ -19,6 +101,9 @@ class WebGpuView extends StatefulWidget {
     required this.onFrame,
     this.filterQuality = FilterQuality.low,
     this.renderScale = 1.0,
+    this.loadingBuilder,
+    this.errorBuilder,
+    this.controller,
   });
 
   /// The device to render with (owned by the caller; not disposed here).
@@ -36,6 +121,19 @@ class WebGpuView extends StatefulWidget {
   /// size (clamped to 0.1–2.0). Fragment-bound content scales roughly
   /// linearly with pixel count — 0.5 renders a quarter of the pixels.
   final double renderScale;
+
+  /// Built until the first frame has actually been presented (the texture
+  /// is deliberately not composited before then — an empty swapchain
+  /// flashes black). Defaults to an empty box.
+  final WidgetBuilder? loadingBuilder;
+
+  /// Built when presentation is unavailable on this device (e.g. GL-only
+  /// Android where wgpu cannot present into a Flutter surface). Defaults
+  /// to a built-in message box.
+  final Widget Function(BuildContext context, String message)? errorBuilder;
+
+  /// Optional imperative control (pause/resume/single-frame).
+  final WebGpuViewController? controller;
 
   @override
   State<WebGpuView> createState() => _WebGpuViewState();
@@ -69,6 +167,21 @@ class _WebGpuViewState extends State<WebGpuView>
   // texture view the frame is rendering into (native crash on Android).
   int? _pendingSurfaceW;
   int? _pendingSurfaceH;
+  // Pause bookkeeping: the ticker's elapsed keeps running through a muted
+  // pause, so the time handed to onFrame is elapsed minus every pause.
+  Duration _timeOffset = Duration.zero;
+  Duration? _pausedAt;
+  Duration _lastElapsed = Duration.zero;
+
+  void _applyPauseState() {
+    final controller = widget.controller;
+    final ticker = _ticker;
+    if (ticker == null) return;
+    final mute =
+        controller != null && controller._paused && !controller._singleFrame;
+    if (mute) _pausedAt ??= _lastElapsed;
+    ticker.muted = mute;
+  }
 
   void _applySurfaceSize(int surfaceW, int surfaceH) {
     _surfaceW = surfaceW;
@@ -127,7 +240,10 @@ class _WebGpuViewState extends State<WebGpuView>
       (f) => f.raw == raw,
       orElse: () => GpuTextureFormat.bgra8Unorm,
     );
-    _ticker ??= createTicker(_tick)..start();
+    if (_ticker == null) {
+      _ticker = createTicker(_tick)..start();
+      _applyPauseState(); // honor a pause() issued before first layout
+    }
     // The texture id became known during layout; schedule a rebuild.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) setState(() {});
@@ -141,6 +257,22 @@ class _WebGpuViewState extends State<WebGpuView>
 
   Future<void> _tick(Duration elapsed) async {
     if (_token == 0 || _frameInFlight) return;
+    _lastElapsed = elapsed;
+    final controller = widget.controller;
+    final Duration frameTime;
+    if (_pausedAt != null) {
+      if (controller != null && controller._paused) {
+        // Single frame requested mid-pause: time stays frozen.
+        frameTime = _pausedAt! - _timeOffset;
+      } else {
+        // Resumed: fold the pause duration into the offset.
+        _timeOffset += elapsed - _pausedAt!;
+        _pausedAt = null;
+        frameTime = elapsed - _timeOffset;
+      }
+    } else {
+      frameTime = elapsed - _timeOffset;
+    }
     _frameInFlight = true;
     try {
       final viewAddress =
@@ -153,13 +285,24 @@ class _WebGpuViewState extends State<WebGpuView>
         targetFormat: _format,
       );
       try {
-        await widget.onFrame(target, elapsed);
+        await widget.onFrame(target, frameTime);
       } finally {
         // Always recycle the acquired slot — leaking it would shrink the
         // ring permanently (a stale present on an error path is the lesser
         // evil, and onFrame contracts to always draw).
         if (_token != 0) {
           NitroWebgpuPresent.instance.presentFrame(_token);
+          if (controller != null) {
+            controller._frameCount++;
+            final dtUs = (frameTime - controller._elapsed).inMicroseconds;
+            if (dtUs > 0) {
+              final inst = 1e6 / dtUs;
+              controller._fps = controller._fps == 0
+                  ? inst
+                  : controller._fps * 0.9 + inst * 0.1;
+            }
+            controller._elapsed = frameTime;
+          }
           if (!_firstFramePresented) {
             _firstFramePresented = true;
             if (mounted) setState(() {});
@@ -168,6 +311,10 @@ class _WebGpuViewState extends State<WebGpuView>
       }
     } finally {
       _frameInFlight = false;
+      if (controller != null && controller._singleFrame) {
+        controller._singleFrame = false;
+        _applyPauseState(); // re-mute if still paused
+      }
       // Deferred work that must not run mid-frame: a surface swap requested
       // during this frame, or a dispose that arrived while rendering.
       if (_disposed) {
@@ -196,8 +343,23 @@ class _WebGpuViewState extends State<WebGpuView>
   }
 
   @override
+  void initState() {
+    super.initState();
+    assert(widget.controller?._state == null,
+        'WebGpuViewController is already attached to another WebGpuView');
+    widget.controller?._state = this;
+  }
+
+  @override
   void didUpdateWidget(WebGpuView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      if (oldWidget.controller?._state == this) {
+        oldWidget.controller?._state = null;
+      }
+      widget.controller?._state = this;
+      _applyPauseState();
+    }
     if (oldWidget.device != widget.device) {
       // A creation failure is device-level: a new device deserves a retry.
       _presenterError = null;
@@ -223,6 +385,9 @@ class _WebGpuViewState extends State<WebGpuView>
 
   @override
   void dispose() {
+    if (widget.controller?._state == this) {
+      widget.controller?._state = null;
+    }
     _ticker?.dispose();
     _disposed = true;
     // Mid-frame dispose defers to the frame boundary — tearing the
@@ -244,6 +409,8 @@ class _WebGpuViewState extends State<WebGpuView>
         _ensurePresenter(w, h, surfaceW, surfaceH);
       }
       if (_presenterError != null) {
+        final custom = widget.errorBuilder?.call(context, _presenterError!);
+        if (custom != null) return custom;
         return ColoredBox(
           color: const Color(0xFF1A1A1A),
           child: Center(
@@ -262,7 +429,8 @@ class _WebGpuViewState extends State<WebGpuView>
         );
       }
       if (_textureId < 0 || !_firstFramePresented) {
-        return const SizedBox.expand();
+        return widget.loadingBuilder?.call(context) ??
+            const SizedBox.expand();
       }
       // 1:1 pixels need no texture filtering; scaled content does. The
       // RepaintBoundary keeps parent repaints (overlays, animations) from
