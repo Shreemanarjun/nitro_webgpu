@@ -212,7 +212,7 @@ jobs:
     # drop both once #12777 is fixed on macos-15.
     runs-on: macos-14
     continue-on-error: true
-    timeout-minutes: 15
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -232,46 +232,33 @@ jobs:
           key: wgpu-native-${{ runner.os }}-${{ hashFiles('scripts/wgpu_native.sha256') }}
       - name: Fetch wgpu-native
         run: ./scripts/fetch_wgpu_native.sh --targets macos-aarch64,macos-x86_64,ios-aarch64,ios-aarch64-simulator,ios-x86_64-simulator
-      - name: Boot iOS simulator
+      - name: Pick iOS simulator
         run: |
           UDID=$(xcrun simctl list devices available --json \
             | jq -r '[.devices | to_entries[] | select(.key | contains("iOS")) | .value[] | select(.name | test("^iPhone"))][0].udid')
           if [ -z "$UDID" ] || [ "$UDID" = "null" ]; then
             echo "no available iPhone simulator"; xcrun simctl list devices; exit 1
           fi
-          xcrun simctl boot "$UDID"
-          xcrun simctl bootstatus "$UDID" -b
-          # simctl boot alone leaves launch services half-up on CI runners —
-          # the flutter tool then hangs forever installing/attaching after
-          # "Xcode build done". The Simulator app process brings them up.
-          open -a Simulator --args -CurrentDeviceUDID "$UDID"
-          sleep 20
           echo "SIM_UDID=$UDID" >> "$GITHUB_ENV"
-      - name: Integration tests
+      - name: Integration suites (xcodebuild XCTest harness)
         working-directory: example
         run: |
+          # The flutter tool's install/attach step hangs on GitHub's
+          # virtualized macOS runners after "Xcode build done"
+          # (actions/runner-images#12777). xcodebuild test drives the Dart
+          # suites through the RunnerTests XCTest wrapper instead — it
+          # manages its own simulator clone and needs no tool attach.
           flutter pub get
-          flutter test integration_test/wgpu_instance_test.dart -d "$SIM_UDID" --reporter expanded
-      - name: Complex parity tests
-        working-directory: example
-        run: flutter test integration_test/wgpu_parity_complex_test.dart -d "$SIM_UDID" --reporter expanded
-      - name: Robustness tests
-        working-directory: example
-        run: flutter test integration_test/wgpu_robustness_test.dart -d "$SIM_UDID" --reporter expanded
-      - name: Showcase tests
-        working-directory: example
-        run: flutter test integration_test/wgpu_showcase_test.dart -d "$SIM_UDID" --reporter expanded
-      - name: Hang diagnostics (simulator + app logs)
-        if: failure()
-        run: |
-          echo "=== installed apps ==="
-          xcrun simctl listapps "$SIM_UDID" 2>/dev/null | head -40 || true
-          echo "=== recent simulator log (errors/faults) ==="
-          xcrun simctl spawn "$SIM_UDID" log show --last 10m --predicate \
-            'messageType == error OR messageType == fault' 2>/dev/null | tail -80 || true
-          echo "=== recent app log lines ==="
-          xcrun simctl spawn "$SIM_UDID" log show --last 10m --predicate \
-            'process CONTAINS "Runner" OR process CONTAINS "nitro"' 2>/dev/null | tail -60 || true
+          for suite in wgpu_instance_test wgpu_parity_complex_test \
+                       wgpu_robustness_test wgpu_showcase_test; do
+            echo "=== $suite ==="
+            flutter build ios --config-only --simulator --debug \
+              --target=integration_test/$suite.dart
+            (cd ios && xcodebuild test \
+              -workspace Runner.xcworkspace -scheme Runner \
+              -configuration Debug -destination "id=$SIM_UDID" \
+              COMPILER_INDEX_STORE_ENABLE=NO)
+          done
 
   android:
     name: Android (emulator, SwiftShader Vulkan)
