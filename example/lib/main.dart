@@ -12,6 +12,8 @@ import 'src/demos/live_scene_page.dart';
 import 'src/demos/multi_view_page.dart';
 import 'src/demos/offscreen_page.dart';
 import 'src/demos/shader_toy_page.dart';
+import 'src/demos/shader_cards_page.dart';
+import 'src/demos/shader_ui_page.dart';
 import 'src/showcase/showcase_gallery_page.dart';
 import 'src/gpu/gpu_context.dart';
 import 'src/gpu/scenes.dart';
@@ -68,6 +70,20 @@ class GalleryPage extends StatelessWidget {
           'reaction-diffusion, boids, fog of war, and more',
       icon: Icons.collections,
       builder: (_) => const ShowcaseGalleryPage(),
+    ),
+    _DemoEntry(
+      title: 'Shaders behind Flutter UI',
+      subtitle: 'A live Material clock, buttons, and chips stacked over an '
+          'animated WebGpuShaderView — with controller pause/resume',
+      icon: Icons.schedule,
+      builder: (_) => const ShaderUiPage(),
+    ),
+    _DemoEntry(
+      title: 'Shader cards',
+      subtitle: 'Animated card backgrounds — four WebGpuShaderViews in a '
+          'scrolling Material list, zero setup',
+      icon: Icons.style,
+      builder: (_) => const ShaderCardsPage(),
     ),
     _DemoEntry(
       title: 'WGSL shader toy',

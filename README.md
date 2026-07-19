@@ -85,6 +85,45 @@ keeps the last good frame running and surfaces through `onError`, a
 custom `errorBuilder`, or the built-in overlay.
 `language: ShaderViewLanguage.glsl` runs GLSL sources unchanged.
 
+It's an ordinary widget, so it composes with any Flutter UI. Behind
+widgets is just a `Stack`; *inside* text is a knockout — a scrim with the
+glyphs punched out, so they become windows onto the shader. Paint it with
+a `CustomPainter` over the view (blend the scrim rect, not the text —
+text blend modes misrender on Impeller):
+
+```dart
+// CustomPaint(painter: _Knockout('12:00')) stacked over WebGpuShaderView.
+@override
+void paint(Canvas canvas, Size size) {
+  final tp = TextPainter(
+    text: TextSpan(
+      text: text,
+      style: const TextStyle(
+          color: Colors.white, fontSize: 96, fontWeight: FontWeight.w800),
+    ),
+    textDirection: TextDirection.ltr,
+  )..layout();
+  final rect = Offset.zero & size;
+  canvas.saveLayer(rect, Paint());
+  tp.paint(canvas,
+      Offset((size.width - tp.width) / 2, (size.height - tp.height) / 2));
+  canvas.drawRect(
+      rect,
+      Paint()
+        ..color = const Color(0xC8060A14) // scrim; glyphs stay open
+        ..blendMode = BlendMode.srcOut);
+  canvas.restore();
+}
+```
+
+The example app's "Shaders behind Flutter UI" page is exactly this — a
+live shader-filled clock with Material buttons and controller stats on
+top:
+
+<p align="center">
+  <img src="assets/shader_ui_clock.png" alt="shader-filled clock demo" width="560">
+</p>
+
 ### Pick your level
 
 | Level | You write | It handles |

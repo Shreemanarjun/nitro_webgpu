@@ -13,6 +13,8 @@ import 'adapter_support.dart';
 import 'package:nitro_webgpu_example/src/gpu/particle_scene.dart';
 import 'package:nitro_webgpu_example/src/gpu/scenes.dart';
 import 'package:nitro_webgpu_example/src/gpu/shadertoy_engine.dart';
+import 'package:nitro_webgpu_example/src/demos/shader_cards_page.dart';
+import 'package:nitro_webgpu_example/src/demos/shader_ui_page.dart';
 import 'package:nitro_webgpu_example/src/showcase/showcase_gallery_page.dart';
 import 'package:nitro_webgpu_example/src/showcase/showcases.dart';
 
@@ -906,6 +908,59 @@ fn fs_main(@builtin(position) pos: vec4f) -> @location(0) vec4f {
           () => Future<void>.delayed(const Duration(milliseconds: 400)));
       expect(controller.time, lessThan(before),
           reason: 'resetTime restarted nw.time');
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 600)));
+      await tester.pump();
+    });
+
+    testWidgets('shader-behind-UI demo page composites and renders',
+        (tester) async {
+      final binding = tester.binding as LiveTestWidgetsFlutterBinding;
+      binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+
+      await tester.pumpWidget(const MaterialApp(home: ShaderUiPage()));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(seconds: 2)));
+      await tester.pump();
+
+      // The knockout clock layer is composited over the shader.
+      expect(find.byKey(const ValueKey('clock-knockout')), findsOneWidget);
+      // The aurora fragment compiled and frames are flowing — a broken
+      // shader would leave the fps chip stuck at 0.
+      final fpsChip = tester.widget<Text>(find.textContaining('fps'));
+      expect(fpsChip.data, isNot('0 fps'), reason: 'shader is rendering');
+
+      // The controller button on top works (hit testing through the Stack).
+      await tester.tap(find.text('Pause shader'));
+      await tester.pump();
+      expect(find.text('Resume shader'), findsOneWidget);
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 600)));
+      await tester.pump();
+    });
+
+    testWidgets('shader cards page runs four views without errors',
+        (tester) async {
+      final binding = tester.binding as LiveTestWidgetsFlutterBinding;
+      binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+
+      final errors = <String>[];
+      await tester.pumpWidget(MaterialApp(
+        home: ShaderCardsPage(
+          onShaderError: (card, m) => errors.add('$card: $m'),
+        ),
+      ));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(seconds: 2)));
+      await tester.pump();
+      expect(errors, isEmpty, reason: 'card shaders errored: $errors');
+      expect(find.byType(WebGpuShaderView, skipOffstage: false),
+          findsNWidgets(4));
+      expect(find.text('Sunset waves'), findsOneWidget);
 
       await tester.pumpWidget(const MaterialApp(home: SizedBox()));
       await tester.runAsync(
