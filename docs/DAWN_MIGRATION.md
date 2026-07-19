@@ -81,6 +81,21 @@ readback ring stays only as an internal render target.
   `wgpuAdapterHasFeature(SharedTextureMemoryIOSurface) == true` — the
   zero-copy interop feature is present and requestable.
 
+## Physical-device verification (2026-07-19, OnePlus CPH2447 / Adreno 740)
+
+- wgpu sanity: main 56+1 — all recent main-line work green on real hardware.
+- **Dawn on real Vulkan: robustness 18/18 (GLSL green with the staged NDK
+  glslang!), showcase 28/28**, main/complex green except one quirk:
+- **Dawn/Adreno quirk (upstream-investigation item)**: CPU-written
+  (`writeBuffer`) indirect args silently draw nothing — Dawn's
+  indirect-validation compute prepass misreads them. GPU-authored args work
+  (the GPU-driven-frame test passes), and SwiftShader is fine on both.
+  The two affected tests skip via `skipDawnHardwareCpuIndirect`.
+- Android ABI coverage: Dawn built + staged (stripped, 12–18 MB) for
+  arm64-v8a, armeabi-v7a, and x86_64; the gradle ABI gate now includes any
+  staged ABI. glslang staged for arm64 (NDK static build,
+  `NITRO_WEBGPU_HAS_GLSLANG` wired in src/CMakeLists.txt).
+
 ## Distribution decision (2026-07-19)
 
 **wgpu-native stays the default shipped backend**; Dawn is an opt-in
