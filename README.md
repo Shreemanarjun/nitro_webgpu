@@ -12,6 +12,153 @@ is curated — typed descriptors with defaults, `Future`s instead of callbacks,
 deterministic `dispose()` with a GC-finalizer safety net, and no `dart:ffi`
 types in the public API.
 
+## Getting started
+
+Not yet on pub.dev — depend on the repository and vendor the native
+binaries once:
+
+```yaml
+# pubspec.yaml
+dependencies:
+  nitro_webgpu:
+    git:
+      url: https://github.com/Shreemanarjun/nitro_webgpu.git
+```
+
+```bash
+# One-time: vendor the prebuilt wgpu-native binaries for your platforms
+# (they are gitignored — ~25 MB per target, fetched from the official
+# wgpu-native releases with sha256 pinning).
+cd <pub-cache-or-clone>/nitro_webgpu
+./scripts/fetch_wgpu_native.sh
+```
+
+Then use it like any plugin — no platform channels to configure, no
+per-platform shader code.
+
+## A complete example
+
+Everything in one file: a device, an animated WGSL shader, and a widget —
+this renders a full-screen animated gradient wave at your display's refresh
+rate on macOS, iOS, Android, Windows, and Linux unchanged.
+
+```dart
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart';
+import 'package:nitro_webgpu/nitro_webgpu.dart';
+
+const _shader = '''
+struct Uniforms { time: f32, aspect: f32 };
+@group(0) @binding(0) var<uniform> u: Uniforms;
+
+@vertex
+fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
+  // Fullscreen triangle, no vertex buffer needed.
+  var p = array<vec2f, 3>(vec2f(-1.0, -3.0), vec2f(3.0, 1.0), vec2f(-1.0, 1.0));
+  return vec4f(p[i], 0.0, 1.0);
+}
+
+@fragment
+fn fs_main(@builtin(position) pos: vec4f) -> @location(0) vec4f {
+  let uv = pos.xy / 600.0;
+  let wave = sin(uv.x * 6.0 + u.time) * cos(uv.y * 4.0 - u.time * 0.7);
+  return vec4f(0.1 + 0.5 * wave, 0.2 + uv.y * 0.5, 0.6 - 0.3 * wave, 1.0);
+}
+''';
+
+void main() => runApp(const MaterialApp(home: WaveDemo()));
+
+class WaveDemo extends StatefulWidget {
+  const WaveDemo({super.key});
+  @override
+  State<WaveDemo> createState() => _WaveDemoState();
+}
+
+class _WaveDemoState extends State<WaveDemo> {
+  GpuAdapter? _adapter;
+  GpuDevice? _device;
+  GpuShaderModule? _module;
+  GpuBuffer? _uniforms;
+  GpuRenderPipeline? _pipeline;
+  GpuBindGroup? _bind;
+
+  @override
+  void initState() {
+    super.initState();
+    _boot();
+  }
+
+  Future<void> _boot() async {
+    final adapter = await Gpu.requestAdapter();
+    final device = await adapter.requestDevice();
+    final module = await device.createShaderModule(_shader);
+    final uniforms = device.createBuffer(
+        size: 16, usage: GpuBufferUsage.uniform | GpuBufferUsage.copyDst);
+    setState(() {
+      _adapter = adapter;
+      _device = device;
+      _module = module;
+      _uniforms = uniforms;
+    });
+  }
+
+  Future<void> _frame(GpuRenderTarget target, Duration elapsed) async {
+    final device = _device!;
+    // Pipelines are created once per target format, then reused.
+    _pipeline ??= await device.createRenderPipeline(
+        module: _module!, targetFormat: target.targetFormat);
+    _bind ??= device.createBindGroup(
+        layout: _pipeline!.getBindGroupLayout(0),
+        entries: [GpuBufferBinding(binding: 0, buffer: _uniforms!)]);
+
+    final t = elapsed.inMicroseconds / 1e6;
+    device.queue.writeBuffer(
+        _uniforms!,
+        Float32List.fromList([t, target.width / target.height, 0, 0])
+            .buffer
+            .asUint8List());
+
+    final encoder = device.createCommandEncoder();
+    encoder.beginRenderPass(colorAttachments: [
+      GpuColorAttachmentInfo(view: target.view),
+    ])
+      ..setPipeline(_pipeline!)
+      ..setBindGroup(0, _bind!)
+      ..draw(3)
+      ..end();
+    device.queue.submit([encoder.finish()]);
+  }
+
+  @override
+  void dispose() {
+    _bind?.dispose();
+    _pipeline?.dispose();
+    _uniforms?.dispose();
+    _module?.dispose();
+    _device?.dispose();
+    _adapter?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final device = _device;
+    return Scaffold(
+      body: device == null
+          ? const Center(child: CircularProgressIndicator())
+          : WebGpuView(device: device, onFrame: _frame),
+    );
+  }
+}
+```
+
+The example app in this repo goes much further: a live WGSL/GLSL shader
+editor, a Shadertoy-compatible player with multi-pass buffers, GPU
+particles, an 18-scene showcase gallery, and two fully GPU-state games
+(Breakout and an endless racer) — plus the four integration-test suites
+that run all of it on every platform in CI.
+
 ## What the plugin does
 
 ### Adapter and device
@@ -125,6 +272,23 @@ probes let one codebase degrade gracefully.
 With `requireTimestampQueries`, timestamp query sets on compute and render
 passes report exact per-pass GPU milliseconds.
 
+### API index
+
+| Area | Entry points |
+|---|---|
+| Instance | `Gpu.requestAdapter`, `Gpu.ensureInitialized(backends:)`, `Gpu.version` |
+| Adapter | `info`, `backendType`, `features`, `limits`, `supportsTimestampQueries`, `requestDevice` |
+| Device | `queue`, `limits`, `features`, `dispose`, `supportsCompute()`, `supportsVertexStorage()` |
+| Buffers | `createBuffer`, `queue.writeBuffer`, `mapRead`, `mapWrite`, `copyBufferToBuffer` |
+| Shaders | `createShaderModule` (WGSL), `createShaderModuleGlsl` (GLSL) |
+| Pipelines | `createComputePipeline`, `createRenderPipeline` (vertex buffers, depth/stencil, blend, MSAA, multi-target), `getBindGroupLayout` |
+| Binding | `createBindGroup`, `createBindGroupLayout`, `createPipelineLayout`, dynamic offsets |
+| Passes | `beginComputePass`, `beginRenderPass` (indexed/instanced/indirect draws, scissor, viewport, occlusion queries), render bundles |
+| Textures | `createTexture` (2D/3D/cube, mips, MSAA, storage), `createView`, `createSampler` (incl. comparison), `writeTexture` (auto stride, compressed), `copyTextureToBuffer`, `copyTextureToTexture` |
+| Timing | `createTimestampQuerySet`, pass-level `timestampWrites`, `queue.timestampPeriod` |
+| Errors | typed checked creates, `pushErrorScope`/`popErrorScope`, `onUncapturedError`, `onLost` |
+| Presentation | `WebGpuView(device:, onFrame:, renderScale:, filterQuality:)` |
+
 ## Supported platforms
 
 | Platform | Presentation path | Status |
@@ -136,6 +300,68 @@ passes report exact per-pass GPU milliseconds.
 | Windows | DXGI shared-texture composition (CPU upload for now) | ✅ CI-verified on D3D12 WARP |
 | Linux | CPU readback (dmabuf fast path planned) | ✅ CI-verified on Vulkan lavapipe |
 | Web | `navigator.gpu` via JS interop | 📐 designed for, not yet built |
+
+## How it compares
+
+Honest positioning against the other ways to reach the GPU from Flutter:
+
+| | **nitro_webgpu** | [flutter_gpu](https://api.flutter.dev/flutter/flutter_gpu/) (official) | [gpux](https://github.com/dartgfx/gpux) | [minigpu](https://pub.dev/packages/minigpu) | `FragmentProgram` |
+|---|---|---|---|---|---|
+| API model | Standard WebGPU (compute + render) | Custom low-level API over Impeller | WebGPU-style facade | Compute-only (gpu.cpp) | Fragment shaders only |
+| Compute shaders | ✅ full (storage textures, indirect, timestamps) | ⚠️ limited/experimental | ✅ | ✅ (its focus) | ❌ |
+| Rendering to a widget | ✅ `WebGpuView` — zero-copy swapchain (Android Vulkan), Metal blit (Apple), DXGI shared texture (Windows) | ✅ (native to the engine) | ⚠️ varies | ❌ | ✅ (paint-time) |
+| Shader language | WGSL **and** GLSL at runtime (Shadertoy-compatible) | GLSL, offline-bundled | WGSL | WGSL | GLSL, offline-bundled |
+| Engine coupling | None — works on stable Flutter, any renderer | Requires Impeller, experimental, master channel recommended | None | None | None |
+| Backend | **Dual**: wgpu-native *and* Dawn, switchable | Impeller | wgpu | Dawn | Skia/Impeller |
+| Downlevel hardware | GL fallback + feature probes (GLES-only Android still renders) | n/a | ⚠️ | ⚠️ | ✅ |
+| Verification | 134-test integration matrix × 5 platforms × 2 backends in CI, plus real-device runs | Flutter CI | ⚠️ | ⚠️ | Flutter CI |
+
+If you need a full modern GPU API — compute feeding rendering, real
+render-pass state, queries, compressed textures — on stable Flutter with
+production presentation paths, that's the niche this plugin exists for.
+If you only need a fragment-shader effect, `FragmentProgram` is built in
+and simpler; if you want the engine team's own experimental low-level
+renderer and can ride the master channel, look at flutter_gpu.
+
+## Two backends, one API
+
+nitro_webgpu is the only Flutter plugin that runs on **both** production
+WebGPU implementations — [wgpu-native](https://github.com/gfx-rs/wgpu-native)
+(Rust, used by Firefox) and [Dawn](https://dawn.googlesource.com/dawn)
+(C++, used by Chrome). The same Dart code runs identically on either;
+the full integration-test matrix passes on both.
+
+**wgpu-native is the default** and what ships when you follow Getting
+Started. Dawn is an opt-in switch per platform:
+
+```bash
+# Fetch prebuilt Dawn from this repo's dawn-v* releases…
+./scripts/fetch_dawn.sh --version dawn-v1 --targets macos-aarch64,android-aarch64
+# …or build/stage it locally from a Dawn checkout:
+./scripts/stage_dawn_macos.sh      # + stage_dawn_ios.sh / stage_dawn_android.sh
+
+# Flip the switch (per platform, content-tracked so builds can't go stale):
+./scripts/set_backend_macos.sh dawn     # macOS  (SwiftPM manifest toggle)
+./scripts/set_backend_ios.sh dawn       # iOS
+./scripts/set_backend_android.sh dawn   # Android/Windows/Linux (CMake marker)
+
+# …and back:
+./scripts/set_backend_macos.sh wgpu
+```
+
+Why you might want Dawn: Chrome-lineage validation messages, its
+`SharedTextureMemory` zero-copy interop (the plugin uses it for IOSurface
+and DXGI shared-handle presentation), or simply matching the engine your
+web build will run on. Why wgpu-native stays the default: GLSL ingestion
+is built in (Dawn needs a staged glslang), and its GL backend covers
+GLES-only Android devices that Dawn leaves without an adapter.
+
+Documented behavioral differences between the two (all gated in the test
+suites): Dawn doesn't reify limits requested *below* the default, its
+pass-boundary timestamps can read equal on trivial passes, `Gpu.version`
+reports `0.0.0.0`, and one Adreno-specific indirect-args quirk is tracked
+for upstream. Everything else — the entire API surface — behaves
+identically.
 
 ## Limitations
 
