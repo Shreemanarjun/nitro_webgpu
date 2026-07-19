@@ -129,6 +129,8 @@ Bindings mix keys and mouse buttons; rebinding at runtime is swapping the
 map:
 
 ```dart
+// LogicalKeyboardKey is in package:flutter/services.dart,
+// kPrimaryButton in package:flutter/gestures.dart.
 final inputs = GpuInputs(
   map: GpuInputMap(
     actions: {
@@ -304,7 +306,12 @@ final compute = await device.createComputePipeline(module: module);
 final render = await device.createRenderPipeline(
   module: module,                  // vertex + fragment (or fragmentModule:)
   targetFormat: GpuTextureFormat.rgba8Unorm,
-  vertexBuffers: [GpuVertexLayout(arrayStride: 16, attributes: [...])],
+  vertexBuffers: [
+    GpuVertexLayout(arrayStride: 16, attributes: [
+      GpuVertexAttr(
+          format: GpuVertexFormat.float32x4, offset: 0, shaderLocation: 0),
+    ]),
+  ],
 );
 
 final encoder = device.createCommandEncoder();
@@ -516,7 +523,7 @@ try {
   (filters: `validation`, `outOfMemory`, `internal`).
 - **Uncaptured errors**: `device.onUncapturedError` is a broadcast stream of
   everything not caught by a scope.
-- **Device loss**: `device.onLost` reports the reason
+- **Device loss**: `device.onLost` is a stream that reports the reason
   (`GpuDeviceLostReason`) if the device dies.
 - **Native panic guards**: known wgpu-native abort paths (unbalanced
   `popErrorScope`, surface configure on GL, invalid mid-frame surface drops)
