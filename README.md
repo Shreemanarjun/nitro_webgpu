@@ -8,6 +8,7 @@
 every platform, powered by [wgpu-native](https://github.com/gfx-rs/wgpu-native)
 and bound through [Nitro](https://pub.dev/packages/nitro) FFI.
 
+[![pub package](https://img.shields.io/pub/v/nitro_webgpu.svg)](https://pub.dev/packages/nitro_webgpu)
 [![integration tests](https://github.com/Shreemanarjun/nitro_webgpu/actions/workflows/integration_test.yml/badge.svg)](https://github.com/Shreemanarjun/nitro_webgpu/actions/workflows/integration_test.yml)
 
 One shared C++ core wraps the standard `webgpu.h` C ABI; shaders are written
@@ -27,8 +28,15 @@ https://github.com/user-attachments/assets/5e42166e-366e-43be-b508-ecf87a6c629d
 
 ## Getting started
 
-Not yet on pub.dev — depend on the repository and vendor the native
-binaries once:
+Add the dependency:
+
+```yaml
+# pubspec.yaml
+dependencies:
+  nitro_webgpu: ^0.0.1
+```
+
+Or track the repository directly:
 
 ```yaml
 # pubspec.yaml
