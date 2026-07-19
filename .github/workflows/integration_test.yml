@@ -1,9 +1,9 @@
 name: integration tests
 
 on:
-  push:
-    branches: [main]
   pull_request:
+  push:
+    tags: ['v*']
   workflow_dispatch:
 
 concurrency:
