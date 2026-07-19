@@ -443,7 +443,7 @@ renderer and can ride the master channel, look at flutter_gpu. This
 plugin is for a full GPU API (compute + rendering, queries, compressed
 textures) on stable Flutter.
 
-Moving from one of these? [docs/MIGRATION.md](docs/MIGRATION.md) has
+Moving from one of these? [doc/MIGRATION.md](doc/MIGRATION.md) has
 concept maps and before/after code for each.
 
 ## Two backends, one API
@@ -509,7 +509,7 @@ Everything else behaves identically.
   from the readback ring, and Linux presents via the pixel-buffer texture.
   Fully zero-copy needs wgpu-native to expose D3D12/Vulkan handle
   accessors like the Metal trio it already ships; the C ABI has none today
-  (upstream request drafted in `docs/upstream/`). When they land, the CPU
+  (upstream request drafted in `doc/upstream/`). When they land, the CPU
   fill becomes a GPU copy with no other changes.
 - **No indirect draws/dispatches on the iOS simulator.** The simulator's
   Metal (Apple2-sim family) lacks indirect execution and wgpu aborts at

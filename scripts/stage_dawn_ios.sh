@@ -5,7 +5,7 @@ set -euo pipefail
 DAWN_SRC="${NITRO_WEBGPU_DAWN_SRC:-$HOME/.cache/nitro_webgpu/dawn-src}"
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DYLIB="$DAWN_SRC/out-ios-sim/src/dawn/native/libwebgpu_dawn.dylib"
-[[ -f "$DYLIB" ]] || { echo "error: $DYLIB not found — build Dawn for the iOS simulator first (see docs/DAWN_MIGRATION.md)" >&2; exit 1; }
+[[ -f "$DYLIB" ]] || { echo "error: $DYLIB not found — build Dawn for the iOS simulator first (see doc/DAWN_MIGRATION.md)" >&2; exit 1; }
 
 INC="$REPO_ROOT/src/third_party/dawn/include"
 mkdir -p "$INC/webgpu" "$INC/dawn"

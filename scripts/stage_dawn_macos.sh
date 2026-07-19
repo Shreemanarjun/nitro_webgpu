@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stages a locally-built Dawn (see docs/DAWN_MIGRATION.md) for the macOS
+# Stages a locally-built Dawn (see doc/DAWN_MIGRATION.md) for the macOS
 # backend switch: headers into src/third_party/dawn/include and the
 # monolithic dylib wrapped as an xcframework the podspec can vendor.
 #

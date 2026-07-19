@@ -5,7 +5,7 @@ File with:
 ```bash
 gh issue create --repo gfx-rs/wgpu-native \
   --title "Native handle accessors for D3D12 and Vulkan (mirroring the Metal trio)" \
-  --body-file docs/upstream/wgpu-native-handle-accessors.md
+  --body-file doc/upstream/wgpu-native-handle-accessors.md
 ```
 
 (Delete this header block before filing; body starts below.)
