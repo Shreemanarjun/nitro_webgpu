@@ -25,12 +25,16 @@ dependencies:
       url: https://github.com/Shreemanarjun/nitro_webgpu.git
 ```
 
+**Android, Windows, Linux: that's it.** The first build vendors the
+prebuilt wgpu-native binaries automatically (downloaded from the official
+releases, sha256-pinned).
+
+**macOS / iOS: one command**, run from your app directory — it assembles
+the Metal xcframeworks (needs `xcodebuild`, so it can't happen inside the
+build):
+
 ```bash
-# One-time: vendor the prebuilt wgpu-native binaries for your platforms
-# (they are gitignored — ~25 MB per target, fetched from the official
-# wgpu-native releases with sha256 pinning).
-cd <pub-cache-or-clone>/nitro_webgpu
-./scripts/fetch_wgpu_native.sh
+dart run nitro_webgpu:setup
 ```
 
 Then use it like any plugin — no platform channels to configure, no

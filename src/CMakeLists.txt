@@ -65,6 +65,7 @@ if(ANDROID)
   endif()
   set(WGPU_LIB "${WGPU_ROOT}/${WGPU_TARGET}/lib/libwgpu_native.a")
 elseif(WIN32)
+  set(WGPU_TARGET "windows-x86_64-msvc")
   set(WGPU_LIB "${WGPU_ROOT}/windows-x86_64-msvc/lib/wgpu_native.lib")
 elseif(UNIX AND NOT APPLE)
   if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
@@ -111,6 +112,40 @@ if(NOT APPLE)
       set(NW_DAWN_RUNTIME_LIB "${DAWN_LIB}" PARENT_SCOPE)
     endif()
   else()
+    if(NOT EXISTS "${WGPU_LIB}")
+      # Auto-vendor: fetch the pinned wgpu-native release for this target so
+      # a plain `flutter build` needs zero manual steps. Checksums come from
+      # scripts/wgpu_native.sha256 — same pins the fetch script enforces.
+      if(CMAKE_VERSION VERSION_LESS "3.18")
+        message(FATAL_ERROR "nitro_webgpu: wgpu-native not vendored (missing ${WGPU_LIB}) — run scripts/fetch_wgpu_native.sh (CMake < 3.18 cannot auto-vendor)")
+      endif()
+      set(WGPU_VERSION "v29.0.1.1")
+      set(WGPU_ZIP "wgpu-${WGPU_TARGET}-release.zip")
+      set(WGPU_PIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/wgpu_native.sha256")
+      file(STRINGS "${WGPU_PIN_FILE}" WGPU_PIN_LINE REGEX " ${WGPU_ZIP}$")
+      if(NOT WGPU_PIN_LINE)
+        message(FATAL_ERROR "nitro_webgpu: no pinned checksum for ${WGPU_ZIP} in ${WGPU_PIN_FILE}")
+      endif()
+      string(REGEX MATCH "^[0-9a-f]+" WGPU_SHA "${WGPU_PIN_LINE}")
+      set(WGPU_DL "${CMAKE_CURRENT_BINARY_DIR}/${WGPU_ZIP}")
+      message(STATUS "nitro_webgpu: vendoring ${WGPU_ZIP} (${WGPU_VERSION})")
+      file(DOWNLOAD
+           "https://github.com/gfx-rs/wgpu-native/releases/download/${WGPU_VERSION}/${WGPU_ZIP}"
+           "${WGPU_DL}" EXPECTED_HASH SHA256=${WGPU_SHA}
+           STATUS WGPU_DL_STATUS)
+      list(GET WGPU_DL_STATUS 0 WGPU_DL_CODE)
+      if(NOT WGPU_DL_CODE EQUAL 0)
+        message(FATAL_ERROR "nitro_webgpu: download failed for ${WGPU_ZIP} (${WGPU_DL_STATUS}) — run scripts/fetch_wgpu_native.sh or check network access")
+      endif()
+      file(ARCHIVE_EXTRACT INPUT "${WGPU_DL}"
+           DESTINATION "${WGPU_ROOT}/${WGPU_TARGET}")
+      file(REMOVE "${WGPU_DL}")
+    endif()
+    if(NOT EXISTS "${WGPU_ROOT}/include")
+      # Shared headers are identical across targets; take this target's copy.
+      file(COPY "${WGPU_ROOT}/${WGPU_TARGET}/include"
+           DESTINATION "${WGPU_ROOT}")
+    endif()
     if(NOT EXISTS "${WGPU_LIB}")
       message(FATAL_ERROR "nitro_webgpu: wgpu-native not vendored (missing ${WGPU_LIB}) — run scripts/fetch_wgpu_native.sh")
     endif()
