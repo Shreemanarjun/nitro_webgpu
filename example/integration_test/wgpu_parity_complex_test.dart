@@ -3,6 +3,8 @@
 // so regressions in feature *interactions* surface even when the isolated
 // feature tests stay green.
 import 'dart:io' show Platform;
+
+import 'adapter_support.dart';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -50,6 +52,16 @@ void main() {
       final hasTs = adapter.supportsTimestampQueries;
       final device =
           await adapter.requestDevice(requireTimestampQueries: hasTs);
+      if (await skipWithoutCompute(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
+      if (await skipWithoutIndirect(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
 
       // One compute dispatch fills a vertex buffer (fullscreen triangle),
       // indirect draw args, and a storage texture — the render pass then
@@ -631,6 +643,11 @@ fn fs_main() -> @location(0) vec4f { return tint; }
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice();
+      if (await skipWithoutCompute(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
 
       final module = await device.createShaderModule('''
 struct Params { m: f32 };
@@ -1678,6 +1695,16 @@ fn fs_main() -> @location(0) vec4f { return vec4f(0.0, 1.0, 0.0, 1.0); }
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice();
+      if (await skipDawnHardwareCpuIndirect(adapter)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
+      if (await skipWithoutIndirect(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
       final module = await device.createShaderModule('''
 $fsTriVs
 @fragment
@@ -1730,8 +1757,15 @@ fn fs_main() -> @location(0) vec4f { return vec4f(1.0, 0.0, 1.0, 1.0); }
         requiredLimits: const GpuRequiredLimits(maxVertexAttributes: 8),
       );
       final limits = device.limits;
-      expect(limits.maxVertexAttributes, 8,
-          reason: 'newly exposed limit override applies');
+      if (isDawnBackend) {
+        // Dawn grants the default when a limit is requested BELOW it (no
+        // lowered-limit reification); wgpu-native reifies the lower value.
+        expect(limits.maxVertexAttributes, greaterThanOrEqualTo(8),
+            reason: 'Dawn grants defaults for lowered limits');
+      } else {
+        expect(limits.maxVertexAttributes, 8,
+            reason: 'newly exposed limit override applies');
+      }
       expect(limits.maxColorAttachments, greaterThanOrEqualTo(4));
       expect(limits.maxVertexBuffers, greaterThan(0));
       expect(limits.maxSampledTexturesPerShaderStage, greaterThan(0));

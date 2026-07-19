@@ -17,6 +17,7 @@
 #include "present_core.h"
 
 #ifdef __ANDROID__
+#include <android/log.h>
 #include <android/native_window.h>
 #endif
 
@@ -57,6 +58,22 @@ struct NwpPresenter {
     void* sinkUser = nullptr;
     NwpGpuFrameSink gpuSink = nullptr;
     void* gpuSinkUser = nullptr;
+    // Per-presenter ring format: kNwpRingFormat everywhere except the
+    // Android GL-fallback presenter, whose ANativeWindow buffers are RGBA.
+    WGPUTextureFormat ringFormat = kNwpRingFormat;
+#ifdef __ANDROID__
+    // GL-backend fallback (no Vulkan on the device): wgpu's GL backend
+    // cannot create an EGL swapchain on the Flutter SurfaceProducer window
+    // (and wgpu-native panics trying), so frames render into the offscreen
+    // ring — exactly like the desktop presenters — and each mapped frame is
+    // CPU-blitted into the window with ANativeWindow_lock/unlockAndPost (a
+    // CPU BufferQueue connection, which the window does accept).
+    // nativeWindow + geometry are guarded by surfaceMutex in this mode.
+    bool androidReadback = false;
+    int32_t geomWidth = 0;
+    int32_t geomHeight = 0;
+    bool lockFailLogged = false;
+#endif
 
     // Surface mode (nwp_presenter_create_surface): renders straight into a
     // WGPUSurface swapchain instead of the offscreen ring. width/height stay
@@ -82,6 +99,20 @@ struct NwpPresenter {
     WGPUTexture offTex = nullptr;
     WGPUTextureView offView = nullptr;
     bool offscreenAcquired = false;
+#if defined(NITRO_WEBGPU_BACKEND_DAWN) && (defined(__APPLE__) || defined(_WIN32))
+    // Texture-import path (Dawn): per-IOSurface import cache. Guarded by
+    // the presenter's single-threaded present flow (Dart thread).
+    NwpImportAcquire ioAcquire = nullptr;
+    NwpImportPresented ioPresented = nullptr;
+    void* ioUser = nullptr;
+    struct NwpImportedSurface {
+        WGPUSharedTextureMemory mem = nullptr;
+        WGPUTexture tex = nullptr;
+        int32_t width = 0;
+        int32_t height = 0;
+    };
+    std::unordered_map<void*, NwpImportedSurface> ioImports;
+#endif
     // Lazily-built upscale blit (fullscreen sampled triangle).
     WGPUShaderModule blitModule = nullptr;
     WGPURenderPipeline blitPipeline = nullptr;
@@ -159,10 +190,26 @@ void nwpFinalize(int64_t token, NwpPresenter* p) {
         gPresenters.erase(token);
     }
     WgpuContext::get().unregisterDevice(p->device);
+#if defined(NITRO_WEBGPU_BACKEND_DAWN) && (defined(__APPLE__) || defined(_WIN32))
+    for (auto& [surface, imp] : p->ioImports) {
+        if (imp.tex) wgpuTextureRelease(imp.tex);
+        if (imp.mem) wgpuSharedTextureMemoryRelease(imp.mem);
+    }
+    p->ioImports.clear();
+#endif
     if (p->surfaceMode) {
         std::lock_guard<std::mutex> surfLock(p->surfaceMutex);
         nwpDestroySurface(p);
     }
+#ifdef __ANDROID__
+    if (p->androidReadback) {
+        std::lock_guard<std::mutex> surfLock(p->surfaceMutex);
+        if (p->nativeWindow) {
+            ANativeWindow_release((ANativeWindow*)p->nativeWindow);
+            p->nativeWindow = nullptr;
+        }
+    }
+#endif
     nwpReleaseTargets(p);
     wgpuQueueRelease(p->queue);
     delete p;
@@ -205,7 +252,7 @@ bool nwpCreateTargets(NwpPresenter* p, int32_t width, int32_t height) {
         td.usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc;
         td.dimension = WGPUTextureDimension_2D;
         td.size = {(uint32_t)width, (uint32_t)height, 1};
-        td.format = kNwpRingFormat;
+        td.format = p->ringFormat;
         td.mipLevelCount = 1;
         td.sampleCount = 1;
         s.target = wgpuDeviceCreateTexture(p->device, &td);
@@ -394,8 +441,68 @@ void nwpDestroySurface(NwpPresenter* p) {
     p->nativeWindow = nullptr;
 }
 
+#ifdef __ANDROID__
+// wgpu's GL backend cannot create an EGL swapchain on the Flutter
+// SurfaceProducer (ImageReader) window — eglCreateWindowSurface fails with
+// EGL_BAD_ALLOC and wgpu-native PANICS inside wgpuSurfaceConfigure,
+// aborting the whole process. Detect GL up front so those devices take the
+// CPU-readback fallback instead. (Vulkan-backed devices — every real
+// modern Android GPU plus emulators with -gpu swiftshader_indirect — take
+// the normal zero-copy path.)
+bool nwpDeviceOnGlBackend(WGPUDevice device) {
+    // NEVER query the device handle here — wgpuDeviceGetAdapterInfo is an
+    // unimplemented!() panic stub in wgpu-native v29. The backend was
+    // recorded from the adapter at requestDevice time.
+    const WGPUBackendType backend = WgpuContext::get().deviceBackend(device);
+    return backend == WGPUBackendType_OpenGL ||
+           backend == WGPUBackendType_OpenGLES;
+}
+
+// GL-fallback frame delivery: copies a mapped ring frame into the
+// ANativeWindow. Runs on the wgpu map-callback thread; serialized against
+// window replace/park/destroy by surfaceMutex.
+void nwpBlitToWindow(NwpPresenter* p, const uint8_t* pixels, int32_t width,
+                     int32_t height, int32_t bytesPerRow) {
+    std::lock_guard<std::mutex> lock(p->surfaceMutex);
+    auto* win = (ANativeWindow*)p->nativeWindow;
+    if (!win) return;  // parked (window lost) — drop the frame
+    if (p->geomWidth != width || p->geomHeight != height) {
+        // Buffers at the RENDER size; the compositor scales to the window,
+        // so renderScale works with no extra blit.
+        ANativeWindow_setBuffersGeometry(win, width, height,
+                                         WINDOW_FORMAT_RGBA_8888);
+        p->geomWidth = width;
+        p->geomHeight = height;
+    }
+    ANativeWindow_Buffer buf;
+    if (ANativeWindow_lock(win, &buf, nullptr) != 0) {
+        if (!p->lockFailLogged) {
+            p->lockFailLogged = true;
+            __android_log_print(ANDROID_LOG_ERROR, "nwp",
+                                "ANativeWindow_lock failed — the GL-backend "
+                                "fallback cannot present on this window");
+        }
+        return;
+    }
+    const int32_t copyW = width < buf.width ? width : buf.width;
+    const int32_t copyH = height < buf.height ? height : buf.height;
+    auto* dst = (uint8_t*)buf.bits;
+    for (int32_t y = 0; y < copyH; y++) {
+        memcpy(dst + (size_t)y * (size_t)buf.stride * 4,
+               pixels + (size_t)y * (size_t)bytesPerRow, (size_t)copyW * 4);
+    }
+    ANativeWindow_unlockAndPost(win);
+}
+#endif
+
 // Builds a WGPUSurface for [window] and configures it at the current size.
 bool nwpAttachWindow(NwpPresenter* p, void* window) {
+#ifdef __ANDROID__
+    // Safety net: a WGPUSurface must never be configured on the GL backend
+    // (process-fatal panic) — GL presenters are created in readback mode
+    // and never reach here.
+    if (nwpDeviceOnGlBackend(p->device)) return false;
+#endif
     WGPUSurfaceSourceAndroidNativeWindow src = {};
     src.chain.sType = WGPUSType_SurfaceSourceAndroidNativeWindow;
     src.window = window;
@@ -409,6 +516,128 @@ bool nwpAttachWindow(NwpPresenter* p, void* window) {
     nwpConfigureSurface(p, p->surfaceWidth, p->surfaceHeight);
     return true;
 }
+
+#if defined(NITRO_WEBGPU_BACKEND_DAWN) && (defined(__APPLE__) || defined(_WIN32))
+// Zero-copy present: import the shim's IOSurface (cached), GPU-copy the
+// ring slot into it, then notify the shim once the GPU finished. Runs on
+// the Dart thread inside nwp_presenter_present; slot state is already 2.
+void nwpPresentViaImport(int64_t token, NwpPresenter* p, int slot) {
+    NwpSlot& s = p->slots[slot];
+    void* surface = p->ioAcquire(token, p->width, p->height, p->ioUser);
+    if (!surface) {
+        nwpCompleteInflight(token, p, slot);
+        return;
+    }
+    // Any failure after acquire must still hand the surface back — the
+    // shim retains its pixel buffer in an in-flight map keyed by this
+    // pointer, and dropping it silently exhausts the pool. One
+    // possibly-stale published frame on a never-taken error path is the
+    // lesser evil.
+    auto releaseAcquired = [&]() {
+        if (p->ioPresented) p->ioPresented(token, surface, p->ioUser);
+        nwpCompleteInflight(token, p, slot);
+    };
+    auto& imp = p->ioImports[surface];
+    if (imp.mem && (imp.width != p->width || imp.height != p->height)) {
+        // Same pointer, different geometry: the pool was rebuilt and the
+        // address was reused — the cached import points at a dead surface.
+        wgpuTextureRelease(imp.tex);
+        wgpuSharedTextureMemoryRelease(imp.mem);
+        imp = {};
+    }
+    if (!imp.mem) {
+#if defined(__APPLE__)
+        WGPUSharedTextureMemoryIOSurfaceDescriptor io =
+            WGPU_SHARED_TEXTURE_MEMORY_IO_SURFACE_DESCRIPTOR_INIT;
+        io.chain.sType = WGPUSType_SharedTextureMemoryIOSurfaceDescriptor;
+        io.ioSurface = surface;
+#else
+        WGPUSharedTextureMemoryDXGISharedHandleDescriptor io =
+            WGPU_SHARED_TEXTURE_MEMORY_DXGI_SHARED_HANDLE_DESCRIPTOR_INIT;
+        io.chain.sType =
+            WGPUSType_SharedTextureMemoryDXGISharedHandleDescriptor;
+        io.handle = surface;
+        io.useKeyedMutex = 0;
+#endif
+        WGPUSharedTextureMemoryDescriptor smd =
+            WGPU_SHARED_TEXTURE_MEMORY_DESCRIPTOR_INIT;
+        smd.nextInChain = &io.chain;
+        imp.mem = wgpuDeviceImportSharedTextureMemory(p->device, &smd);
+        // Null descriptor: Dawn derives the texture from the surface's
+        // own properties (BGRA8, full usage).
+        if (imp.mem) {
+            imp.tex = wgpuSharedTextureMemoryCreateTexture(imp.mem, nullptr);
+        }
+        if (!imp.mem || !imp.tex) {
+            if (imp.tex) wgpuTextureRelease(imp.tex);
+            if (imp.mem) wgpuSharedTextureMemoryRelease(imp.mem);
+            p->ioImports.erase(surface);
+            releaseAcquired();
+            return;
+        }
+        imp.width = p->width;
+        imp.height = p->height;
+    }
+
+    WGPUSharedTextureMemoryBeginAccessDescriptor ba = {};
+    // Contents are fully overwritten by the copy; claiming initialized
+    // skips Dawn's lazy clear. No fences: the pool + drop-latest pacing
+    // guarantee the compositor finished reading recycled buffers.
+    ba.initialized = 1;
+    if (wgpuSharedTextureMemoryBeginAccess(imp.mem, imp.tex, &ba) !=
+        WGPUStatus_Success) {
+        releaseAcquired();
+        return;
+    }
+
+    WGPUCommandEncoderDescriptor ed = WGPU_COMMAND_ENCODER_DESCRIPTOR_INIT;
+    WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(p->device, &ed);
+    WGPUTexelCopyTextureInfo src = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
+    src.texture = s.target;
+    WGPUTexelCopyTextureInfo dst = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
+    dst.texture = imp.tex;
+    WGPUExtent3D extent = {(uint32_t)p->width, (uint32_t)p->height, 1};
+    wgpuCommandEncoderCopyTextureToTexture(encoder, &src, &dst, &extent);
+    WGPUCommandBuffer cmd = wgpuCommandEncoderFinish(encoder, nullptr);
+    wgpuQueueSubmit(p->queue, 1, &cmd);
+    wgpuCommandBufferRelease(cmd);
+    wgpuCommandEncoderRelease(encoder);
+
+    WGPUSharedTextureMemoryEndAccessState ea = {};
+    if (wgpuSharedTextureMemoryEndAccess(imp.mem, imp.tex, &ea) ==
+        WGPUStatus_Success) {
+        wgpuSharedTextureMemoryEndAccessStateFreeMembers(ea);
+    }
+
+    struct IoPresentOp {
+        NwpPresenter* p;
+        int64_t token;
+        int slot;
+        void* surface;
+    };
+    auto* op = new IoPresentOp{p, token, slot, surface};
+    WGPUQueueWorkDoneCallbackInfo wcb = WGPU_QUEUE_WORK_DONE_CALLBACK_INFO_INIT;
+    wcb.mode = WGPUCallbackMode_AllowProcessEvents;
+    wcb.userdata1 = op;
+    wcb.callback = [](WGPUQueueWorkDoneStatus status, WGPUStringView,
+                      void* ud1, void*) {
+        auto* op = static_cast<IoPresentOp*>(ud1);
+        NwpPresenter* p = op->p;
+        // Hand the surface back REGARDLESS of status — the shim retains its
+        // pixel buffer until this fires, and dropping it on device loss
+        // would exhaust the pool (one stale frame is the lesser evil).
+        (void)status;
+        if (p->ioPresented) {
+            p->ioPresented(op->token, op->surface, p->ioUser);
+        }
+        nwpCompleteInflight(op->token, p, op->slot);
+        WgpuContext::get().opFinished();
+        delete op;
+    };
+    wgpuQueueOnSubmittedWorkDone(p->queue, wcb);
+    WgpuContext::get().opStarted();
+}
+#endif
 
 }  // namespace
 
@@ -439,6 +668,36 @@ int64_t nwp_presenter_create_surface(int64_t deviceAddress,
                                      void* nativeWindow, int32_t width,
                                      int32_t height) {
     if (!deviceAddress || !nativeWindow || width <= 0 || height <= 0) return 0;
+#ifdef __ANDROID__
+    if (nwpDeviceOnGlBackend((WGPUDevice)(intptr_t)deviceAddress)) {
+        // GL fallback: ring/readback presenter + CPU blit into the window.
+        auto* p = new NwpPresenter();
+        p->androidReadback = true;
+        p->ringFormat = WGPUTextureFormat_RGBA8Unorm;
+        p->device = (WGPUDevice)(intptr_t)deviceAddress;
+        p->queue = wgpuDeviceGetQueue(p->device);
+        p->surfaceWidth = width;
+        p->surfaceHeight = height;
+        if (!p->queue || !nwpCreateTargets(p, width, height)) {
+            nwpReleaseTargets(p);
+            if (p->queue) wgpuQueueRelease(p->queue);
+            delete p;
+            return 0;
+        }
+        p->nativeWindow = nativeWindow;  // ownership transfers
+        __android_log_print(
+            ANDROID_LOG_INFO, "nwp",
+            "GL backend (no Vulkan): presenting via CPU readback fallback "
+            "(%dx%d) — expect reduced throughput; emulators can enable "
+            "Vulkan with -gpu swiftshader_indirect",
+            width, height);
+        WgpuContext::get().registerDevice(p->device);
+        std::lock_guard<std::mutex> lock(gPresentersMutex);
+        const int64_t token = gNextPresenterToken++;
+        gPresenters[token] = p;
+        return token;
+    }
+#endif
     auto* p = new NwpPresenter();
     p->surfaceMode = true;
     p->device = (WGPUDevice)(intptr_t)deviceAddress;
@@ -464,6 +723,22 @@ void nwp_presenter_replace_surface(int64_t token, void* nativeWindow,
     NwpPresenter* p = nwpFindAndRef(token);
     if (!p) return;
     NwpOpGuard guard{token, p};
+#ifdef __ANDROID__
+    if (p->androidReadback) {
+        std::lock_guard<std::mutex> surfLock(p->surfaceMutex);
+        if (p->nativeWindow) {
+            ANativeWindow_release((ANativeWindow*)p->nativeWindow);
+        }
+        p->nativeWindow = nativeWindow;  // may be null → parked
+        p->geomWidth = 0;  // re-assert buffer geometry on the next blit
+        p->geomHeight = 0;
+        if (width > 0 && height > 0) {
+            p->surfaceWidth = width;
+            p->surfaceHeight = height;
+        }
+        return;
+    }
+#endif
     if (!p->surfaceMode) return;
     std::lock_guard<std::mutex> surfLock(p->surfaceMutex);
     nwpDestroySurface(p);
@@ -498,7 +773,13 @@ void nwp_presenter_frame_done(int64_t token, int32_t slot) {
 void* nwp_presenter_metal_device(int64_t token) {
     NwpPresenter* p = nwpFind(token);
     if (!p) return nullptr;
+#if defined(NITRO_WEBGPU_BACKEND_DAWN)
+    // Dawn presents via SharedTextureMemory import (P2 of the migration),
+    // not exported Metal handles.
+    return nullptr;
+#else
     return wgpuDeviceGetNativeMetalDevice(p->device);
+#endif
 }
 
 int64_t nwp_presenter_acquire(int64_t token) {
@@ -651,6 +932,12 @@ void nwp_presenter_present(int64_t token) {
     if (!p->slots[slot].state.compare_exchange_strong(expected, 2)) return;
     p->acquiredSlot = -1;
 
+#if defined(NITRO_WEBGPU_BACKEND_DAWN) && (defined(__APPLE__) || defined(_WIN32))
+    if (p->ioAcquire) {
+        nwpPresentViaImport(token, p, slot);
+        return;
+    }
+#endif
     if (p->gpuSink) {
         // GPU path: once the app's submitted work completes, hand the slot's
         // native texture to the shim, which blits it and calls
@@ -669,9 +956,13 @@ void nwp_presenter_present(int64_t token) {
             auto* op = static_cast<GpuPresentOp*>(ud1);
             NwpPresenter* p = op->p;
             void* mtl = nullptr;
+#if !defined(NITRO_WEBGPU_BACKEND_DAWN)
             if (status == WGPUQueueWorkDoneStatus_Success && p->gpuSink) {
                 mtl = wgpuTextureGetNativeMetalTexture(p->slots[op->slot].target);
             }
+#else
+            (void)status;
+#endif
             if (mtl) {
                 p->gpuSink(op->token, p->width, p->height, mtl, op->slot,
                            p->gpuSinkUser);
@@ -723,6 +1014,12 @@ void nwp_presenter_present(int64_t token) {
         if (status == WGPUMapAsyncStatus_Success) {
             const size_t n = (size_t)p->alignedBytesPerRow * (size_t)p->height;
             const void* mapped = wgpuBufferGetConstMappedRange(s.readback, 0, n);
+#ifdef __ANDROID__
+            if (mapped && p->androidReadback) {
+                nwpBlitToWindow(p, (const uint8_t*)mapped, p->width,
+                                p->height, p->alignedBytesPerRow);
+            }
+#endif
             if (mapped && p->sink) {
                 p->sink(op->token, (const uint8_t*)mapped, p->width, p->height,
                         p->alignedBytesPerRow, p->sinkUser);
@@ -739,8 +1036,47 @@ void nwp_presenter_present(int64_t token) {
 
 int32_t nwp_presenter_format(int64_t token) {
     NwpPresenter* p = nwpFind(token);
-    if (p && p->surfaceMode) return (int32_t)p->surfaceFormat;
-    return (int32_t)kNwpRingFormat;
+    if (!p) return (int32_t)kNwpRingFormat;
+    return (int32_t)(p->surfaceMode ? p->surfaceFormat : p->ringFormat);
+}
+
+int32_t nwp_presenter_is_surface_mode(int64_t token) {
+    NwpPresenter* p = nwpFind(token);
+    return (p && p->surfaceMode) ? 1 : 0;
+}
+
+int32_t nwp_presenter_supports_texture_import(int64_t token) {
+#if defined(NITRO_WEBGPU_BACKEND_DAWN) && (defined(__APPLE__) || defined(_WIN32))
+    NwpPresenter* p = nwpFind(token);
+#if defined(__APPLE__)
+    const WGPUFeatureName kImport = WGPUFeatureName_SharedTextureMemoryIOSurface;
+#else
+    const WGPUFeatureName kImport =
+        WGPUFeatureName_SharedTextureMemoryDXGISharedHandle;
+#endif
+    return (p && wgpuDeviceHasFeature(p->device, kImport)) ? 1 : 0;
+#else
+    (void)token;
+    return 0;
+#endif
+}
+
+void nwp_presenter_set_import_ops(int64_t token,
+                                  NwpImportAcquire acquire,
+                                  NwpImportPresented presented,
+                                  void* user) {
+#if defined(NITRO_WEBGPU_BACKEND_DAWN) && (defined(__APPLE__) || defined(_WIN32))
+    NwpPresenter* p = nwpFind(token);
+    if (!p) return;
+    p->ioAcquire = acquire;
+    p->ioPresented = presented;
+    p->ioUser = user;
+#else
+    (void)token;
+    (void)acquire;
+    (void)presented;
+    (void)user;
+#endif
 }
 
 void nwp_presenter_resize(int64_t token, int32_t width, int32_t height) {

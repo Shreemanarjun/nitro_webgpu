@@ -36,3 +36,10 @@ migrate_working_dir/
 src/third_party/wgpu_native/
 macos/nitro_webgpu/Frameworks/
 ios/nitro_webgpu/Frameworks/
+# Staged Dawn backend artifacts (scripts/stage_dawn_*.sh / fetch_dawn.sh)
+src/third_party/dawn/
+src/third_party/glslang/android-aarch64/
+src/third_party/BACKEND
+android/src/main/jniLibs/
+macos/nitro_webgpu/Frameworks/webgpu_dawn.xcframework/
+ios/nitro_webgpu/Frameworks/webgpu_dawn.xcframework/

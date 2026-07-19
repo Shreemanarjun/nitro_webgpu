@@ -35,6 +35,13 @@ int32_t nwp_presenter_format(int64_t token);
 void nwp_presenter_resize(int64_t token, int32_t width, int32_t height);
 int32_t nwp_presenter_is_busy(int64_t token);
 void nwp_presenter_destroy(int64_t token);
+typedef void* (*NwpImportAcquire)(int64_t token, int32_t width,
+                                  int32_t height, void* user);
+typedef void (*NwpImportPresented)(int64_t token, void* sharedHandle,
+                                   void* user);
+int32_t nwp_presenter_supports_texture_import(int64_t token);
+void nwp_presenter_set_import_ops(int64_t token, NwpImportAcquire acquire,
+                                  NwpImportPresented presented, void* user);
 }
 
 namespace {
@@ -55,6 +62,7 @@ NwpTextureOps copyOps() {
 struct PresentEntry {
     int64_t textureId = 0;
     void* handle = nullptr;  // plugin-owned texture object
+    bool gpuPath = false;    // zero-copy texture-import path active
 };
 
 std::mutex gEntriesMutex;
@@ -90,6 +98,24 @@ void frameSink(int64_t /*token*/, const uint8_t* pixels, int32_t width,
     if (ops.publish_frame && entry->handle) {
         ops.publish_frame(ops.ctx, entry->handle, pixels, width, height,
                           bytesPerRow);
+    }
+}
+
+// Zero-copy trampolines (Dawn): the core asks for the plugin texture's
+// shared handle before the GPU copy and reports back once it completed.
+void* importAcquire(int64_t /*token*/, int32_t width, int32_t height,
+                    void* user) {
+    auto* entry = static_cast<PresentEntry*>(user);
+    const NwpTextureOps ops = copyOps();
+    if (!ops.acquire_shared_handle || !entry->handle) return nullptr;
+    return ops.acquire_shared_handle(ops.ctx, entry->handle, width, height);
+}
+
+void importPresented(int64_t /*token*/, void* /*sharedHandle*/, void* user) {
+    auto* entry = static_cast<PresentEntry*>(user);
+    const NwpTextureOps ops = copyOps();
+    if (ops.frame_presented && entry->handle) {
+        ops.frame_presented(ops.ctx, entry->handle);
     }
 }
 
@@ -135,7 +161,16 @@ public:
             std::lock_guard<std::mutex> lock(gEntriesMutex);
             gEntries[token] = entry;
         }
-        nwp_presenter_set_sink(token, &frameSink, entry);
+        if (ops.acquire_shared_handle &&
+            nwp_presenter_supports_texture_import(token) == 1) {
+            // Zero-copy: the core imports the plugin's shared texture and
+            // copies frames on-GPU (Dawn backend).
+            nwp_presenter_set_import_ops(token, &importAcquire,
+                                         &importPresented, entry);
+            entry->gpuPath = true;
+        } else {
+            nwp_presenter_set_sink(token, &frameSink, entry);
+        }
         return token;
     }
 
@@ -162,9 +197,11 @@ public:
         return (int64_t)nwp_presenter_format(token);
     }
 
-    bool presenterUsesGpuPath(int64_t /*token*/) override {
-        // Phase A: CPU readback everywhere on desktop Windows/Linux.
-        return false;
+    bool presenterUsesGpuPath(int64_t token) override {
+        // Readback by default; true when the Dawn texture-import path is
+        // active (Windows DXGI shared handles).
+        PresentEntry* entry = findEntry(token);
+        return entry ? entry->gpuPath : false;
     }
 
     void presenterSetSurfaceSize(int64_t, int64_t, int64_t) override {

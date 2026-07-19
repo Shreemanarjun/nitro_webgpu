@@ -33,6 +33,8 @@ target_include_directories(${PLUGIN_NAME} INTERFACE
   "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_link_libraries(${PLUGIN_NAME} PRIVATE flutter flutter_wrapper_plugin)
 target_link_libraries(${PLUGIN_NAME} PRIVATE nitro_webgpu_present)
+# DXGI shared-handle presentation path.
+target_link_libraries(${PLUGIN_NAME} PRIVATE d3d11)
 
 # List of absolute paths to libraries that should be bundled with the plugin.
 # This list could contain prebuilt libraries, or libraries created by an
@@ -42,5 +44,8 @@ set(nitro_webgpu_bundled_libraries
   # This can be changed to accommodate different builds.
   $<TARGET_FILE:nitro_webgpu>
   $<TARGET_FILE:nitro_webgpu_present>
-  PARENT_SCOPE
 )
+if(NW_BACKEND STREQUAL "dawn" AND DEFINED NW_DAWN_RUNTIME_LIB)
+  list(APPEND nitro_webgpu_bundled_libraries "${NW_DAWN_RUNTIME_LIB}")
+endif()
+set(nitro_webgpu_bundled_libraries ${nitro_webgpu_bundled_libraries} PARENT_SCOPE)

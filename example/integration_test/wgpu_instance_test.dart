@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:nitro_webgpu/nitro_webgpu.dart';
 import 'package:nitro_webgpu/src/nitro_webgpu_present.native.dart';
+import 'adapter_support.dart';
 import 'package:nitro_webgpu_example/src/demos/compute_toy_page.dart';
 import 'package:nitro_webgpu_example/src/demos/particles_page.dart';
 import 'package:nitro_webgpu_example/src/demos/shadertoy_player_page.dart';
@@ -25,7 +26,8 @@ void main() {
 
   group('M0 link proof', () {
     test('wgpuVersion returns the pinned wgpu-native version', () {
-      expect(Gpu.version, '29.0.1.1');
+      // Dawn has no packed-version query; the shim reports 0.0.0.0 there.
+      expect(Gpu.version, isDawnBackend ? '0.0.0.0' : '29.0.1.1');
     });
 
     test('ensureInitialized is idempotent', () {
@@ -120,6 +122,11 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice(label: 'compute-device');
+      if (await skipWithoutCompute(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
       final queue = device.queue;
 
       final storage = device.createBuffer(
@@ -321,10 +328,24 @@ fn fs_main() -> @location(0) vec4<f32> {
           .createPresenter(device.debugAddress, 64, 64);
       expect(token, isNonZero);
       final gpuPath = NitroWebgpuPresent.instance.presenterUsesGpuPath(token);
-      if (Platform.isWindows || Platform.isLinux) {
+      final glBackend = adapter.backendType == GpuBackendType.openGL ||
+          adapter.backendType == GpuBackendType.openGLES;
+      if (Platform.isWindows && isDawnBackend) {
+        // Dawn on Windows takes the DXGI shared-handle import path when the
+        // adapter exposes SharedTextureMemoryDXGISharedHandle (true) and
+        // falls back to readback otherwise (false) — both are valid; the
+        // capability isn't queryable from Dart, so only log it.
+        // ignore: avoid_print
+        print('presenter path on Windows/Dawn: '
+            '${gpuPath ? 'DXGI import' : 'CPU readback'}');
+      } else if (Platform.isWindows || Platform.isLinux) {
         expect(gpuPath, isFalse,
             reason: 'desktop Windows/Linux present via CPU readback '
-                '(M2.4/M2.5 phase A)');
+                '(wgpu backend, M2.4/M2.5 phase A)');
+      } else if (Platform.isAndroid && glBackend) {
+        expect(gpuPath, isFalse,
+            reason: 'GL-backend Android (no Vulkan) presents via the CPU '
+                'readback fallback — the swapchain path would abort');
       } else {
         expect(gpuPath, isTrue,
             reason: 'Apple runs the Metal blit, Android the zero-copy '
@@ -1112,6 +1133,16 @@ fn fs_main() -> @location(0) vec4f { return vec4f(0.0, 1.0, 0.0, 1.0); }
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice();
+      if (await skipDawnHardwareCpuIndirect(adapter)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
+      if (await skipWithoutIndirect(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
       final module = await device.createShaderModule('''
 $fullscreenVs
 @fragment
@@ -1224,6 +1255,11 @@ fn fs_main() -> @location(0) vec4f { return vec4f(1.0, 1.0, 0.0, 1.0); }
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice();
+      if (await skipWithoutCompute(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
 
       final bgl = device.createBindGroupLayout(entries: const [
         GpuLayoutEntry(
@@ -1381,7 +1417,14 @@ fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
       final device = await adapter.requestDevice(
         requiredLimits: const GpuRequiredLimits(maxTextureDimension2D: 4096),
       );
-      expect(device.limits.maxTextureDimension2D, 4096);
+      if (isDawnBackend) {
+        // Dawn grants the default when a limit is requested BELOW it (no
+        // lowered-limit reification); wgpu-native reifies the lower value.
+        expect(device.limits.maxTextureDimension2D,
+            greaterThanOrEqualTo(4096));
+      } else {
+        expect(device.limits.maxTextureDimension2D, 4096);
+      }
       device.dispose();
       adapter.dispose();
     });
@@ -1890,6 +1933,11 @@ fn fs_main() -> @location(0) vec4f { return vec4f(0.0, 1.0, 0.0, 1.0); }
       }
       final device =
           await adapter.requestDevice(requireTimestampQueries: true);
+      if (await skipWithoutCompute(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
       final queue = device.queue;
       expect(queue.timestampPeriod, greaterThan(0));
 
@@ -1938,11 +1986,17 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
       final bytes = await staging.mapRead();
       final stamps = bytes.buffer.asUint64List(bytes.offsetInBytes, 2);
-      expect(stamps[1], greaterThan(stamps[0]),
+      expect(
+          stamps[1],
+          // Dawn Metal samples pass-boundary counters that can legitimately
+          // read equal on a trivial pass; wgpu always advances.
+          isDawnBackend
+              ? greaterThanOrEqualTo(stamps[0])
+              : greaterThan(stamps[0]),
           reason: 'end-of-pass timestamp must be after begin-of-pass');
       final ms =
           (stamps[1] - stamps[0]) * queue.timestampPeriod / 1e6;
-      expect(ms, greaterThan(0));
+      expect(ms, isDawnBackend ? greaterThanOrEqualTo(0) : greaterThan(0));
       expect(ms, lessThan(1000), reason: 'sanity: a tiny pass, not seconds');
 
       bindGroup.dispose();
@@ -2037,6 +2091,11 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice();
+      if (await skipWithoutGlsl(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
 
       final vsModule = await device.createShaderModule('''
 @vertex
@@ -2098,6 +2157,11 @@ void main() { fragColor = vec4(0.0, 1.0, 0.0, 1.0); }
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice();
+      if (await skipWithoutGlsl(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
       await expectLater(
         device.createShaderModuleGlsl('#version 450\nvoid main() { bogus }',
             stage: GpuShaderStage.fragment),
@@ -2173,6 +2237,11 @@ fn mainImage(fragCoord: vec2f) -> vec4f {
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice();
+      if (await skipWithoutGlsl(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
       final engine = ShadertoyEngine(
         image: const ShadertoyPassSpec(
           language: ShadertoyLanguage.glsl,
@@ -2396,6 +2465,11 @@ fn mainImage(fragCoord: vec2f) -> vec4f {
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice();
+      if (await skipWithoutCompute(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
       final scene = ParticleScene(
         count: 2,
         initialParticles: Float32List.fromList([
@@ -2445,6 +2519,11 @@ fn simulate(@builtin(global_invocation_id) gid: vec3<u32>) {
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice();
+      if (await skipWithoutCompute(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
       // One stationary particle at the center with a big footprint.
       final scene = ParticleScene(
         count: 1,
@@ -2471,6 +2550,11 @@ fn simulate(@builtin(global_invocation_id) gid: vec3<u32>) {
       final adapter =
           await Gpu.requestAdapter(forceFallbackAdapter: kForceFallback);
       final device = await adapter.requestDevice();
+      if (await skipWithoutCompute(device)) {
+        device.dispose();
+        adapter.dispose();
+        return;
+      }
       final scene = ParticleScene(
           count: 1,
           initialParticles: Float32List.fromList([0.0, 0.0, 0.0, 0.0]));

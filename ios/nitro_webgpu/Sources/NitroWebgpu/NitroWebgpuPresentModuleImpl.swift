@@ -178,6 +178,61 @@ final class WebGpuPresenterEntry: NSObject, FlutterTexture {
         DispatchQueue.main.async { textures.textureFrameAvailable(id) }
     }
 
+    // ── Texture-import path (Dawn) ─────────────────────────────────────
+    // The core imports our IOSurfaces and GPU-copies frames into them; we
+    // only hand surfaces out and publish them once the core says the GPU
+    // finished. Buffers stay retained in [inflight] between the two.
+    private var inflight: [UnsafeRawPointer: CVPixelBuffer] = [:]
+
+    func setupTextureImport() -> Bool {
+        guard nwp_presenter_supports_texture_import(token) == 1 else {
+            return false
+        }
+        let user = Unmanaged.passUnretained(self).toOpaque()
+        nwp_presenter_set_import_ops(token, { _, width, height, user in
+            guard let user else { return nil }
+            let entry = Unmanaged<WebGpuPresenterEntry>.fromOpaque(user)
+                .takeUnretainedValue()
+            return entry.acquireIOSurface(width: width, height: height)
+        }, { _, surface, user in
+            guard let user, let surface else { return }
+            let entry = Unmanaged<WebGpuPresenterEntry>.fromOpaque(user)
+                .takeUnretainedValue()
+            entry.importedFramePresented(UnsafeRawPointer(surface))
+        }, user)
+        return true
+    }
+
+    private func acquireIOSurface(width: Int32,
+                                  height: Int32) -> UnsafeMutableRawPointer? {
+        guard let pool = ensurePool(width: width, height: height) else {
+            return nil
+        }
+        var pixelBuffer: CVPixelBuffer?
+        guard CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool,
+                                                 &pixelBuffer) == kCVReturnSuccess,
+              let buffer = pixelBuffer,
+              let surface = CVPixelBufferGetIOSurface(buffer)?
+                  .takeUnretainedValue()
+        else { return nil }
+        let key = UnsafeRawPointer(Unmanaged.passUnretained(surface).toOpaque())
+        lock.lock()
+        inflight[key] = buffer
+        lock.unlock()
+        return UnsafeMutableRawPointer(mutating: key)
+    }
+
+    private func importedFramePresented(_ surface: UnsafeRawPointer) {
+        lock.lock()
+        let buffer = inflight.removeValue(forKey: surface)
+        if let buffer { latest = buffer }
+        lock.unlock()
+        guard buffer != nil else { return }
+        let id = textureId
+        let textures = self.textures
+        DispatchQueue.main.async { textures.textureFrameAvailable(id) }
+    }
+
     public func copyPixelBuffer() -> Unmanaged<CVPixelBuffer>? {
         lock.lock()
         defer { lock.unlock() }
@@ -216,10 +271,15 @@ public class NitroWebgpuPresentModuleImpl: NSObject,
         // passUnretained is safe for the sinks' lifetime.
         let user = Unmanaged.passUnretained(entry).toOpaque()
         let usingMetal = entry.setupMetal()
-        entry.usesGpuPath = usingMetal
+        let usingImport = usingMetal ? false : entry.setupTextureImport()
+        entry.usesGpuPath = usingMetal || usingImport
         NSLog("nitro_webgpu: presenter %lld using %@ path", token,
-              usingMetal ? "Metal blit" : "CPU readback")
-        if usingMetal {
+              usingMetal ? "Metal blit"
+                         : usingImport ? "texture import" : "CPU readback")
+        if usingImport {
+            // Ops were installed by setupTextureImport; the core drives the
+            // whole frame (import → GPU copy → presented callback).
+        } else if usingMetal {
             nwp_presenter_set_gpu_sink(token, { token, width, height, mtl, slot, user in
                 guard let user else { return }
                 guard let mtl else {

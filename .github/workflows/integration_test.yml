@@ -10,6 +10,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   macos:
     name: macOS (Metal)
@@ -17,6 +20,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: subosito/flutter-action@v2
         with:
           # Pinned to the version the plugin is developed/verified against —
@@ -52,6 +57,162 @@ jobs:
         working-directory: example
         run: flutter test integration_test/wgpu_showcase_test.dart -d macos --reporter expanded
 
+  # Dawn backend (feat/dawn-backend): same four suites on Google's WebGPU
+  # implementation. Dawn is built from source once and cached; a cache miss
+  # costs ~30 min, hits are seconds.
+  dawn-macos:
+    name: macOS (Dawn)
+    runs-on: macos-15
+    timeout-minutes: 90
+    continue-on-error: true  # experimental lane while the migration bakes
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.44.4
+          cache: true
+      - name: Install glslang
+        run: brew install glslang
+      - name: Cache Dawn build
+        id: dawn-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/nitro_webgpu/dawn-src
+          key: dawn-macos-${{ hashFiles('.github/workflows/integration_test.yml') }}-v1
+      - name: Build Dawn
+        if: steps.dawn-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/.cache/nitro_webgpu
+          git clone --depth 1 https://github.com/google/dawn.git ~/.cache/nitro_webgpu/dawn-src
+          cmake -S ~/.cache/nitro_webgpu/dawn-src -B ~/.cache/nitro_webgpu/dawn-src/out \
+            -DCMAKE_BUILD_TYPE=Release -DDAWN_FETCH_DEPENDENCIES=ON -DDAWN_SUPPORTS_CXX_MODULES=OFF -DDAWN_FORCE_SYSTEM_COMPONENT_LOAD=ON \
+            -DDAWN_BUILD_MONOLITHIC_LIBRARY=SHARED -DTINT_BUILD_SPV_READER=ON \
+            -DDAWN_BUILD_SAMPLES=OFF -DDAWN_USE_GLFW=OFF \
+            -DTINT_BUILD_TESTS=OFF -DTINT_BUILD_CMD_TOOLS=OFF
+          cmake --build ~/.cache/nitro_webgpu/dawn-src/out --target webgpu_dawn -j 3
+      - name: Switch to the Dawn backend
+        run: ./scripts/set_backend_macos.sh dawn
+      - name: Integration tests
+        working-directory: example
+        run: flutter test integration_test/wgpu_instance_test.dart -d macos --reporter expanded
+      - name: Complex parity tests
+        working-directory: example
+        run: flutter test integration_test/wgpu_parity_complex_test.dart -d macos --reporter expanded
+      - name: Robustness tests
+        working-directory: example
+        run: flutter test integration_test/wgpu_robustness_test.dart -d macos --reporter expanded
+      - name: Showcase tests
+        working-directory: example
+        run: flutter test integration_test/wgpu_showcase_test.dart -d macos --reporter expanded
+
+  # Dawn on Windows — proves the DXGI shared-handle import path on real
+  # D3D12/WARP. Dawn source build is cached (first run ~50 min, hits are
+  # seconds). GLSL tests probe-skip (no glslang staged on this lane).
+  dawn-windows:
+    name: Windows (Dawn)
+    runs-on: windows-latest
+    timeout-minutes: 120
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.44.4
+          cache: true
+      - name: Cache Dawn build
+        id: dawn-cache
+        uses: actions/cache@v4
+        with:
+          path: dawn-src
+          key: dawn-windows-${{ hashFiles('.github/workflows/integration_test.yml') }}-v1
+      - name: Build Dawn
+        if: steps.dawn-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          git clone --depth 1 https://github.com/google/dawn.git dawn-src
+          cmake -S dawn-src -B dawn-src/out -DCMAKE_BUILD_TYPE=Release             -DDAWN_FETCH_DEPENDENCIES=ON -DDAWN_SUPPORTS_CXX_MODULES=OFF -DDAWN_FORCE_SYSTEM_COMPONENT_LOAD=ON -DDAWN_BUILD_MONOLITHIC_LIBRARY=SHARED             -DTINT_BUILD_SPV_READER=ON -DDAWN_BUILD_SAMPLES=OFF             -DDAWN_USE_GLFW=OFF -DTINT_BUILD_TESTS=OFF -DTINT_BUILD_CMD_TOOLS=OFF
+          cmake --build dawn-src/out --config Release --target webgpu_dawn -j 4
+      - name: Stage Dawn
+        shell: bash
+        run: |
+          mkdir -p src/third_party/dawn/windows-x86_64/lib                    src/third_party/dawn/include/webgpu src/third_party/dawn/include/dawn
+          cp dawn-src/include/webgpu/webgpu.h src/third_party/dawn/include/webgpu/
+          cp dawn-src/out/gen/include/dawn/webgpu.h src/third_party/dawn/include/dawn/
+          find dawn-src/out -name "webgpu_dawn.lib" -exec cp {} src/third_party/dawn/windows-x86_64/lib/ \;
+          find dawn-src/out -name "webgpu_dawn.dll" -exec cp {} src/third_party/dawn/windows-x86_64/lib/ \;
+          printf 'dawn' > src/third_party/BACKEND
+      - name: Integration tests
+        working-directory: example
+        run: flutter test integration_test/wgpu_instance_test.dart -d windows --reporter expanded
+      - name: Complex parity tests
+        working-directory: example
+        run: flutter test integration_test/wgpu_parity_complex_test.dart -d windows --reporter expanded
+      - name: Robustness tests
+        working-directory: example
+        run: flutter test integration_test/wgpu_robustness_test.dart -d windows --reporter expanded
+      - name: Showcase tests
+        working-directory: example
+        run: flutter test integration_test/wgpu_showcase_test.dart -d windows --reporter expanded
+
+  # Dawn on Linux — Vulkan over lavapipe, readback presentation (the GTK
+  # embedder has no dmabuf consumer).
+  dawn-linux:
+    name: Linux (Dawn)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    continue-on-error: true
+    env:
+      LIBGL_ALWAYS_SOFTWARE: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.44.4
+          cache: true
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build clang cmake pkg-config libgtk-3-dev             mesa-vulkan-drivers vulkan-tools xvfb
+      - name: Cache Dawn build
+        id: dawn-cache
+        uses: actions/cache@v4
+        with:
+          path: dawn-src
+          key: dawn-linux-${{ hashFiles('.github/workflows/integration_test.yml') }}-v1
+      - name: Build Dawn
+        if: steps.dawn-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 https://github.com/google/dawn.git dawn-src
+          cmake -S dawn-src -B dawn-src/out -GNinja -DDAWN_USE_X11=OFF -DCMAKE_BUILD_TYPE=Release             -DDAWN_FETCH_DEPENDENCIES=ON -DDAWN_SUPPORTS_CXX_MODULES=OFF -DDAWN_FORCE_SYSTEM_COMPONENT_LOAD=ON -DDAWN_BUILD_MONOLITHIC_LIBRARY=SHARED             -DTINT_BUILD_SPV_READER=ON -DDAWN_BUILD_SAMPLES=OFF             -DDAWN_USE_GLFW=OFF -DTINT_BUILD_TESTS=OFF -DTINT_BUILD_CMD_TOOLS=OFF
+          cmake --build dawn-src/out --target webgpu_dawn -j 4
+      - name: Stage Dawn
+        run: |
+          mkdir -p src/third_party/dawn/linux-x86_64/lib                    src/third_party/dawn/include/webgpu src/third_party/dawn/include/dawn
+          cp dawn-src/include/webgpu/webgpu.h src/third_party/dawn/include/webgpu/
+          cp dawn-src/out/gen/include/dawn/webgpu.h src/third_party/dawn/include/dawn/
+          cp dawn-src/out/src/dawn/native/libwebgpu_dawn.so src/third_party/dawn/linux-x86_64/lib/
+          printf 'dawn' > src/third_party/BACKEND
+      - name: Integration tests
+        working-directory: example
+        run: |
+          ulimit -n 8192
+          xvfb-run -a flutter test integration_test/wgpu_instance_test.dart -d linux --reporter expanded
+      - name: Complex parity tests
+        working-directory: example
+        run: xvfb-run -a flutter test integration_test/wgpu_parity_complex_test.dart -d linux --reporter expanded
+      - name: Robustness tests
+        working-directory: example
+        run: xvfb-run -a flutter test integration_test/wgpu_robustness_test.dart -d linux --reporter expanded
+      - name: Showcase tests
+        working-directory: example
+        run: xvfb-run -a flutter test integration_test/wgpu_showcase_test.dart -d linux --reporter expanded
+
   ios:
     name: iOS (simulator, Metal)
     # macos-15 runners have an ongoing iOS-simulator failure-to-start/hang
@@ -62,9 +223,11 @@ jobs:
     # drop both once #12777 is fixed on macos-15.
     runs-on: macos-14
     continue-on-error: true
-    timeout-minutes: 15
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: subosito/flutter-action@v2
         with:
           # Pinned to the version the plugin is developed/verified against —
@@ -82,46 +245,33 @@ jobs:
           key: wgpu-native-${{ runner.os }}-${{ hashFiles('scripts/wgpu_native.sha256') }}
       - name: Fetch wgpu-native
         run: ./scripts/fetch_wgpu_native.sh --targets macos-aarch64,macos-x86_64,ios-aarch64,ios-aarch64-simulator,ios-x86_64-simulator
-      - name: Boot iOS simulator
+      - name: Pick iOS simulator
         run: |
           UDID=$(xcrun simctl list devices available --json \
             | jq -r '[.devices | to_entries[] | select(.key | contains("iOS")) | .value[] | select(.name | test("^iPhone"))][0].udid')
           if [ -z "$UDID" ] || [ "$UDID" = "null" ]; then
             echo "no available iPhone simulator"; xcrun simctl list devices; exit 1
           fi
-          xcrun simctl boot "$UDID"
-          xcrun simctl bootstatus "$UDID" -b
-          # simctl boot alone leaves launch services half-up on CI runners —
-          # the flutter tool then hangs forever installing/attaching after
-          # "Xcode build done". The Simulator app process brings them up.
-          open -a Simulator --args -CurrentDeviceUDID "$UDID"
-          sleep 20
           echo "SIM_UDID=$UDID" >> "$GITHUB_ENV"
-      - name: Integration tests
+      - name: Integration suites (xcodebuild XCTest harness)
         working-directory: example
         run: |
+          # The flutter tool's install/attach step hangs on GitHub's
+          # virtualized macOS runners after "Xcode build done"
+          # (actions/runner-images#12777). xcodebuild test drives the Dart
+          # suites through the RunnerTests XCTest wrapper instead — it
+          # manages its own simulator clone and needs no tool attach.
           flutter pub get
-          flutter test integration_test/wgpu_instance_test.dart -d "$SIM_UDID" --reporter expanded
-      - name: Complex parity tests
-        working-directory: example
-        run: flutter test integration_test/wgpu_parity_complex_test.dart -d "$SIM_UDID" --reporter expanded
-      - name: Robustness tests
-        working-directory: example
-        run: flutter test integration_test/wgpu_robustness_test.dart -d "$SIM_UDID" --reporter expanded
-      - name: Showcase tests
-        working-directory: example
-        run: flutter test integration_test/wgpu_showcase_test.dart -d "$SIM_UDID" --reporter expanded
-      - name: Hang diagnostics (simulator + app logs)
-        if: failure()
-        run: |
-          echo "=== installed apps ==="
-          xcrun simctl listapps "$SIM_UDID" 2>/dev/null | head -40 || true
-          echo "=== recent simulator log (errors/faults) ==="
-          xcrun simctl spawn "$SIM_UDID" log show --last 10m --predicate \
-            'messageType == error OR messageType == fault' 2>/dev/null | tail -80 || true
-          echo "=== recent app log lines ==="
-          xcrun simctl spawn "$SIM_UDID" log show --last 10m --predicate \
-            'process CONTAINS "Runner" OR process CONTAINS "nitro"' 2>/dev/null | tail -60 || true
+          for suite in wgpu_instance_test wgpu_parity_complex_test \
+                       wgpu_robustness_test wgpu_showcase_test; do
+            echo "=== $suite ==="
+            flutter build ios --config-only --simulator --debug \
+              --target=integration_test/$suite.dart
+            (cd ios && xcodebuild test \
+              -workspace Runner.xcworkspace -scheme Runner \
+              -configuration Debug -destination "id=$SIM_UDID" \
+              COMPILER_INDEX_STORE_ENABLE=NO)
+          done
 
   android:
     name: Android (emulator, SwiftShader Vulkan)
@@ -129,6 +279,8 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -176,6 +328,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: subosito/flutter-action@v2
         with:
           # Pinned to the version the plugin is developed/verified against —
@@ -294,6 +448,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: subosito/flutter-action@v2
         with:
           # Pinned to the version the plugin is developed/verified against —

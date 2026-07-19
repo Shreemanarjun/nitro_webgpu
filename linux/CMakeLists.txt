@@ -46,5 +46,8 @@ set(nitro_webgpu_bundled_libraries
   # This can be changed to accommodate different builds.
   $<TARGET_FILE:nitro_webgpu>
   $<TARGET_FILE:nitro_webgpu_present>
-  PARENT_SCOPE
 )
+if(NW_BACKEND STREQUAL "dawn" AND DEFINED NW_DAWN_RUNTIME_LIB)
+  list(APPEND nitro_webgpu_bundled_libraries "${NW_DAWN_RUNTIME_LIB}")
+endif()
+set(nitro_webgpu_bundled_libraries ${nitro_webgpu_bundled_libraries} PARENT_SCOPE)

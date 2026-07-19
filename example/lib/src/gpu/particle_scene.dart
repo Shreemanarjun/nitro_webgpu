@@ -29,11 +29,14 @@ fn simulate(@builtin(global_invocation_id) gid: vec3<u32>) {
 }
 ''';
 
+// The particle buffer feeds the render pass as an INSTANCE-STEPPED VERTEX
+// BUFFER, not a storage binding: vertex-stage storage buffers are a
+// downlevel flag that GL-backend devices (GLES phones, emulators without
+// Vulkan) usually lack, while instance attributes work everywhere. The
+// compute kernel still writes the same buffer as storage.
 const _renderWgsl = '''
-struct Particle { pos: vec2f, vel: vec2f };
 struct SimParams { dt: f32, time: f32, count: f32, size: f32 };
 @group(0) @binding(0) var<uniform> params: SimParams;
-@group(0) @binding(1) var<storage, read> particles: array<Particle>;
 
 struct VOut {
   @builtin(position) pos: vec4f,
@@ -43,16 +46,16 @@ struct VOut {
 
 @vertex
 fn vs_main(@builtin(vertex_index) v: u32,
-           @builtin(instance_index) inst: u32) -> VOut {
+           @location(0) ppos: vec2f,
+           @location(1) pvel: vec2f) -> VOut {
   var corners = array<vec2f, 6>(
       vec2f(-1.0, -1.0), vec2f(1.0, -1.0), vec2f(-1.0, 1.0),
       vec2f(-1.0, 1.0), vec2f(1.0, -1.0), vec2f(1.0, 1.0));
-  let p = particles[inst];
   let corner = corners[v];
   var o: VOut;
-  o.pos = vec4f(p.pos + corner * params.size, 0.0, 1.0);
+  o.pos = vec4f(ppos + corner * params.size, 0.0, 1.0);
   o.local = corner;
-  o.speed = length(p.vel);
+  o.speed = length(pvel);
   return o;
 }
 
@@ -114,6 +117,12 @@ class ParticleScene implements GpuScene {
   double _accum = 0;
   Duration? _lastElapsed;
 
+  // CPU-simulation fallback for adapters without compute shaders (GL
+  // backend on some devices): the default swirl physics integrate on the
+  // CPU and upload each frame. Custom kernels still require compute.
+  bool? _computeAvailable;
+  Float32List? _cpuParticles;
+
   /// The live particle storage buffer (for tests/readback); usage includes
   /// copySrc so it can be copied out.
   GpuBuffer? get particleBuffer => _particles;
@@ -142,6 +151,7 @@ class ParticleScene implements GpuScene {
       _particles = device.createBuffer(
         size: seed.lengthInBytes,
         usage: GpuBufferUsage.storage |
+            GpuBufferUsage.vertex |
             GpuBufferUsage.copyDst |
             GpuBufferUsage.copySrc,
         label: '$name-particles',
@@ -169,22 +179,48 @@ class ParticleScene implements GpuScene {
     _computePipelineLayout ??=
         device.createPipelineLayout(layouts: [_computeBindLayout!]);
     if (_renderPipeline == null || _renderFormat != format) {
-      _renderModule ??= await device.createShaderModule(_renderWgsl);
-      _renderBind?.dispose();
-      _renderBind = null;
-      _renderLayout?.dispose();
-      _renderPipeline?.dispose();
-      _renderPipeline = await device.createRenderPipeline(
-        module: _renderModule!,
-        targetFormat: format,
-        label: '$name-render',
-      );
+      // Downlevel GL adapters reject vertex-stage storage buffers — surface
+      // that through compileError (like kernel errors) instead of letting
+      // the exception escape the frame callback.
+      try {
+        _renderModule ??= await device.createShaderModule(_renderWgsl);
+        _renderBind?.dispose();
+        _renderBind = null;
+        _renderLayout?.dispose();
+        _renderPipeline?.dispose();
+        _renderPipeline = null;
+        _renderPipeline = await device.createRenderPipeline(
+          module: _renderModule!,
+          targetFormat: format,
+          vertexBuffers: const [
+            GpuVertexLayout(
+              arrayStride: 16, // {pos: vec2f, vel: vec2f}
+              stepMode: GpuVertexStepMode.instance,
+              attributes: [
+                GpuVertexAttr(
+                    format: GpuVertexFormat.float32x2,
+                    offset: 0,
+                    shaderLocation: 0),
+                GpuVertexAttr(
+                    format: GpuVertexFormat.float32x2,
+                    offset: 8,
+                    shaderLocation: 1),
+              ],
+            ),
+          ],
+          label: '$name-render',
+        );
+      } catch (e) {
+        if (!_disposed) {
+          compileError.value = e is GpuValidationException ? e.message : '$e';
+        }
+        return;
+      }
       _renderFormat = format;
       _renderLayout = _renderPipeline!.getBindGroupLayout(0);
     }
     _renderBind ??= device.createBindGroup(layout: _renderLayout!, entries: [
       GpuBufferBinding(binding: 0, buffer: _uniforms!),
-      GpuBufferBinding(binding: 1, buffer: _particles!),
     ]);
   }
 
@@ -192,6 +228,19 @@ class ParticleScene implements GpuScene {
     final source = _pendingKernel ?? _activeKernel;
     _pendingKernel = null;
     if (source == null) return;
+    _computeAvailable ??= await device.supportsCompute();
+    if (_computeAvailable == false) {
+      // No compute on this adapter: the built-in CPU simulation drives the
+      // default physics; custom kernels can't run.
+      if (!_disposed) {
+        compileError.value = source == defaultParticleKernel
+            ? null
+            : 'Compute shaders are unavailable on this adapter (GL '
+                'backend) — running the built-in CPU simulation instead. '
+                'Custom kernels need a Vulkan/Metal-backed device.';
+      }
+      return;
+    }
     GpuShaderModule? module;
     GpuComputePipeline? pipeline;
     try {
@@ -233,6 +282,7 @@ class ParticleScene implements GpuScene {
     _accum += dt;
 
     await _ensureResources(device, target.targetFormat);
+    if (_renderPipeline == null) return;  // downlevel adapter — see above
     if (_pendingKernel != null || _device != device) {
       await _trySwapKernel(device);
     }
@@ -258,15 +308,50 @@ class ParticleScene implements GpuScene {
       sim.setBindGroup(0, _computeBind!);
       sim.dispatchWorkgroups((count + 63) ~/ 64);
       sim.end();
+    } else if (_computePipeline == null &&
+        _computeAvailable == false &&
+        dt > 0) {
+      _cpuSimulate(device, dt);
     }
     final pass = encoder.beginRenderPass(colorAttachments: [
       GpuColorAttachmentInfo(view: target.view, clearColor: GpuColor.black),
     ]);
     pass.setPipeline(_renderPipeline!);
     pass.setBindGroup(0, _renderBind!);
+    pass.setVertexBuffer(0, _particles!);
     pass.draw(6, instanceCount: count);
     pass.end();
     device.queue.submit([encoder.finish()]);
+  }
+
+  /// Default swirl physics on the CPU for adapters without compute shaders
+  /// — same motion as [defaultParticleKernel], uploaded each frame.
+  void _cpuSimulate(GpuDevice device, double dt) {
+    final p = _cpuParticles ??= Float32List.fromList(_seedParticles());
+    for (var i = 0; i < count; i++) {
+      final b = i * 4;
+      final px = p[b], py = p[b + 1];
+      var vx = p[b + 2], vy = p[b + 3];
+      // toCenter + perpendicular swirl, matching the WGSL kernel.
+      vx += (-px + py) * 0.15 * dt;
+      vy += (-py - px) * 0.15 * dt;
+      var nx = px + vx * dt;
+      var ny = py + vy * dt;
+      if (nx.abs() > 1.0) {
+        vx = -vx;
+        nx = nx.clamp(-1.0, 1.0);
+      }
+      if (ny.abs() > 1.0) {
+        vy = -vy;
+        ny = ny.clamp(-1.0, 1.0);
+      }
+      p[b] = nx;
+      p[b + 1] = ny;
+      p[b + 2] = vx;
+      p[b + 3] = vy;
+    }
+    device.queue.writeBuffer(
+        _particles!, p.buffer.asUint8List(p.offsetInBytes, p.lengthInBytes));
   }
 
   @override

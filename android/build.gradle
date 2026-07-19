@@ -29,8 +29,24 @@ android {
         consumerProguardFiles "consumer-rules.pro"
         minSdk = 24
         // wgpu-native ships arm64-v8a / armeabi-v7a / x86_64 only (no
-        // 32-bit x86 — nobody ships that emulator anymore).
-        ndk { abiFilters "arm64-v8a", "armeabi-v7a", "x86_64" }
+        // 32-bit x86 — nobody ships that emulator anymore). The Dawn dev
+        // backend (feat/dawn-backend) stages arm64 only.
+        def nwBackendFile = new File(projectDir, "../src/third_party/BACKEND")
+        def nwBackend = nwBackendFile.exists() ? nwBackendFile.text.trim() : "wgpu"
+        if (nwBackend == "dawn") {
+            def dawnAbis = []
+            [["android-aarch64", "arm64-v8a"],
+             ["android-armv7", "armeabi-v7a"],
+             ["android-x86_64", "x86_64"]].each { pair ->
+                if (new File(projectDir,
+                        "../src/third_party/dawn/${pair[0]}/lib/libwebgpu_dawn.so").exists()) {
+                    dawnAbis << pair[1]
+                }
+            }
+            ndk { abiFilters(*(dawnAbis ?: ["arm64-v8a"])) }
+        } else {
+            ndk { abiFilters "arm64-v8a", "armeabi-v7a", "x86_64" }
+        }
     }
 
     sourceSets {

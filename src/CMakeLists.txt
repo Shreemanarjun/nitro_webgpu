@@ -29,6 +29,27 @@ if(ANDROID)
   target_link_options(nitro_webgpu PRIVATE "-Wl,-z,max-page-size=16384")
 endif()
 
+# --- backend selection -------------------------------------------------------
+# Marker file (default "wgpu") switched by scripts/set_backend_*.sh; content
+# changes trigger reconfiguration, so a stale CMake cache can never build
+# the wrong backend (env vars would go stale).
+set(NW_BACKEND_MARKER "${CMAKE_CURRENT_SOURCE_DIR}/third_party/BACKEND")
+set(NW_BACKEND "wgpu")
+if(EXISTS "${NW_BACKEND_MARKER}")
+  file(READ "${NW_BACKEND_MARKER}" NW_BACKEND)
+  string(STRIP "${NW_BACKEND}" NW_BACKEND)
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+               "${NW_BACKEND_MARKER}")
+endif()
+if(NOT NW_BACKEND MATCHES "^(wgpu|dawn)$")
+  message(FATAL_ERROR "nitro_webgpu: unknown backend '${NW_BACKEND}' in ${NW_BACKEND_MARKER} — expected 'wgpu' or 'dawn'")
+endif()
+message(STATUS "nitro_webgpu backend: ${NW_BACKEND}")
+get_directory_property(NW_HAS_PARENT PARENT_DIRECTORY)
+if(NW_HAS_PARENT)
+  set(NW_BACKEND "${NW_BACKEND}" PARENT_SCOPE)
+endif()
+
 # --- wgpu-native (vendored by scripts/fetch_wgpu_native.sh) ------------------
 # Apple platforms link wgpu via the podspec/SwiftPM xcframework instead.
 set(WGPU_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/wgpu_native")
@@ -55,11 +76,47 @@ elseif(UNIX AND NOT APPLE)
 endif()
 
 if(NOT APPLE)
-  if(NOT EXISTS "${WGPU_LIB}")
-    message(FATAL_ERROR "nitro_webgpu: wgpu-native not vendored (missing ${WGPU_LIB}) — run scripts/fetch_wgpu_native.sh")
+  if(NW_BACKEND STREQUAL "dawn")
+    # Dawn staged by scripts/stage_dawn_<platform>.sh: shared headers under
+    # third_party/dawn/include, the monolithic library per target.
+    set(DAWN_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/dawn")
+    if(ANDROID)
+      set(DAWN_LIB "${DAWN_ROOT}/${WGPU_TARGET}/lib/libwebgpu_dawn.so")
+    elseif(WIN32)
+      set(DAWN_LIB "${DAWN_ROOT}/windows-x86_64/lib/webgpu_dawn.lib")
+    else()
+      set(DAWN_LIB "${DAWN_ROOT}/${WGPU_TARGET}/lib/libwebgpu_dawn.so")
+    endif()
+    if(NOT EXISTS "${DAWN_LIB}")
+      message(FATAL_ERROR "nitro_webgpu: Dawn not staged (missing ${DAWN_LIB}) — run the platform stage_dawn script or switch back with scripts/set_backend_android.sh wgpu")
+    endif()
+    target_compile_definitions(nitro_webgpu PRIVATE NITRO_WEBGPU_BACKEND_DAWN)
+    target_include_directories(nitro_webgpu PRIVATE "${DAWN_ROOT}/include")
+    target_link_libraries(nitro_webgpu PRIVATE "${DAWN_LIB}")
+    # glslang (GLSL→SPIR-V front end) when staged for this target.
+    set(GLSLANG_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/glslang")
+    if(ANDROID AND EXISTS "${GLSLANG_ROOT}/${WGPU_TARGET}/lib/libglslang.a")
+      target_compile_definitions(nitro_webgpu PRIVATE NITRO_WEBGPU_HAS_GLSLANG)
+      target_include_directories(nitro_webgpu PRIVATE "${GLSLANG_ROOT}/include")
+      file(GLOB GLSLANG_LIBS "${GLSLANG_ROOT}/${WGPU_TARGET}/lib/*.a")
+      target_link_libraries(nitro_webgpu PRIVATE
+        -Wl,--start-group ${GLSLANG_LIBS} -Wl,--end-group)
+    endif()
+    # Runtime library the platform layer must bundle with the app
+    # (Windows: the DLL next to the import lib; Linux/Android: the .so).
+    if(WIN32)
+      set(NW_DAWN_RUNTIME_LIB "${DAWN_ROOT}/windows-x86_64/lib/webgpu_dawn.dll"
+          PARENT_SCOPE)
+    elseif(NOT ANDROID)
+      set(NW_DAWN_RUNTIME_LIB "${DAWN_LIB}" PARENT_SCOPE)
+    endif()
+  else()
+    if(NOT EXISTS "${WGPU_LIB}")
+      message(FATAL_ERROR "nitro_webgpu: wgpu-native not vendored (missing ${WGPU_LIB}) — run scripts/fetch_wgpu_native.sh")
+    endif()
+    target_include_directories(nitro_webgpu PRIVATE "${WGPU_ROOT}/include")
+    target_link_libraries(nitro_webgpu PRIVATE "${WGPU_LIB}")
   endif()
-  target_include_directories(nitro_webgpu PRIVATE "${WGPU_ROOT}/include")
-  target_link_libraries(nitro_webgpu PRIVATE "${WGPU_LIB}")
   if(WIN32)
     target_link_libraries(nitro_webgpu PRIVATE
       d3dcompiler ws2_32 userenv bcrypt ntdll opengl32 Propsys RuntimeObject)

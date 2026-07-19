@@ -87,6 +87,32 @@ NWP_EXPORT void nwp_presenter_present(int64_t token);
 /// Raw WGPUTextureFormat of the render target (BGRA8Unorm).
 NWP_EXPORT int32_t nwp_presenter_format(int64_t token);
 
+/// 1 when the presenter drives a real WGPUSurface swapchain (zero-copy GPU
+/// path); 0 for ring/readback presenters — including the Android GL-backend
+/// fallback, which presents via CPU blit into the native window.
+NWP_EXPORT int32_t nwp_presenter_is_surface_mode(int64_t token);
+
+/// Zero-copy texture-import presentation (Dawn): per frame the core asks
+/// the shim for the destination — an IOSurfaceRef on Apple platforms, a
+/// DXGI shared HANDLE on Windows — imports it as a WGPUTexture (cached per
+/// handle), copies the ring slot into it on-GPU, and calls [presented]
+/// after the GPU work completed — the shim then publishes that frame to
+/// Flutter. Slot recycling is core-internal.
+typedef void* (*NwpImportAcquire)(int64_t token, int32_t width,
+                                  int32_t height, void* user);
+typedef void (*NwpImportPresented)(int64_t token, void* sharedHandle,
+                                   void* user);
+
+/// 1 when the device can import platform shared textures (Dawn with the
+/// platform SharedTextureMemory feature present on the device).
+NWP_EXPORT int32_t nwp_presenter_supports_texture_import(int64_t token);
+
+/// Selects the texture-import presentation path.
+NWP_EXPORT void nwp_presenter_set_import_ops(int64_t token,
+                                             NwpImportAcquire acquire,
+                                             NwpImportPresented presented,
+                                             void* user);
+
 /// Requests a resize; applied on the next acquire with a fully idle ring.
 NWP_EXPORT void nwp_presenter_resize(int64_t token, int32_t width,
                                      int32_t height);
