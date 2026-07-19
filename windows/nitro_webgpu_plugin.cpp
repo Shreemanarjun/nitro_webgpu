@@ -164,12 +164,11 @@ class WinDxgiTexture : public PresentTextureBase {
     return &visible_descriptor_;
   }
 
-  // d3d_->mutex held.
+  // d3d_->mutex held. Members read by FramePresented/ObtainDescriptor on
+  // other threads are only mutated under mutex_ — build into locals first.
+  // (The shared handle comes from legacy GetSharedHandle: it is NOT an NT
+  // handle and must never be CloseHandle'd.)
   bool Recreate(int32_t width, int32_t height) {
-    retired_ = shared_texture_;  // keep alive across an in-flight open
-    shared_texture_.Reset();
-    shared_handle_ = nullptr;
-
     D3D11_TEXTURE2D_DESC desc = {};
     desc.Width = static_cast<UINT>(width);
     desc.Height = static_cast<UINT>(height);
@@ -180,19 +179,23 @@ class WinDxgiTexture : public PresentTextureBase {
     desc.Usage = D3D11_USAGE_DEFAULT;
     desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
     desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
-    if (FAILED(d3d_->device->CreateTexture2D(&desc, nullptr,
-                                             shared_texture_.GetAddressOf()))) {
-      return false;
-    }
+    ComPtr<ID3D11Texture2D> texture;
+    HANDLE handle = nullptr;
     ComPtr<IDXGIResource> resource;
-    if (FAILED(shared_texture_.As(&resource)) ||
-        FAILED(resource->GetSharedHandle(&shared_handle_))) {
-      shared_texture_.Reset();
-      shared_handle_ = nullptr;
+    if (FAILED(d3d_->device->CreateTexture2D(&desc, nullptr,
+                                             texture.GetAddressOf())) ||
+        FAILED(texture.As(&resource)) ||
+        FAILED(resource->GetSharedHandle(&handle))) {
       return false;
     }
-    width_ = width;
-    height_ = height;
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      retired_ = shared_texture_;  // keep alive across an in-flight open
+      shared_texture_ = texture;
+      shared_handle_ = handle;
+      width_ = width;
+      height_ = height;
+    }
     return true;
   }
 
